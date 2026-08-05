@@ -789,7 +789,17 @@ def limpar_todas_as_missoes(driver):
             
             while True:
                 alvo, link_alvo = None, ""
-                cartoes = driver.find_elements(By.CSS_SELECTOR, "a.group\\/ctrl.rounded-cornerCardDefault[href]")
+                
+                # --- O ROLO COMPRESSOR DE SELETORES ---
+                # Pega as missões normais (Tailwind), links dentro de cards antigos e atividades extras
+                seletores = (
+                    "a[class*='group/ctrl'][href], "
+                    "div[class*='card'] a[href], "
+                    "mee-rewards-daily-set-item-content a[href], "
+                    "mee-rewards-more-activities-card-item a[href]"
+                )
+                cartoes = driver.find_elements(By.CSS_SELECTOR, seletores)
+                
                 for card in cartoes:
                     try:
                         if not card.is_displayed(): continue
@@ -809,7 +819,10 @@ def limpar_todas_as_missoes(driver):
                         
                         texto_card = card.text.lower()
                         html_card = card.get_attribute("innerHTML").lower()
-                        if "concluído" in texto_card or "completed" in texto_card or "bg-statussuccess" in html_card: continue
+                        
+                        # Verifica se o card já está concluído (Procura por texto e por ícones de Check verde antigos/novos)
+                        if "concluído" in texto_card or "completed" in texto_card or "bg-statussuccess" in html_card or "mee-icon-statuscirclecheckmark" in html_card or "mee-icon-skypecirclecheck" in html_card: 
+                            continue
                             
                         alvo, link_alvo = card, href
                         break 
@@ -1040,6 +1053,7 @@ def realizar_pesquisas(driver, num, banco):
 
 
 def fazer_pesquisa_visual(driver):
+    
     try:
         LOGGER(t['visual_init'], "info")
         
@@ -1047,12 +1061,12 @@ def fazer_pesquisa_visual(driver):
         driver.get("https://rewards.bing.com/dashboard")
         time.sleep(5)
         
-        # 2. Clica no card da Pesquisa Visual para abrir a barra lateral
+        # 2. Clica no card para abrir o Painel Lateral (Flyout)
         driver.execute_script("""
             let cards = document.querySelectorAll('div, a, span');
             for (let el of cards) {
                 let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                if (texto.includes('pesquisa visual') && (el.onclick || el.tagName === 'A' || el.getAttribute('role') === 'button')) {
+                if (texto.includes('pesquisa visual') && (el.onclick || el.tagName === 'A' || el.getAttribute('role') === 'button' || el.closest('.c-card'))) {
                     el.click();
                     break;
                 }
@@ -1060,70 +1074,87 @@ def fazer_pesquisa_visual(driver):
         """)
         time.sleep(4)
 
-        # 3. Clica no círculo de scanner dentro da barra lateral para ir para a página de pesquisa visual
+        # 3. O BYPASS DE ABAS: Navega com os parâmetros oficiais de tracking
         driver.execute_script("""
-            let alvoScanner = document.querySelector('.vs_cont svg, #vs_cont, [class*="vs"], [aria-label*="Visual"], [aria-label*="visual"], div[class*="medallion"], div[class*="scanner"]');
-            if (alvoScanner) { alvoScanner.click(); }
-        """)
-        time.sleep(6) 
-        
-        # Fallback de segurança: Se o clique não redirecionou, força a rota direta
-        if "rewards.bing.com" in driver.current_url:
-            driver.get("https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES")
-            time.sleep(5)
-
-        # 4. Verifica se o modal já está aberto; se não estiver, clica na câmera
-        driver.execute_script("""
-            let modal = document.getElementById('sb_sbidialog');
-            let campo = document.getElementById('sb_imgpst');
-            // Se o painel estiver escondido, aperta o botão da câmera na barra de busca
-            if (!modal || modal.style.display === 'none' || modal.getAttribute('aria-hidden') === 'true' || !campo) {
-                let camBtn = document.querySelector('#sbi_b, [aria-label*="Visual"], [aria-label*="visual"], .sbi_b');
-                if (camBtn) { camBtn.click(); }
+            let link = document.querySelector('a[href*="vsstreak"]');
+            if (link) {
+                window.location.href = link.href;
+            } else {
+                window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES";
             }
         """)
-        time.sleep(3)
+        time.sleep(7)
 
-        # 5. Gera uma URL de imagem aleatória
+        # 4. Gera uma URL de imagem aleatória da API
         semente = random.randint(1, 100000)
         url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
         
-        # 6. Injeta a URL diretamente via JavaScript (Bypassa bloqueios de visibilidade do Selenium)
+        # 5. Injeção JS (Com Eventos Reais de Mouse e Checagem Física)
         sucesso_injecao = driver.execute_script("""
-            let input1 = document.getElementById('sb_imgpst'); // Campo visual
-            let input2 = document.getElementById('sb_sbi_ipt'); // Formulário oculto
+            let imgUrl = arguments[0];
             
-            let inputReal = input1 || input2;
-            
-            if(inputReal) {
-                // Cola o link no campo de forma instantânea
-                inputReal.value = arguments[0];
+            return new Promise((resolve) => {
+                let tentativas = 0;
                 
-                // Dispara os eventos de digitação para o Bing achar que você digitou
-                inputReal.dispatchEvent(new Event('input', { bubbles: true }));
-                inputReal.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                // Simula a tecla Enter física
-                let enterEvent = new KeyboardEvent('keydown', {
-                    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
-                });
-                inputReal.dispatchEvent(enterEvent);
-                
-                // Fallback matador: clica no botão oculto de enviar da Microsoft se o Enter falhar
-                let submitBtn = document.getElementById('sb_sbi_gh');
-                if(submitBtn) { submitBtn.click(); }
-                
-                return true;
-            }
-            return false;
+                let verificador = setInterval(() => {
+                    tentativas++;
+                    
+                    let inputReal = document.getElementById('sb_imgpst');
+                    
+                    // O SEGREDO 1: Só tenta colar se o input existir e for fisicamente visível na tela (animação terminou)
+                    let isVisivel = inputReal && inputReal.offsetWidth > 0 && inputReal.offsetHeight > 0;
+                    
+                    if (isVisivel) {
+                        clearInterval(verificador);
+                        
+                        // Injeta o link no núcleo do elemento
+                        let nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                        if(nativeSetter) { nativeSetter.call(inputReal, imgUrl); }
+                        else { inputReal.value = imgUrl; }
+                        
+                        inputReal.dispatchEvent(new Event('input', { bubbles: true }));
+                        inputReal.dispatchEvent(new Event('change', { bubbles: true }));
+                        
+                        // Aperta Enter
+                        let enterEvent = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});
+                        inputReal.dispatchEvent(enterEvent);
+                        
+                        resolve("dom_success");
+                        
+                    } else {
+                        // O SEGREDO 2: Simula um clique "humano" no botão da câmera usando MouseEvents reais
+                        let camDiv = document.getElementById('sb_sbi');
+                        let camImg = document.getElementById('sbi_b');
+                        let alvo = camImg || camDiv;
+                        
+                        if (alvo) {
+                            alvo.click(); // Clique normal
+                            // Cliques profundos para burlar bloqueios do React/VanillaJS
+                            alvo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+                            alvo.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+                        }
+                        
+                        // Plano C: Bypassing absoluto COM a Tag de Tracking após 10 segundos
+                        if (tentativas >= 20) { 
+                            clearInterval(verificador);
+                            // Adicionamos a tag "FORM=SBIHMP" e "&features=vsstreak" para garantir o tracking
+                            window.location.href = "https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:" + encodeURIComponent(imgUrl) + "&features=vsstreak";
+                            resolve("redirect_success");
+                        }
+                    }
+                }, 500);
+            });
         """, url_imagem_aleatoria)
         
-        if sucesso_injecao:
-            LOGGER(t['visual_img_ok'].format(url_imagem_aleatoria), "info")
-            time.sleep(8) # Aguarda a Microsoft analisar a imagem da API
-            LOGGER(t['visual_ok'], "success")
-        else:
-            LOGGER(t['visual_erro_campo'], "warning")
+        if sucesso_injecao == "redirect_success":
+            LOGGER("[BING] UI travada ou lenta. Roteamento alternativo (com tracking) forçado.", "warning")
+            
+        LOGGER(t['visual_img_ok'].format(url_imagem_aleatoria), "info")
+        time.sleep(12) # Aguarda a Microsoft processar a imagem e validar os pontos
+
+        # 6. Retorna em segurança para o painel principal
+        driver.get("https://rewards.bing.com/dashboard")
+        LOGGER(t['visual_ok'], "success")
 
     except Exception as e:
         LOGGER(t['visual_erro_fatal'].format(str(e)[:80]), "error")
@@ -1540,8 +1571,8 @@ def iniciar_ciclo_farm():
         enviar_notificacao(alerta_sos)
     
 def registrar_data_execucao(modulo):
-    arquivo = BASE_DIR / "Time_Exe.json"
-    hoje = datetime.now().strftime("%d/%m/%Y") # <-- CORRIGIDO AQUI
+    arquivo = BASE_DIR / "Exe.json"
+    hoje = datetime.now().strftime("%d/%m/%Y")
     dados = {}
     if arquivo.exists():
         with open(arquivo, 'r', encoding='utf-8') as f:
