@@ -1555,7 +1555,7 @@ def registrar_data_execucao(modulo):
         json.dump(dados, f, indent=4)
 
 def verificar_se_rodou_hoje(modulo, dias_cooldown=0):
-    arquivo = BASE_DIR / "Time_Exe.json"
+    arquivo = BASE_DIR / "Exe.json"
     if not arquivo.exists(): return False
     
     with open(arquivo, 'r', encoding='utf-8') as f:
