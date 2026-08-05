@@ -1,0 +1,1 @@
+python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus v2.0" --icon="rewards.ico" --version-file="version.txt" AppGUI.py
