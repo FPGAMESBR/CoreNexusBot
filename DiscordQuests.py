@@ -412,7 +412,7 @@ def iniciar_farm_discord():
     
     d_msgs = {
         "en": {
-            "cooldown": "[DISCORD] Cooldown active (runs every 3 days). Skipping for now.",
+            "cooldown": "[DISCORD] Cooldown active (runs every {} days). Skipping for now.",
             "start_native": "[DISCORD] >>> STARTING NATIVE APP MODULE <<<",
             "not_found": "[DISCORD] ERROR: Application not found.",
             "stealth_on": "[DISCORD] Stealth Mode is ON. Starting minimized to tray...",
@@ -434,7 +434,7 @@ def iniciar_farm_discord():
             "closed_ok": "[DISCORD] App process closed successfully."
         },
         "pt": {
-            "cooldown": "[DISCORD] Cooldown ativo (roda a cada 3 dias). Pulando por enquanto.",
+            "cooldown": "[DISCORD] Cooldown ativo (roda a cada {} dias). Pulando por enquanto.",
             "start_native": "[DISCORD] >>> INICIANDO MÓDULO DO APP NATIVO <<<",
             "not_found": "[DISCORD] ERRO: Aplicativo não encontrado.",
             "stealth_on": "[DISCORD] Modo Furtivo ATIVADO. Iniciando minimizado na bandeja...",
@@ -464,7 +464,7 @@ def iniciar_farm_discord():
         return
 
     if RewardsCore.verificar_se_rodou_hoje("discord", dias_cooldown=cooldown_dias):
-        RewardsCore.LOGGER(d_msgs[lang]["cooldown"])
+        RewardsCore.LOGGER(d_msgs[lang]["cooldown"].format(cooldown_dias))
         return
 
     RewardsCore.LOGGER(d_msgs[lang]["start_native"])

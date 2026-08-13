@@ -14,7 +14,7 @@ import RewardsCore
 import DiscordQuests
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v2.1"
+APP_VERSION = "v2.2"
 APP_CODENAME = "Stealth Architecture"
 
 HTML_INTERFACE = """
@@ -314,8 +314,8 @@ HTML_INTERFACE = """
                             <h3 id="update-title">O que há de novo na [APP_VERSION]</h3>
                             <p>
                                <span id="update-1">✨ Interface 'Stealth' reformulada com animações dinâmicas.</span><br>
-                               <span id="update-2">⚙️ Novo Motor Bing Star Engine.</span><br>
-                               <span id="update-3">🔥 Rotina Dinâmica de Pesquisa Visual.</span>
+                               <span id="update-2">⚙️ Fila de Entropia Comportamental (Modo Caos & Café).</span><br>
+                               <span id="update-3">🔥 Camuflagem de OS (Discord) e Bypass de Interface.</span>
                             </p>
                         </div>
                         <a href="https://github.com/FPGAMESBR/CoreNexusBot" target="_blank" class="github-btn">
@@ -425,8 +425,8 @@ HTML_INTERFACE = """
             "en": {
                 title: "What's new in [APP_VERSION]",
                 item1: "✨ Redesigned 'Stealth' interface with dynamic animations.",
-                item2: "⚙️ New Bing Star Engine.",
-                item3: "🔥 Dynamic Visual Search Routine.",
+                item2: "⚙️ Behavioral Entropy Queue & Organic 'Coffee Mode'.",
+                item3: "🔥 OS Forging (Discord) & Aggressive UI Bypass.",
                 btnGit: "View on GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
@@ -436,8 +436,8 @@ HTML_INTERFACE = """
             "pt": {
                 title: "O que há de novo na [APP_VERSION]",
                 item1: "✨ Interface 'Stealth' reformulada com animações dinâmicas.",
-                item2: "⚙️ Novo Motor Bing Star Engine.",
-                item3: "🔥 Rotina Dinâmica de Pesquisa Visual.",
+                item2: "⚙️ Fila de Entropia Comportamental (Modo Caos & Café).",
+                item3: "🔥 Camuflagem de OS (Discord) e Bypass de Interface.",
                 btnGit: "Ver no GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",

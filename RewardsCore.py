@@ -585,7 +585,6 @@ def wait_human(min_s=3.0, max_s=8.0, long_pause_chance=0.15):
         time.sleep(random.uniform(min_s, max_s))
 
 def ghost_click(driver, elemento, cliques=1):
-    """Clica com desvio aleatório para evitar padrão de pixel perfeito"""
     actions = ActionChains(driver)
     x_offset = random.randint(-5, 5)
     y_offset = random.randint(-5, 5)
@@ -776,71 +775,72 @@ def limpar_todas_as_missoes(driver):
     LOGGER(f"\n{t['verificando_paineis']}")
     paginas_para_limpar = ["https://rewards.bing.com/dashboard", "https://rewards.bing.com/earn"]
     missoes_feitas = 0
-    links_visitados = set() 
+    links_visitados = [] 
     
     for pagina in paginas_para_limpar:
         LOGGER(f"\n{t['analisando_pagina'].format(pagina)}")
         try:
             driver.get(pagina)
-            time.sleep(random.uniform(5.0, 8.0)) 
+            try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+            except: pass
+            time.sleep(random.uniform(6.0, 9.0)) 
+            
             if verificar_conta_suspensa(driver, "Perfil Atual"):
                 break
             principal = driver.current_window_handle
             
             while True:
-                alvo, link_alvo = None, ""
-                
-                # --- O ROLO COMPRESSOR DE SELETORES ---
-                # Pega as missões normais (Tailwind), links dentro de cards antigos e atividades extras
-                seletores = (
-                    "a[class*='group/ctrl'][href], "
-                    "div[class*='card'] a[href], "
-                    "mee-rewards-daily-set-item-content a[href], "
-                    "mee-rewards-more-activities-card-item a[href]"
-                )
-                cartoes = driver.find_elements(By.CSS_SELECTOR, seletores)
-                
-                for card in cartoes:
-                    try:
-                        if not card.is_displayed(): continue
-                        href = card.get_attribute("href")
-                        if not href or href in links_visitados: continue
-                        url_lower = href.lower()
+                alvo_info = driver.execute_script("""
+                    let visitados = arguments[0];
+                    let cards = document.querySelectorAll('mee-rewards-daily-set-item-content, mee-rewards-more-activities-card-item, .c-card, a[class*="group/ctrl"]');
+                    
+                    for (let card of cards) {
+                        let texto = card.innerText ? card.innerText.toLowerCase() : '';
+                        let html = card.innerHTML ? card.innerHTML.toLowerCase() : '';
                         
-                        # --- LISTA DE EXCLUSÃO ATUALIZADA ---
-                        ignorar = [
-                            '/redeem', '/about', '/badges', '/status', '/history', 
-                            '/dashboard', '/earn', '/refer', '/welcome', 'rwgbopen=1', 
-                            'microsoft.com/edge', 'xbox.com',
-                            'bingapp.microsoft.com', # Bloqueia a missão de Check-in Mobile
-                            'vsstreak'               # Bloqueia a missão Visual (tratada separadamente)
-                        ]
-                        if any(ign in url_lower for ign in ignorar): continue 
+                        // Se qualquer parte do container tiver a tag de concluído, ignora!
+                        if (texto.includes("concluído") || texto.includes("completed") || 
+                            html.includes("bg-statussuccess") || html.includes("mee-icon-statuscirclecheckmark") || 
+                            html.includes("mee-icon-skypecirclecheck") || html.includes('✓')) {
+                            continue;
+                        }
                         
-                        texto_card = card.text.lower()
-                        html_card = card.get_attribute("innerHTML").lower()
-                        
-                        # Verifica se o card já está concluído (Procura por texto e por ícones de Check verde antigos/novos)
-                        if "concluído" in texto_card or "completed" in texto_card or "bg-statussuccess" in html_card or "mee-icon-statuscirclecheckmark" in html_card or "mee-icon-skypecirclecheck" in html_card: 
-                            continue
+                        let linkNode = card.tagName === 'A' ? card : card.querySelector('a[href]');
+                        if (linkNode && linkNode.href) {
+                            let href = linkNode.href;
+                            let hrefLower = href.toLowerCase();
                             
-                        alvo, link_alvo = card, href
-                        break 
-                    except Exception: continue
+                            // Bloqueio de links de interface e navegação
+                            let ign = ['/redeem', '/about', '/badges', '/status', '/history', '/dashboard', '/earn', '/refer', '/welcome', 'rwgbopen=1', 'microsoft.com/edge', 'xbox.com', 'bingapp.microsoft.com', 'vsstreak'];
+                            if (ign.some(i => hrefLower.includes(i))) continue;
+                            
+                            // Se achou uma missão válida e não visitada, retorna o Node e a String!
+                            if (!visitados.includes(href)) {
+                                return [linkNode, href];
+                            }
+                        }
+                    }
+                    return null;
+                """, links_visitados)
                 
-                if not alvo: 
+                if not alvo_info: 
                     LOGGER(t['painel_limpo'])
                     break
                 
-                links_visitados.add(link_alvo)
+                alvo_elemento = alvo_info[0]
+                link_alvo = alvo_info[1]
+                
+                links_visitados.append(link_alvo)
                 LOGGER(t['clicando_missao'].format(missoes_feitas + 1))
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", alvo)
+                
+                # Rola até o elemento e clica com delay
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", alvo_elemento)
                 wait_human(1.0, 2.5, long_pause_chance=0.0)
                 
                 janelas_antes = driver.window_handles
-                driver.execute_script("arguments[0].click();", alvo)
+                driver.execute_script("arguments[0].click();", alvo_elemento)
                 
-                try: WebDriverWait(driver, 5).until(EC.new_window_is_opened(janelas_antes))
+                try: WebDriverWait(driver, 6).until(EC.new_window_is_opened(janelas_antes))
                 except TimeoutException: pass
                 
                 janelas_depois = driver.window_handles
@@ -856,7 +856,7 @@ def limpar_todas_as_missoes(driver):
                     
                 missoes_feitas += 1
         except Exception as e:
-            LOGGER(t['erro_pagina'].format(e))
+            LOGGER(t['erro_pagina'].format(str(e)[:80]))
             
     LOGGER(f"\n{t['total_missoes'].format(missoes_feitas)}")
 
@@ -1053,15 +1053,16 @@ def realizar_pesquisas(driver, num, banco):
 
 
 def fazer_pesquisa_visual(driver):
-    
     try:
         LOGGER(t['visual_init'], "info")
         
-        # 1. Garante que está no painel de controle do Rewards
         driver.get("https://rewards.bing.com/dashboard")
-        time.sleep(5)
         
-        # 2. Clica no card para abrir o Painel Lateral (Flyout)
+        # CHECAGEM DE STARTUP: Força o código a esperar o navegador renderizar a página
+        try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+        except: pass
+        time.sleep(8) 
+        
         driver.execute_script("""
             let cards = document.querySelectorAll('div, a, span');
             for (let el of cards) {
@@ -1072,42 +1073,34 @@ def fazer_pesquisa_visual(driver):
                 }
             }
         """)
-        time.sleep(4)
+        time.sleep(6) # Delay ampliado para o menu lateral abrir em PCs lentos
 
-        # 3. O BYPASS DE ABAS: Navega com os parâmetros oficiais de tracking
         driver.execute_script("""
             let link = document.querySelector('a[href*="vsstreak"]');
-            if (link) {
-                window.location.href = link.href;
-            } else {
-                window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES";
-            }
+            if (link) { window.location.href = link.href; } 
+            else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
         """)
-        time.sleep(7)
+        
+        # CHECAGEM DE STARTUP 2: Aguarda o motor do Bing.com acordar
+        try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+        except: pass
+        time.sleep(8) 
 
-        # 4. Gera uma URL de imagem aleatória da API
         semente = random.randint(1, 100000)
         url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
         
-        # 5. Injeção JS (Com Eventos Reais de Mouse e Checagem Física)
         sucesso_injecao = driver.execute_script("""
             let imgUrl = arguments[0];
-            
             return new Promise((resolve) => {
                 let tentativas = 0;
-                
                 let verificador = setInterval(() => {
                     tentativas++;
                     
                     let inputReal = document.getElementById('sb_imgpst');
-                    
-                    // O SEGREDO 1: Só tenta colar se o input existir e for fisicamente visível na tela (animação terminou)
                     let isVisivel = inputReal && inputReal.offsetWidth > 0 && inputReal.offsetHeight > 0;
                     
                     if (isVisivel) {
                         clearInterval(verificador);
-                        
-                        // Injeta o link no núcleo do elemento
                         let nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
                         if(nativeSetter) { nativeSetter.call(inputReal, imgUrl); }
                         else { inputReal.value = imgUrl; }
@@ -1115,29 +1108,24 @@ def fazer_pesquisa_visual(driver):
                         inputReal.dispatchEvent(new Event('input', { bubbles: true }));
                         inputReal.dispatchEvent(new Event('change', { bubbles: true }));
                         
-                        // Aperta Enter
                         let enterEvent = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});
                         inputReal.dispatchEvent(enterEvent);
-                        
                         resolve("dom_success");
                         
                     } else {
-                        // O SEGREDO 2: Simula um clique "humano" no botão da câmera usando MouseEvents reais
                         let camDiv = document.getElementById('sb_sbi');
                         let camImg = document.getElementById('sbi_b');
                         let alvo = camImg || camDiv;
                         
                         if (alvo) {
-                            alvo.click(); // Clique normal
-                            // Cliques profundos para burlar bloqueios do React/VanillaJS
+                            alvo.click();
                             alvo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
                             alvo.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
                         }
                         
-                        // Plano C: Bypassing absoluto COM a Tag de Tracking após 10 segundos
-                        if (tentativas >= 20) { 
+                        // PACIÊNCIA EXTENDIDA: Aguarda até 15 segundos (30 tentativas) pelo popup no Startup
+                        if (tentativas >= 30) { 
                             clearInterval(verificador);
-                            // Adicionamos a tag "FORM=SBIHMP" e "&features=vsstreak" para garantir o tracking
                             window.location.href = "https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:" + encodeURIComponent(imgUrl) + "&features=vsstreak";
                             resolve("redirect_success");
                         }
@@ -1147,12 +1135,11 @@ def fazer_pesquisa_visual(driver):
         """, url_imagem_aleatoria)
         
         if sucesso_injecao == "redirect_success":
-            LOGGER("[BING] UI travada ou lenta. Roteamento alternativo (com tracking) forçado.", "warning")
+            LOGGER("[BING] UI travada pelo lag do PC. Roteamento alternativo (com tracking) forçado.", "warning")
             
         LOGGER(t['visual_img_ok'].format(url_imagem_aleatoria), "info")
-        time.sleep(12) # Aguarda a Microsoft processar a imagem e validar os pontos
+        time.sleep(12)
 
-        # 6. Retorna em segurança para o painel principal
         driver.get("https://rewards.bing.com/dashboard")
         LOGGER(t['visual_ok'], "success")
 

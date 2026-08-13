@@ -48,8 +48,8 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
             
             termo_base = amostra[i]
             termo_final = gerar_termo_humanizado([termo_base], idioma=RewardsCore.IDIOMA_GLOBAL)
-            # LOG TRADUZIDO
-            LOGGER(t['star_pesquisa'].format(i+1, qtd, tipo_device.upper(), termo_final))
+            # LOG TRADUZIDO E ADAPTADO
+            LOGGER(f"   [STAR ENGINE] ({i+1}/{qtd}) [{tipo_device.upper()}] {termo_final}")
             salvar_historico(termo_base)
             
             # Ghost Click com erro humano
@@ -117,106 +117,173 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
             wait_human(3.0, 6.0, long_pause_chance=0.0)
 
 
-def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
+def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
     """
-    Máquina de Estados que lê o contador unificado de 60 pontos (20 pesquisas)
-    e espalha elas organicamente usando a tática de checkpoint.
+    Abre sites populares para gerar tráfego orgânico e cookies não relacionados à Microsoft,
+    mantendo a janela ativa por muito tempo
     """
-    LOGGER("==============================================")
-    LOGGER(t['star_init'].format(nome_perfil))
-    LOGGER("==============================================")
-    
-    # ---------------------------------------------------------
-    # ETAPA 1: Aquecimento PC, Dashboard e Leitura do Limite Único
-    # ---------------------------------------------------------
-    LOGGER(t['star_etapa1'])
-    d_pc = None
-    pesquisas_restantes = 0
+    LOGGER("\n[STAR ENGINE] ☕ INICIANDO O MODO CAFÉ (Navegação Orgânica Ociosa)...", "warning")
+    d_cafe = None
     try:
         identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
-        d_pc = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
+        d_cafe = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
         
-        # --- DEFESA FAIL-FAST ADICIONADA AQUI ---
-        d_pc.get("https://rewards.bing.com/")
-        time.sleep(4)
-        if RewardsCore.verificar_conta_suspensa(d_pc, nome_perfil):
-            return # Aborta o Star Engine na mesma hora se estiver banido!
-        # ----------------------------------------
+        sites_organicos = [
+            "https://www.youtube.com/feed/trending",
+            "https://www.reddit.com/",
+            "https://x.com/explore",
+            "https://pt.wikipedia.org/wiki/Especial:Aleatória",
+            "https://edition.cnn.com/"
+        ]
+        site_escolhido = random.choice(sites_organicos)
+        LOGGER(f"   [CAFE] Acessando '{site_escolhido}' para gerar tráfego fantasma...", "info")
+        d_cafe.get(site_escolhido)
         
-        if cfg.get('fazer_tarefas', 'n') == 's': 
-            RewardsCore.limpar_todas_as_missoes(d_pc)
-            RewardsCore.fazer_pesquisa_visual(d_pc)
+        # Define a pausa entre 35 e 65 minutos
+        minutos = random.randint(35, 65)
+        LOGGER(f"   [CAFE] Tempo estimado do descanso: {minutos} minutos.", "info")
+        
+        # A cada 5 minutos, ele dá um scroll aleatório na página para simular que você está lendo/assistindo
+        ciclos = minutos // 5
+        for i in range(ciclos):
+            if RewardsCore.ABORTAR_PROCESSO: break
+            time.sleep(5 * 60) # Dorme por 5 minutos
+            try:
+                LOGGER(f"   [CAFE] Status: Assistindo/Lendo... ({i+1}/{ciclos})", "info")
+                d_cafe.execute_script("window.scrollBy(0, Math.random() * 800 + 200);")
+            except: pass
             
-        # Lê o limite exato unificado direto da Microsoft (A mágica do Checkpoint!)
-        pesquisas_restantes = RewardsCore.verificar_pesquisas_restantes(d_pc, 'pc')
+    except Exception as e:
+        LOGGER(f"[STAR ENGINE] [X] Erro no Modo Café: {e}", "error")
+    finally:
+        if d_cafe: d_cafe.quit()
+
+
+def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
+    """
+    Máquina de Estados Dinâmica: Monta uma fila de eventos de forma totalmente randômica.
+    O bot avalia o saldo em tempo real antes de cada bloco de pesquisa para evitar over-farming.
+    """
+    LOGGER("======================================================")
+    LOGGER(f"\n>>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
+    LOGGER("======================================================")
+    
+    # ---------------------------------------------------------
+    # MONTAGEM DA "RODA DO CAOS" (Pool de Tarefas)
+    # ---------------------------------------------------------
+    acoes = []
+    
+    if cfg.get('fazer_tarefas', 'n') == 's':
+        acoes.append("TAREFAS_DASHBOARD")
         
-        if pesquisas_restantes > 0:
-            # Pega entre 30% e 45% do que falta para fazer no PC agora
-            pc_bloco_1 = random.randint(int(pesquisas_restantes * 0.30), int(pesquisas_restantes * 0.45))
-            if pc_bloco_1 > 0:
-                _fazer_lote_pesquisas(d_pc, pc_bloco_1, banco, "pc")
-                pesquisas_restantes -= pc_bloco_1
+    # Dividimos o farm do PC em 2 metades (para espalhar as pesquisas)
+    if cfg.get('limite_pc', 0) > 0:
+        acoes.extend(["PC_CHUNK", "PC_CHUNK"])
+        
+    # Dividimos o farm do Celular em 2 metades
+    if cfg.get('limite_mobile', 0) > 0:
+        acoes.extend(["MOB_CHUNK", "MOB_CHUNK"])
+        
+    # A Pausa Orgânica para não parecer um robô
+    acoes.append("MODO_CAFE")
+    
+    # Embaralha tudo de forma orgânica
+    random.shuffle(acoes)
+    
+    # Regra de Segurança: Impede que o "Modo Café" seja a última ação da lista
+    # (Para garantir que o bot termine o ciclo pesquisando ou abrindo o painel para o Bing registrar)
+    if acoes[-1] == "MODO_CAFE":
+        acoes[-1], acoes[0] = acoes[0], acoes[-1]
+
+    # Contadores para sabermos se devemos fazer 'metade' ou 'tudo' do que falta
+    pc_chunks_restantes = acoes.count("PC_CHUNK")
+    mob_chunks_restantes = acoes.count("MOB_CHUNK")
+
+    # ---------------------------------------------------------
+    # EXECUÇÃO DINÂMICA DA FILA
+    # ---------------------------------------------------------
+    for i, acao in enumerate(acoes):
+        if RewardsCore.ABORTAR_PROCESSO: break
+        
+        LOGGER(f"\n[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
+        
+        if acao == "TAREFAS_DASHBOARD":
+            d_task = None
+            try:
+                identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
+                d_task = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
                 
-    except Exception as e:
-        LOGGER(t['star_falha1'].format(e), "error")
-    finally:
-        if d_pc: d_pc.quit()
-
-    if RewardsCore.ABORTAR_PROCESSO or pesquisas_restantes <= 0: return
-
-    # ---------------------------------------------------------
-    # ETAPA 2: Foco Parcial no Celular
-    # ---------------------------------------------------------
-    LOGGER(t['star_etapa2'].format(pesquisas_restantes))
-    time.sleep(random.uniform(15.0, 30.0)) 
-    
-    d_mob = None
-    try:
-        identidade_mob = RewardsCore.obter_fingerprint(nome_perfil, 'mobile')
-        d_mob = RewardsCore.configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
-        
-        # Pega metade do que sobrou pra fazer no celular
-        mob_bloco = random.randint(int(pesquisas_restantes * 0.40), int(pesquisas_restantes * 0.60))
-        if mob_bloco > 0:
-            _fazer_lote_pesquisas(d_mob, mob_bloco, banco, "mobile")
-            pesquisas_restantes -= mob_bloco
-            
-    except Exception as e:
-        LOGGER(t['star_falha2'].format(e), "error")
-    finally:
-        if d_mob: d_mob.quit()
-
-    if RewardsCore.ABORTAR_PROCESSO or pesquisas_restantes <= 0: return
-
-    # ---------------------------------------------------------
-    # ETAPA 3: A Pausa do Café (Pulo do Gato)
-    # ---------------------------------------------------------
-    pausa_minutos = random.randint(35, 65)
-    LOGGER(t['star_etapa3'].format(pausa_minutos), "warning")
-    
-    segundos_totais = pausa_minutos * 60
-    passos = 10
-    for i in range(passos):
-        if RewardsCore.ABORTAR_PROCESSO: return
-        time.sleep(segundos_totais / passos)
-
-    # ---------------------------------------------------------
-    # ETAPA 4: Volta ao PC para Liquidar o Saldo
-    # ---------------------------------------------------------
-    LOGGER(t['star_etapa4'])
-    d_pc2 = None
-    try:
-        d_pc2 = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
-        
-        # Faz a leitura do painel NOVAMENTE pra ter certeza que não vai extrapolar o limite real
-        faltam_real = RewardsCore.verificar_pesquisas_restantes(d_pc2, 'pc')
-        if faltam_real > 0:
-            _fazer_lote_pesquisas(d_pc2, faltam_real, banco, "pc")
-            
-    except Exception as e:
-        LOGGER(t['star_falha4'].format(e), "error")
-    finally:
-        if d_pc2: d_pc2.quit()
+                d_task.get("https://rewards.bing.com/")
+                time.sleep(5)
+                
+                # Defesa Fail-Fast nativa
+                if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil):
+                    return 
+                    
+                RewardsCore.limpar_todas_as_missoes(d_task)
+                RewardsCore.fazer_pesquisa_visual(d_task)
+            except Exception as e:
+                LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
+            finally:
+                if d_task: d_task.quit()
+                
+        elif acao == "PC_CHUNK":
+            d_pc = None
+            try:
+                identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
+                d_pc = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
+                
+                # O segredo: Avalia o saldo a cada bloco, nunca faz de forma cega!
+                faltam = RewardsCore.verificar_pesquisas_restantes(d_pc, 'pc')
+                
+                if faltam > 0:
+                    if pc_chunks_restantes > 1:
+                        # Se ainda tem outro bloco de PC na fila, faz só de 40% a 60% do que falta
+                        qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6))
+                    else:
+                        # Se é o último bloco de PC na fila, tenta zerar o saldo
+                        qtd = faltam
+                        
+                    if qtd > 0:
+                        _fazer_lote_pesquisas(d_pc, qtd, banco, "pc")
+                else:
+                    LOGGER("   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.", "success")
+                        
+                pc_chunks_restantes -= 1
+            except Exception as e:
+                LOGGER(f"[STAR ENGINE] Falha no Bloco PC: {e}", "error")
+            finally:
+                if d_pc: d_pc.quit()
+                
+        elif acao == "MOB_CHUNK":
+            d_mob = None
+            try:
+                identidade_mob = RewardsCore.obter_fingerprint(nome_perfil, 'mobile')
+                d_mob = RewardsCore.configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
+                
+                faltam = RewardsCore.verificar_pesquisas_restantes(d_mob, 'mobile')
+                # Fallback de segurança se falhar a leitura
+                if faltam == -1: faltam = cfg.get('limite_mobile', 20)
+                    
+                if faltam > 0:
+                    if mob_chunks_restantes > 1:
+                        qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6))
+                    else:
+                        qtd = faltam
+                        
+                    if qtd > 0:
+                        _fazer_lote_pesquisas(d_mob, qtd, banco, "mobile")
+                else:
+                    LOGGER("   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco.", "success")
+                        
+                mob_chunks_restantes -= 1
+            except Exception as e:
+                LOGGER(f"[STAR ENGINE] Falha no Bloco Mobile: {e}", "error")
+            finally:
+                if d_mob: d_mob.quit()
+                
+        elif acao == "MODO_CAFE":
+            _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)
 
     hora_atual = time.strftime("%H:%M:%S")
-    LOGGER(t['star_sucesso'].format(nome_perfil, hora_atual), "success")
+    LOGGER(f"\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")
