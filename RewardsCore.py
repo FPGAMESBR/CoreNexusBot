@@ -775,12 +775,13 @@ def limpar_todas_as_missoes(driver):
     LOGGER(f"\n{t['verificando_paineis']}")
     paginas_para_limpar = ["https://rewards.bing.com/dashboard", "https://rewards.bing.com/earn"]
     missoes_feitas = 0
-    links_visitados = [] 
+    links_visitados = []
     
     for pagina in paginas_para_limpar:
         LOGGER(f"\n{t['analisando_pagina'].format(pagina)}")
         try:
             driver.get(pagina)
+            # Aguarda a página carregar completamente (Essencial para o Startup)
             try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
             except: pass
             time.sleep(random.uniform(6.0, 9.0)) 
@@ -792,32 +793,40 @@ def limpar_todas_as_missoes(driver):
             while True:
                 alvo_info = driver.execute_script("""
                     let visitados = arguments[0];
-                    let cards = document.querySelectorAll('mee-rewards-daily-set-item-content, mee-rewards-more-activities-card-item, .c-card, a[class*="group/ctrl"]');
+                    let links = document.querySelectorAll('a[href]');
                     
-                    for (let card of cards) {
-                        let texto = card.innerText ? card.innerText.toLowerCase() : '';
-                        let html = card.innerHTML ? card.innerHTML.toLowerCase() : '';
+                    for (let link of links) {
+                        let href = link.href;
+                        let hrefLower = href.toLowerCase();
                         
-                        // Se qualquer parte do container tiver a tag de concluído, ignora!
-                        if (texto.includes("concluído") || texto.includes("completed") || 
-                            html.includes("bg-statussuccess") || html.includes("mee-icon-statuscirclecheckmark") || 
-                            html.includes("mee-icon-skypecirclecheck") || html.includes('✓')) {
+                        // 1. ZONA DE EXCLUSÃO: Ignora Header, Footer e seções que não dão pontos
+                        if (link.closest('header, footer, nav, #redeem, #snapshot, #achievements, #streaks, #welcome')) {
                             continue;
                         }
                         
-                        let linkNode = card.tagName === 'A' ? card : card.querySelector('a[href]');
-                        if (linkNode && linkNode.href) {
-                            let href = linkNode.href;
-                            let hrefLower = href.toLowerCase();
+                        // 2. Bloqueio extra de URLs sensíveis e de navegação externa
+                        let ign = ['/redeem', '/about', '/badges', '/status', '/history', '/dashboard', '/earn', '/refer', 'rwgbopen=1', 'microsoft.com/edge', 'xbox.com', 'bingapp.microsoft.com', 'vsstreak', 'support.microsoft.com', 'go.microsoft.com', 'choice.microsoft.com'];
+                        if (ign.some(i => hrefLower.includes(i))) continue;
+                        
+                        // 3. Verifica se a missão já foi concluída (Caça aos Sinais da Nova UI Tailwind)
+                        let html = link.innerHTML.toLowerCase();
+                        let text = link.innerText ? link.innerText.toLowerCase() : '';
+                        
+                        let isCompleted = 
+                            text.includes("concluído") || 
+                            text.includes("completed") || 
+                            html.includes("bg-statussuccess") || 
+                            html.includes("text-statussuccesstintfg") || // <--- Nova classe do Checkmark Verde
+                            html.includes("mee-icon-statuscirclecheckmark") || 
+                            html.includes("mee-icon-skypecirclecheck") || 
+                            html.includes("✓") || 
+                            html.includes("10 10s-4.477 10-10 10s2 17.523"); // <--- Path SVG do Checkmark Verde
                             
-                            // Bloqueio de links de interface e navegação
-                            let ign = ['/redeem', '/about', '/badges', '/status', '/history', '/dashboard', '/earn', '/refer', '/welcome', 'rwgbopen=1', 'microsoft.com/edge', 'xbox.com', 'bingapp.microsoft.com', 'vsstreak'];
-                            if (ign.some(i => hrefLower.includes(i))) continue;
-                            
-                            // Se achou uma missão válida e não visitada, retorna o Node e a String!
-                            if (!visitados.includes(href)) {
-                                return [linkNode, href];
-                            }
+                        if (isCompleted) continue;
+                        
+                        // 4. Confirma que o link é visível na tela e ainda não foi visitado
+                        if (!visitados.includes(href) && link.offsetWidth > 0) {
+                            return [link, href];
                         }
                     }
                     return null;
@@ -833,7 +842,6 @@ def limpar_todas_as_missoes(driver):
                 links_visitados.append(link_alvo)
                 LOGGER(t['clicando_missao'].format(missoes_feitas + 1))
                 
-                # Rola até o elemento e clica com delay
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", alvo_elemento)
                 wait_human(1.0, 2.5, long_pause_chance=0.0)
                 
