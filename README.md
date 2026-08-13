@@ -1,5 +1,5 @@
 # CoreNexusBot 
-*Advanced Behavioral Evasion & Reward Exploitation Framework*
+*Cross-Platform Evasion Framework for Microsoft Rewards & Discord Quests*
 
 🌍 **Read in:** [English](#-english) | [Português](#-português)
 
@@ -8,31 +8,28 @@
 ## 🇺🇸 English
 
 ### 🎯 Project Overview
-**CoreNexusBot** is an advanced, cross-platform automation framework designed to explore and bypass modern behavioral telemetry, anti-bot heuristics, and strict OS-level tracking. Rather than relying on simple DOM interactions, this tool exploits the predictability of security mechanisms by injecting high levels of human entropy into the navigation flow and hijacking internal application states.
+**CoreNexusBot** is an advanced, cross-platform automation framework strictly focused on exploiting two specific environments: **Microsoft Rewards** (via heavily modified Google Chrome instances) and **Discord Quests** (via Electron remote debugging). 
 
-The ultimate validation of this stealth architecture is its success rate: by perfectly mimicking organic queues and human pacing, the framework circumvents standard server-side limits, successfully scaling point extraction from the standard 480-point lock to the absolute 2100-point maximum cap without triggering shadowbans.
+Rather than relying on basic coordinate clicking, this tool studies and exploits the predictability of telemetry security mechanisms. It injects high levels of human entropy into the navigation flow and hijacks internal application states to operate 100% stealthily.
 
-### 🛡️ Web Telemetry Evasion (Browser Spoofing)
-Modern browsers leak a massive amount of fingerprinting data to track automation. This framework neutralizes these trackers at the core:
-* **Fingerprint Masking & CDC Evasion:** Bypasses basic Selenium detection by stripping the `navigator.webdriver` flag, disabling WebAuthn APIs, and injecting synthetic hardware parameters (spoofing `hardwareConcurrency`, `deviceMemory`, and `maxTouchPoints`) before the DOM even loads.
-* **Algorithmic Humanization:** Defeats cadence-tracking algorithms by implementing "Ghost Clicks" (ActionChains with randomized X/Y pixel offsets) and synthetic typing errors (deliberately typing wrong characters, pausing, backspacing, and correcting them in real-time).
-* **Behavioral Entropy Queuing:** Drops static loops in favor of a dynamic state machine. It parses the server's backend limits in real-time and paces the interactions across different environments (PC/Mobile) interlaced with long "idleness" payloads, effectively tricking heuristic algorithms into assigning a high "human trust" score.
+### 🌐 Microsoft Rewards (Chrome Telemetry Evasion)
+Microsoft evaluates search quality and consistency through behavioral telemetry. Users demonstrating "robotic" or farmed behavior miss out on the monthly **Bing Star Bonus**, often getting stuck at baseline rewards (e.g., 480 points). CoreNexusBot is engineered to secure the maximum organic yield (up to the 2100-point cap) by acting demonstrably human.
+* **Fingerprint Masking:** Utilizes `undetected-chromedriver` to strip the `navigator.webdriver` flag, disabling WebAuthn APIs, and injecting synthetic hardware parameters before the DOM loads.
+* **Algorithmic Humanization:** Defeats cadence-tracking algorithms by implementing "Ghost Clicks" (ActionChains with randomized X/Y pixel offsets), synthetic typing errors (deliberately typing wrong characters, pausing, backspacing, and correcting them), and erratic scrolling.
+* **Bing Star Queuing:** Replaces static loops with a dynamic state machine. It paces interactions across PC and Mobile user agents, interlaced with 40+ minute "idleness" payloads, effectively tricking heuristic algorithms into assigning a high "human trust" score.
+* **Aggressive DOM Manipulation:** Bypasses UI traps by scanning deep DOM elements for incomplete tasks and using JavaScript Promises to force visual searches and ad clicks even when the visual interface lags.
 
-### 👾 Discord Quests Exploitation (OS Forging)
-Recently, Discord implemented strict anti-bot measures for their Quests system, actively banning accounts that use raw HTTP API token spamming. They introduced active window focus telemetry (`visibilityState`) and native OS process validation to ensure a user is physically playing a game. 
-**Our Bypass Architecture:**
-* **Webpack Chunk Hijacking:** Instead of sending easily flaggable raw API requests, the bot injects a payload directly into the Discord Electron client. It extracts internal React/Webpack chunks (`webpackChunkdiscord_app`), hijacking the `FluxDispatcher`, `QuestsStore`, and `RunningGameStore` from the inside.
-* **DOM Focus Spoofing (Plan B):** Discord checks if the user is actually watching the quest streams. The bot overwrites native Web APIs (`Document.prototype.hasFocus`, `visibilityState`) via `Object.defineProperty`, tricking the client into believing the tab is always visible and focused, even when minimized in the tray.
-* **Phantom PID Injection:** To bypass native game tracking, the bot spawns a lightweight, dormant native process (`ping.exe` on Windows, `sleep` on Unix). It captures this authentic Process ID (PID) and forces it into Discord's internal state machine. The client authenticates the fake game via native OS checks, fulfilling the quest 100% headlessly with near-zero RAM footprint.
-* **"Fat Timer" Obfuscation:** Prevents robotic exact-second task completions by applying randomized "stealth fat" (keeping the forged process alive for extra, unpredictable minutes after the quest is registered as complete).
+### 👾 Discord Quests Exploitation (Webpack State Spoofing)
+Discord Quest completion is fully automated via script injection, bypassing the need to actually download or play the required games. 
+* **Webpack Chunk Hijacking:** The bot injects a payload directly into the Discord Electron client via Chrome DevTools Protocol. It extracts internal React/Webpack chunks (`webpackChunkdiscord_app`), hijacking the `FluxDispatcher` and `RunningGameStore` to broadcast forged `RUNNING_GAMES_CHANGE` events.
+* **Proactive PID Forging (Countermeasure):** While the spoofing is handled purely via script, the bot implements an advanced countermeasure against potential deep-client heuristics. It spawns a dormant, native OS process (`ping.exe` on Windows, `sleep` on Unix) just to harvest an authentic Process ID (PID). This real PID is injected into Discord’s fake game payload, creating a bulletproof, verifiable state in memory should Discord decide to cross-reference active tasks with the OS process tree in the future.
+* **DOM Focus Spoofing:** Overwrites native Web APIs (`Document.prototype.hasFocus`, `visibilityState`) tricking the client into believing the streaming tab is always visible and focused.
 
-### 🖥️ GUI & Core Features
-Built with `pywebview` for a seamless front-end to back-end integration:
-* **Real-time Console:** Monitor deep DOM injections, payload status, and proxy/4G tunneling directly from the UI.
-* **Multi-Profile Sandboxing:** Isolated Chrome profiles preventing cross-contamination of cookies and session tokens.
-* **Fail-Fast Defense:** Features proactive memory scraping to detect server-side suspension flags during execution. If a trap is triggered, it aborts instantly to protect proxy integrity.
-
-> **Disclaimer:** This project is for educational and cybersecurity research purposes only. It is intended to study reverse engineering, automated web evasion, and OS integration. The author assumes no liability for account suspensions or TOS violations resulting from the use of this framework.
+### 🚨 Error Handling, Crash Logs & Reporting
+The bot features a **Fail-Fast Defense Mechanism** to protect proxy integrity and account standing. If a suspension flag (shadowban) is detected in the HTML during execution, the bot immediately aborts.
+* **Crash Logs:** If a fatal exception occurs (e.g., unexpected DOM changes, complete network failure), the bot generates a detailed `CRASH_LOG_YYYY-MM-DD.txt` file in the root directory containing the full stack trace.
+* **Discord Webhook SOS:** Critical errors and successful completion stamps can be broadcasted directly to a personal Discord channel via Webhook.
+* **Bug Reporting:** If you encounter repetitive logic loops or unhandled exceptions, please open an **Issue** on GitHub. Include the `CRASH_LOG` file and a brief description of what triggered the failure.
 
 <br><br>
 
@@ -41,28 +38,25 @@ Built with `pywebview` for a seamless front-end to back-end integration:
 ## 🇧🇷 Português
 
 ### 🎯 Visão Geral do Projeto
-O **CoreNexusBot** é um framework avançado de automação multiplataforma projetado para explorar e contornar a telemetria comportamental moderna, heurísticas anti-bot e rastreamento a nível de Sistema Operacional. Em vez de depender de interações simples no DOM, esta ferramenta explora a previsibilidade dos mecanismos de segurança injetando altos níveis de entropia humana no fluxo e sequestrando estados internos de aplicativos.
+O **CoreNexusBot** é um framework avançado de automação multiplataforma estritamente focado em explorar dois ambientes específicos: **Microsoft Rewards** (via instâncias profundamente modificadas do Google Chrome) e **Discord Quests** (via depuração remota do Electron).
 
-A validação definitiva dessa arquitetura furtiva é a sua taxa de sucesso: ao mimetizar perfeitamente filas orgânicas e o ritmo humano, o framework burla as travas padrão do servidor, escalando a extração de pontos do bloqueio padrão de 480 para o teto máximo de 2100 pontos sem acionar *shadowbans*.
+Em vez de depender de cliques básicos por coordenadas, esta ferramenta estuda e explora a previsibilidade dos mecanismos de telemetria de segurança. Ela injeta altos níveis de entropia humana no fluxo de navegação e sequestra estados internos de aplicativos para operar de forma 100% furtiva.
 
-### 🛡️ Evasão de Telemetria Web (Browser Spoofing)
-Navegadores modernos vazam uma quantidade massiva de dados de *fingerprint* para rastrear automações. Este framework neutraliza esses rastreadores na raiz:
-* **Mascaramento de Fingerprint e Evasão CDC:** Bypassa a detecção básica do Selenium removendo a flag `navigator.webdriver`, desativando APIs de WebAuthn e injetando parâmetros sintéticos de hardware (forjando `hardwareConcurrency`, `deviceMemory` e `maxTouchPoints`) antes mesmo do carregamento do DOM.
-* **Humanização Algorítmica:** Derrota algoritmos de rastreamento de cadência implementando "Ghost Clicks" (ActionChains com desvios aleatórios de pixels X/Y) e geração de erros de digitação sintéticos (digitando deliberadamente caracteres errados, pausando, apagando e corrigindo-os em tempo real).
-* **Fila de Entropia Comportamental:** Substitui loops estáticos por uma máquina de estados dinâmica. O bot lê os limites do servidor em tempo real e divide as interações entre diferentes ambientes (PC/Mobile), intercaladas com *payloads* de ociosidade longa, enganando heurísticas de segurança para conquistar um alto "nível de confiança humano".
+### 🌐 Microsoft Rewards (Evasão de Telemetria no Chrome)
+A Microsoft avalia a qualidade e a consistência das pesquisas por meio de telemetria comportamental. Usuários que demonstram comportamento "robótico" perdem o bônus mensal **Bônus Bing Star**, muitas vezes ficando travados na pontuação base (ex: 480 pontos). O CoreNexusBot foi projetado para garantir o rendimento orgânico máximo (até o teto de 2100 pontos) agindo de forma comprovadamente humana.
+* **Mascaramento de Fingerprint:** Utiliza o `undetected-chromedriver` para remover a flag `navigator.webdriver`, desativar APIs WebAuthn e injetar parâmetros sintéticos de hardware antes do carregamento do DOM.
+* **Humanização Algorítmica:** Derrota algoritmos de rastreamento de cadência implementando "Ghost Clicks" (ActionChains com desvios aleatórios de pixels X/Y), erros sintéticos de digitação (digitando caracteres errados, pausando, apagando e corrigindo) e rolagens de tela erráticas.
+* **Fila do Bônus Bing Star:** Substitui loops estáticos por uma máquina de estados dinâmica. Ele cadencia as interações entre *user-agents* de PC e Mobile, intercaladas com *payloads* de ociosidade de 40+ minutos, enganando algoritmos heurísticos para obter um alto "nível de confiança humano".
+* **Manipulação Agressiva de DOM:** Contorna armadilhas de interface (UI) escaneando elementos profundos do DOM em busca de tarefas incompletas e utilizando *Promises* em JavaScript para forçar o envio de pesquisas visuais e propagandas, mesmo quando a renderização da página trava.
 
-### 👾 Exploração do Discord Quests (OS Forging)
-Recentemente, o Discord implementou medidas rigorosas anti-bot no sistema de Quests, banindo ativamente contas que usam spam de tokens via API HTTP bruta. Eles introduziram telemetria de foco de janela ativa (`visibilityState`) e validação nativa de processos no SO para garantir que o usuário esteja fisicamente jogando.
-**Nossa Arquitetura de Bypass:**
-* **Sequestro de Webpack Chunks:** Em vez de enviar requisições de API rastreáveis, o bot injeta um payload diretamente no cliente Electron do Discord. Ele extrai os *chunks* internos do React/Webpack (`webpackChunkdiscord_app`), sequestrando o `FluxDispatcher`, `QuestsStore` e `RunningGameStore` por dentro.
-* **Mutação de Foco no DOM (Plano B):** O Discord verifica se o usuário está realmente assistindo às *streams* das missões. O bot sobrescreve APIs nativas da Web (`Document.prototype.hasFocus`, `visibilityState`) via `Object.defineProperty`, enganando o cliente para que acredite que a aba está sempre visível e em foco, mesmo minimizada na bandeja do sistema.
-* **Injeção de PID Fantasma:** Para burlar o rastreamento nativo de jogos, o bot inicia um processo nativo leve e dormente (`ping.exe` no Windows, `sleep` no Unix). Ele captura esse Process ID (PID) autêntico e o força para dentro do motor de estados do Discord. O cliente autentica o jogo falso através de checagens do SO, concluindo a missão de forma 100% invisível (Headless) com consumo de RAM quase nulo.
-* **Ofuscação "Fat Timer":** Evita conclusões de tarefas exatas (comportamento robótico) aplicando a "gordura stealth" (mantendo o processo forjado ativo por minutos extras e aleatórios após a missão ser registrada como concluída).
+### 👾 Exploração do Discord Quests (Spoofing de Webpack)
+A conclusão das missões do Discord é totalmente automatizada via injeção de script, eliminando a necessidade de baixar ou jogar os jogos exigidos.
+* **Sequestro de Chunks do Webpack:** O bot injeta um payload diretamente no cliente Electron do Discord via protocolo DevTools. Ele extrai blocos internos do React/Webpack (`webpackChunkdiscord_app`), sequestrando o `FluxDispatcher` e o `RunningGameStore` para transmitir eventos forjados de `RUNNING_GAMES_CHANGE`.
+* **Forja Proativa de PID (Contramedida):** Embora a falsificação do jogo seja tratada puramente via script, o bot implementa uma contramedida avançada contra possíveis heurísticas profundas do cliente. Ele inicia um processo dormente nativo no SO (`ping.exe` no Windows, `sleep` no Unix) apenas para colher um Process ID (PID) autêntico. Esse PID real é injetado no payload do jogo falso dentro do Discord, criando um estado verificável na memória, prevenindo detecções caso o Discord decida, no futuro, cruzar os dados da tarefa ativa com a árvore de processos do sistema operacional.
+* **Spoofing de Foco no DOM:** Sobrescreve APIs nativas da Web (`Document.prototype.hasFocus`, `visibilityState`), enganando o cliente para que acredite que a aba da *stream* está sempre visível e focada.
 
-### 🖥️ Interface (GUI) e Recursos Essenciais
-Construído com `pywebview` para integração fluida entre front-end e back-end:
-* **Console em Tempo Real:** Monitore injeções profundas no DOM, status de payloads e túneis de Proxy/4G diretamente na interface.
-* **Sandboxing de Múltiplos Perfis:** Perfis isolados do Chrome que impedem a contaminação cruzada de cookies e tokens de sessão.
-* **Defesa Fail-Fast:** Possui varredura proativa na memória para detectar *flags* de suspensão do servidor durante a execução. Se uma armadilha for acionada, aborta instantaneamente para proteger o proxy.
-
-> **Aviso Legal:** Este projeto tem fins puramente educacionais e de pesquisa em cibersegurança. Destina-se ao estudo de engenharia reversa, evasão web automatizada e integração com sistemas operacionais. O autor não se responsabiliza por suspensões de contas ou violações dos Termos de Serviço decorrentes do uso deste framework.
+### 🚨 Tratamento de Erros, Crash Logs e Reportes
+O bot possui um **Mecanismo de Defesa Fail-Fast** para proteger a integridade do proxy e a saúde da conta. Se uma *flag* de suspensão (banimento) for detectada no HTML durante a execução, o bot aborta imediatamente.
+* **Crash Logs:** Se ocorrer uma exceção fatal (ex: mudanças inesperadas no DOM do Bing, falha de rede), o bot gera um arquivo detalhado `CRASH_LOG_YYYY-MM-DD.txt` no diretório raiz contendo o rastreamento completo do erro (*stack trace*).
+* **Discord Webhook SOS:** Erros críticos e carimbos de conclusão bem-sucedida podem ser transmitidos diretamente para o seu canal privado no Discord via Webhook.
+* **Reporte de Bugs:** Se você encontrar *loops* lógicos repetitivos ou exceções não tratadas, por favor, abra uma **Issue** no GitHub. Anexe o arquivo `CRASH_LOG` e uma breve descrição do que acionou a falha.
