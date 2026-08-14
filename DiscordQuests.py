@@ -472,6 +472,83 @@ def iniciar_farm_discord():
     
     if not exe_path:
         RewardsCore.LOGGER(d_msgs[lang]["not_found"])
+        
+        if lang == "en":
+            pop_title = "⚠️ Discord Not Found"
+            pop_desc = "Compatible Discord version (Canary or PTB) not found!<br><br><span style='font-size:0.85em;color:var(--text-muted,#64748b);'>To allow the bot to farm quests in 100% stealth mode without closing your main Discord, please download one of the developer versions below:</span>"
+            pop_btn_c = "Download Canary"
+            pop_btn_p = "Download PTB"
+        else:
+            pop_title = "⚠️ Discord Não Encontrado"
+            pop_desc = "Versão compatível do Discord (Canary ou PTB) não encontrada!<br><br><span style='font-size:0.85em;color:var(--text-muted,#64748b);'>Para que o bot possa farmar as missões em modo 100% furtivo sem derrubar o seu Discord Principal, baixe uma das versões de desenvolvedor abaixo:</span>"
+            pop_btn_c = "Baixar Canary"
+            pop_btn_p = "Baixar PTB"
+
+        js_popup = """
+        if (!document.getElementById('discord-popup')) {
+            const overlay = document.createElement('div');
+            overlay.id = 'discord-popup';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);';
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background:var(--bg-panel,#111827);border:1px solid var(--border-color,#1e293b);border-radius:16px;padding:30px;text-align:center;max-width:420px;box-shadow:0 20px 40px rgba(0,0,0,0.6);position:relative;animation:fadeIn 0.3s;';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '✕';
+            closeBtn.style.cssText = 'position:absolute;top:10px;right:15px;background:transparent;border:none;color:var(--text-muted,#64748b);font-size:16px;cursor:pointer;';
+            closeBtn.onclick = () => overlay.remove();
+
+            const title = document.createElement('h3');
+            title.innerHTML = 'POPUP_TITLE';
+            title.style.cssText = 'margin-top:0;color:var(--accent-yellow,#f59e0b);font-size:1.4em;margin-bottom:10px;';
+
+            const text = document.createElement('p');
+            text.innerHTML = "POPUP_DESC";
+            text.style.cssText = 'color:var(--text-main,#f1f5f9);line-height:1.5;margin-bottom:25px;';
+
+            const btnContainer = document.createElement('div');
+            btnContainer.style.cssText = 'display:flex;gap:15px;justify-content:center;';
+
+            const btnCanary = document.createElement('a');
+            btnCanary.href = 'https://canary.discord.com/download';
+            btnCanary.target = '_blank';
+            btnCanary.innerText = 'POPUP_BTN_CANARY';
+            btnCanary.style.cssText = 'background:#eab308;color:#000;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;transition:0.2s;flex:1;';
+            btnCanary.onmouseover = () => btnCanary.style.filter = 'brightness(1.1)';
+            btnCanary.onmouseout = () => btnCanary.style.filter = 'brightness(1)';
+            btnCanary.onclick = () => overlay.remove();
+
+            const btnPTB = document.createElement('a');
+            btnPTB.href = 'https://ptb.discord.com';
+            btnPTB.target = '_blank';
+            btnPTB.innerText = 'POPUP_BTN_PTB';
+            btnPTB.style.cssText = 'background:#3b82f6;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;transition:0.2s;flex:1;';
+            btnPTB.onmouseover = () => btnPTB.style.filter = 'brightness(1.1)';
+            btnPTB.onmouseout = () => btnPTB.style.filter = 'brightness(1)';
+            btnPTB.onclick = () => overlay.remove();
+
+            btnContainer.appendChild(btnCanary);
+            btnContainer.appendChild(btnPTB);
+            
+            modal.appendChild(closeBtn);
+            modal.appendChild(title);
+            modal.appendChild(text);
+            modal.appendChild(btnContainer);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+        }
+        """
+        
+        # Injeta as variáveis de texto no JS
+        js_popup = js_popup.replace("POPUP_TITLE", pop_title)
+        js_popup = js_popup.replace("POPUP_DESC", pop_desc)
+        js_popup = js_popup.replace("POPUP_BTN_CANARY", pop_btn_c)
+        js_popup = js_popup.replace("POPUP_BTN_PTB", pop_btn_p)
+        
+        try:
+            import webview
+            webview.windows[0].evaluate_js(js_popup)
+        except: pass
         return
 
     PORTA_DEBUG = 9222
@@ -493,20 +570,46 @@ def iniciar_farm_discord():
             RewardsCore.LOGGER(d_msgs[lang]["stealth_on"])
         else:
             RewardsCore.LOGGER(d_msgs[lang]["visible_on"])
-        
-        # --- O EXORCISMO: MATA O DISCORD CASO ELE JÁ ESTEJA ABERTO NORMALMENTE ---
-        sistema_atual = platform.system().lower()
-        if sistema_atual == "windows":
-            subprocess.run(f"taskkill /F /IM \"{exe_name}\" /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.run(f"pkill -9 -f \"{exe_name}\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(2) 
-        # ------------------------------------------------------------------
+            
+        # Variáveis bilíngues dinâmicas para os novos módulos
+        msg_booting = "[DISCORD] Booting App Process... (Try {}/2)" if lang == "en" else "[DISCORD] Iniciando Processo do App... (Tentativa {}/2)"
+        msg_blocked = "[DISCORD] Port 9222 blocked or Update finished. Forcing second invisible boot..." if lang == "en" else "[DISCORD] Porta 9222 bloqueada ou Update finalizado. Forçando segunda inicialização invisível..."
+        msg_engine = "[DISCORD] Waiting for the app's graphical engine to load..." if lang == "en" else "[DISCORD] Aguardando o motor grafico do aplicativo carregar..."
+        err_timeout1 = "Timeout: Failed to connect to Discord after 2 attempts. Update might be downloading." if lang == "en" else "Timeout: Falha ao conectar no Discord após 2 tentativas. A internet pode estar lenta para baixar o update."
+        err_timeout2 = "Timeout: Main Discord window did not respond in time." if lang == "en" else "Timeout: A janela principal do Discord nao respondeu a tempo."
+        err_timeout3 = "Timeout: Failed to connect to Discord after 3 attempts." if lang == "en" else "Timeout: Falha ao conectar no Discord após 3 tentativas."
 
-        processo = subprocess.Popen(args_discord)
-        
-        # --- O PULO DO GATO: ESPERA O UPDATER FECHAR (12 SEGUNDOS) ---
-        time.sleep(12)
+        # --- INICIALIZADOR BLINDADO ANTI-UPDATER ---
+        porta_aberta = False
+        for tentativa_lancamento in range(2): 
+            sistema_atual = platform.system().lower()
+            if sistema_atual == "windows":
+                subprocess.run(f"taskkill /F /IM \"{exe_name}\" /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(4) 
+            else:
+                subprocess.run(f"pkill -9 -f \"{exe_name}\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(4)
+
+            processo = subprocess.Popen(args_discord)
+            RewardsCore.LOGGER(msg_booting.format(tentativa_lancamento + 1))
+            
+            # Poller Dinâmico PACIENTE: Espera até 120 segundos
+            for _ in range(60): 
+                try:
+                    req = urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2)
+                    if req.getcode() == 200:
+                        porta_aberta = True
+                        break
+                except: pass
+                time.sleep(2)
+                
+            if porta_aberta:
+                break
+            else:
+                RewardsCore.LOGGER(msg_blocked)
+
+        if not porta_aberta:
+            raise Exception(err_timeout1)
         # -------------------------------------------------------------
         
         chrome_options = Options()
@@ -531,12 +634,36 @@ def iniciar_farm_discord():
                 time.sleep(5)
                 
         if not driver:
-            raise Exception("Timeout: Failed to connect to Discord after 3 attempts.")
+            raise Exception(err_timeout3)
         # -------------------------------------
-        
-        for handle in driver.window_handles:
-            driver.switch_to.window(handle)
-            if "discord" in driver.current_url.lower(): break
+
+        # --- CAÇADOR DE JANELAS BLINDADO (Foco no Startup) ---
+        RewardsCore.LOGGER(msg_engine)
+        janela_correta = None
+        for _ in range(25):  # Tenta por até 50 segundos
+            try:
+                for handle in driver.window_handles:
+                    driver.switch_to.window(handle)
+                    url = driver.current_url.lower()
+                    if "discord.com/app" in url or "discord.com/channels" in url or "discord.com/login" in url:
+                        janela_correta = handle
+                        break
+                if janela_correta:
+                    break
+            except Exception: pass
+            time.sleep(2)
+            
+        if not janela_correta:
+            raise Exception(err_timeout2)
+            
+        # O SEGREDO: Garante que as variaveis internas do Discord (Webpack) ja nasceram na memoria
+        for _ in range(15):
+            try:
+                is_ready = driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';")
+                if is_ready: break
+            except: pass
+            time.sleep(2)
+        # -----------------------------------------------------
 
         RewardsCore.LOGGER(d_msgs[lang]["check_login"])
         logado = driver.execute_script("return window.location.pathname !== '/login';")
@@ -589,14 +716,12 @@ def iniciar_farm_discord():
                         
                         sistema_atual = platform.system().lower()
                         if sistema_atual == "windows":
-                            # Copia o ping.exe e deixa rodando em loop infinito
                             shutil.copy(r"C:\Windows\System32\ping.exe", fake_exe_path)
                             dp = subprocess.Popen([fake_exe_path, "127.0.0.1", "-n", "3600"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
                         else:
-                            # Copia o binário sleep do Unix/Linux/Mac e roda por 3600 segundos
                             caminho_sleep = shutil.which("sleep") or "/bin/sleep"
                             shutil.copy(caminho_sleep, fake_exe_path)
-                            os.chmod(fake_exe_path, 0o755) # Garante permissão de execução
+                            os.chmod(fake_exe_path, 0o755) 
                             dp = subprocess.Popen([fake_exe_path, "3600"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
                         dummy_processes.append((dp, fake_exe_path))
@@ -616,7 +741,6 @@ def iniciar_farm_discord():
                         driver.execute_script("document.title = 'Discord';")
                 except Exception: pass
                 
-                # --- EXTRATOR DE LOGS LIMPOS ---
                 try:
                     for log in driver.get_log("browser"):
                         msg = log.get("message", "")
@@ -650,13 +774,11 @@ def iniciar_farm_discord():
             if driver:
                 RewardsCore.LOGGER(d_msgs[lang]["safe_quit"])
                 driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
-                
                 time.sleep(4) 
                 driver.quit() 
         except Exception: 
             pass
         
-        # Fallback de segurança silencioso 
         subprocess.run(f"taskkill /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)
         subprocess.run(f"taskkill /F /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

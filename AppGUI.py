@@ -573,9 +573,14 @@ class BotAPI:
         
     def log_ui(self, texto, tipo='info'):
         try:
-            t_seguro = str(texto).replace("'", "\\'").replace('"', '\\"')
+            # Blinda quebras de linha e aspas para não quebrar a injeção do JavaScript
+            t_seguro = str(texto).replace('\\', '\\\\').replace("'", "\\'").replace('"', '\\"').replace('\n', '\\n').replace('\r', '')
             webview.windows[0].evaluate_js(f"log('{t_seguro}', '{tipo}')")
-        except: print(texto)
+        except Exception: 
+            try:
+                # Se tudo falhar, printa no console nativo ignorando emojis que o Windows não suporta
+                print(str(texto).encode('utf-8').decode('cp1252', 'ignore'))
+            except: pass
 
     def fechar_janela(self):
         self.parar()
