@@ -1499,50 +1499,6 @@ def alternar_startup():
         except Exception as e:
             LOGGER(f"\n  \033[91m{t['startup_erro_criar']} {e}\033[0m")
 
-def criar_kill_switch():
-    sistema = platform.system().lower()
-    pasta_usuario = os.path.expanduser("~") 
-    
-    if sistema == "windows":
-        arquivo = os.path.join(pasta_usuario, "StopBot.bat")
-        conteudo = (
-            "@echo off\ntitle BotReward Kill Switch\ncolor 0C\n"
-            "echo [!] Alvo na mira: Encerrando motor principal do Bot...\n"
-            "taskkill /F /IM RewardsBot.exe /T >nul 2>&1\n"
-            "taskkill /F /IM python.exe /T >nul 2>&1\n"
-            "echo [!] Encerrando motor Selenium invisivel (preservando o Chrome)...\n"
-            "taskkill /F /IM chromedriver.exe /T >nul 2>&1\n"
-            "echo [!] Limpando rastros de jogos camuflados na memoria...\n"
-            "taskkill /F /IM ping.exe /T >nul 2>&1\n"
-            "echo [!] Solicitando fechamento seguro do Discord (preservando Token)...\n"
-            "taskkill /IM DiscordCanary.exe /T >nul 2>&1\n"
-            "taskkill /IM DiscordPTB.exe /T >nul 2>&1\n"
-            "echo [OK] Ameaca neutralizada e RAM limpa!\ntimeout /t 3 >nul\nexit"
-        )
-    else:
-        arquivo = os.path.join(pasta_usuario, "StopBot.sh")
-        conteudo = (
-            "#!/bin/bash\n"
-            "echo '[!] Encerrando motor principal do Bot...'\n"
-            "pkill -9 -f RewardsBot\n"
-            "pkill -9 -f python\n"
-            "echo '[!] Encerrando Selenium e limpando camuflagens...'\n"
-            "pkill -9 -f chromedriver\n"
-            "pkill -9 -f ping\n"
-            "echo '[!] Solicitando fechamento seguro do Discord...'\n"
-            "pkill -15 -f DiscordCanary\n"
-            "pkill -15 -f DiscordPTB\n"
-            "echo '[OK] Ameaca neutralizada e RAM limpa!'\n"
-        )
-        
-    try:
-        with open(arquivo, "w", encoding="utf-8") as f:
-            f.write(conteudo)
-        if sistema != "windows":
-            os.chmod(arquivo, os.stat(arquivo).st_mode | stat.S_IEXEC)
-    except Exception:
-        pass
-
 def limpar_processos_zumbis():
     """Garante que nenhum ChromeDriver invisível antigo ficou preso na RAM"""
     LOGGER(t['zumbi_clean'])
