@@ -160,7 +160,8 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
 
 
 def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
-    update_ui("bing", f"Preparando {nome_perfil}...", 10)
+    # CORREÇÃO APLICADA: RewardsCore. antes do update_ui
+    RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
     LOGGER("======================================================")
     LOGGER(f"\n>>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
     LOGGER("======================================================")
@@ -195,7 +196,9 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
     # Contadores para sabermos se devemos fazer 'metade' ou 'tudo' do que falta
     pc_chunks_restantes = acoes.count("PC_CHUNK")
     mob_chunks_restantes = acoes.count("MOB_CHUNK")
-    update_ui("bing", "Pesquisas...", 50)
+    
+    # CORREÇÃO APLICADA: RewardsCore. antes do update_ui
+    RewardsCore.update_ui("bing", "Pesquisas...", 50)
 
     # ---------------------------------------------------------
     # EXECUÇÃO DINÂMICA DA FILA
@@ -284,5 +287,5 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
             _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)
 
     hora_atual = time.strftime("%H:%M:%S")
-    update_ui("bing", "Concluído!", 100)
+    RewardsCore.update_ui("bing", "Concluído!", 100)
     LOGGER(f"\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")
