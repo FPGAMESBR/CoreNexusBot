@@ -16,8 +16,18 @@ class MiniPanelAPI:
 
     def kill_switch(self):
         print("[SISTEMA] Kill Switch Acionado! Exterminando processos...")
-        self.janela_popup.destroy()
-        self.janela_principal.destroy()
+        
+        # 1. Avisa a Máquina de Estados para abortar tudo
+        RewardsCore.ABORTAR_PROCESSO = True
+        
+        # 2. Desmonta o ícone da bandeja sem deixar fantasmas
+        GerenciadorBandeja.parar_tray()
+        
+        # 3. Destrói as janelas e corta o processo na raiz
+        try: self.janela_popup.destroy()
+        except: pass
+        try: self.janela_principal.destroy()
+        except: pass
         os._exit(0)
 
 class SysTrayApp:
@@ -30,10 +40,11 @@ class SysTrayApp:
         self.popup_aberto = False
         self.ultimo_toggle = 0
 
-    def criar_imagem_icone(self):
-        imagem = Image.new('RGB', (64, 64), color=(33, 105, 235))
+    def gerar_icone_emergencia(self):
+        """Cria um ícone azul com um círculo branco na memória, caso a foto .ico falte"""
+        imagem = Image.new('RGB', (64, 64), color=(14, 165, 233))
         desenho = ImageDraw.Draw(imagem)
-        desenho.rectangle([16, 16, 48, 48], fill=(255, 255, 255))
+        desenho.ellipse((16, 16, 48, 48), fill=(255, 255, 255))
         return imagem
 
     def acao_clique_esquerdo(self, icone, item):
@@ -93,7 +104,14 @@ class SysTrayApp:
             self.janela_principal.show()
             self.janela_principal.restore()
             
+    def parar_tray(self):
+        """Remove o ícone da bandeja graciosamente para não deixar rastro"""
+        if self.icone_tray:
+            self.icone_tray.stop()
+            self.icone_tray = None
+
     def acao_sair(self, icone, item):
+        self.parar_tray()
         if self.janela_popup:
             try: self.janela_popup.destroy()
             except: pass
@@ -103,6 +121,18 @@ class SysTrayApp:
         os._exit(0)
 
     def iniciar_tray_em_background(self):
+        if self.icone_tray is not None:
+            return
+            
+        # Tenta carregar a imagem original ou gera a de emergência
+        try:
+            if os.path.exists("rewards.ico"):
+                imagem = Image.open("rewards.ico")
+            else:
+                imagem = self.gerar_icone_emergencia()
+        except:
+            imagem = self.gerar_icone_emergencia()
+
         try:
             cfg = RewardsCore.carregar_config()
             lang = cfg.get("language", "pt")
@@ -117,7 +147,7 @@ class SysTrayApp:
             pystray.MenuItem(lbl_main, self.acao_clique_direito),
             pystray.MenuItem(lbl_exit, self.acao_sair)
         )
-        self.icone_tray = pystray.Icon("RewardsBot", self.criar_imagem_icone(), "Rewards Bot", menu)
+        self.icone_tray = pystray.Icon("RewardsBot", imagem, "Reward Bot", menu)
         
         thread_tray = threading.Thread(target=self.icone_tray.run, daemon=True)
         thread_tray.start()
@@ -149,7 +179,7 @@ class SysTrayApp:
 
 
 # ==========================================
-# CÓDIGO HTML/CSS/JS DO POPUP (BORDAS CORRIGIDAS)
+# CÓDIGO HTML/CSS/JS DO POPUP
 # ==========================================
 HTML_POPUP = """
 <!DOCTYPE html>

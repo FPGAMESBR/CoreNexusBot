@@ -17,7 +17,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v2.3"
+APP_VERSION = "v3.0"
 APP_CODENAME = "Stealth Architecture"
 
 HTML_INTERFACE = """
@@ -413,6 +413,10 @@ HTML_INTERFACE = """
                                 <label>Enable Multi-Account Profile System</label>
                                 <label class="switch"><input type="checkbox" id="cfg-multi"><span class="slider"></span></label>
                             </div>
+                            <div class="switch-group">
+                                <label id="label-global-quests" style="color: var(--accent-yellow);">Enable Global Quests (VPN/Tor)</label>
+                                <label class="switch"><input type="checkbox" id="cfg-global-quests"><span class="slider"></span></label>
+                            </div>
                         </div>
                         
                         <div class="card" style="grid-column: span 2;">
@@ -447,7 +451,8 @@ HTML_INTERFACE = """
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
                 cooldownLabel: "Discord Cooldown (Days)",
-                starBonusLabel: "Enable Bing Star Bonus (Beta)"
+                starBonusLabel: "Enable Bing Star Bonus (Beta)",
+                globalQuestsLabel: "Enable Global Quests (VPN/Tor)"
             },
             "pt": {
                 title: "O que há de novo na [APP_VERSION]",
@@ -458,7 +463,8 @@ HTML_INTERFACE = """
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
                 cooldownLabel: "Discord Cooldown (Dias)",
-                starBonusLabel: "Ativar Bônus Bing Star (Beta)"
+                starBonusLabel: "Ativar Bônus Bing Star (Beta)",
+                globalQuestsLabel: "Ativar Missões Globais (Tor/VPN)"
             }
         };
         let currentLang = "pt";
@@ -522,8 +528,7 @@ HTML_INTERFACE = """
             if (nome) { abrirConta(nome); document.getElementById('new-account-name').value = ''; }
         }
 
-        // NOVO PARÂMETRO star_bonus
-        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, lang, star_bonus) {
+        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, lang, star_bonus, global_quests) {
             document.getElementById('cfg-pc').value = pc;
             document.getElementById('cfg-mob').value = mob;
             document.getElementById('cfg-headless').checked = (headless === 's');
@@ -531,6 +536,7 @@ HTML_INTERFACE = """
             document.getElementById('cfg-discord').checked = (discord === 's');
             document.getElementById('cfg-multi').checked = (multi === 's');
             document.getElementById('cfg-star-bonus').checked = (star_bonus === 's');
+            document.getElementById('cfg-global-quests').checked = (global_quests === 's');
             document.getElementById('cfg-discord-cooldown').value = cooldown;
             document.getElementById('cfg-webhook').value = webhook;
             
@@ -547,6 +553,7 @@ HTML_INTERFACE = """
             }
             document.getElementById('label-cooldown').innerText = TRANSLATIONS[currentLang].cooldownLabel;
             document.getElementById('label-star-bonus').innerText = TRANSLATIONS[currentLang].starBonusLabel;
+            document.getElementById('label-global-quests').innerText = TRANSLATIONS[currentLang].globalQuestsLabel;
         }
 
         function atualizarBotaoStartup(isAtivo) {
@@ -570,7 +577,8 @@ HTML_INTERFACE = """
                 tasks: document.getElementById('cfg-tasks').checked,
                 discord: document.getElementById('cfg-discord').checked,
                 multi: document.getElementById('cfg-multi').checked,
-                ms_new_tasks: document.getElementById('cfg-star-bonus').checked, // Salva na mesma chave antiga pro RewardsCore ler
+                ms_new_tasks: document.getElementById('cfg-star-bonus').checked,
+                discord_global_quests: document.getElementById('cfg-global-quests').checked,
                 discord_cooldown: document.getElementById('cfg-discord-cooldown').value,
                 webhook: document.getElementById('cfg-webhook').value
             };
@@ -675,20 +683,24 @@ class BotAPI:
         self.rodando = False
         RewardsCore.ABORTAR_PROCESSO = True 
         
-        # PARA O CRONÔMETRO NO MINI-PAINEL
+        # PARA O CRONÔMETRO NO MINI-PAINEL E ZERA AS BARRAS
         GerenciadorBandeja.parar_cronometro()
+        RewardsCore.update_ui("discord", "Inativo", 0)
+        RewardsCore.update_ui("bing", "Inativo", 0)
         
         sistema = platform.system().lower()
         if sistema == "windows":
             subprocess.run("taskkill /F /T /IM chromedriver.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run("taskkill /F /T /IM ping.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("taskkill /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("taskkill /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("taskkill /F /T /IM tor.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif sistema in ["linux", "darwin"]:
-            subprocess.run("pkill -f chromedriver", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("pkill -f ping", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("pkill -15 -f DiscordCanary", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("pkill -15 -f DiscordPTB", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f chromedriver", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f ping", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f tor", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f DiscordCanary", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f DiscordPTB", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
         self.log_ui("All background drivers and proxies terminated gracefully.", "warning")
 
@@ -753,7 +765,8 @@ class BotAPI:
         webhook_seguro = json.dumps(cfg.get('webhook_url', ''))
         lang = cfg.get("language", "pt")
         
-        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}')"
+        # Injeta o novo parâmetro cfg.get('discord_global_quests') no final da função JS
+        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}')"
         
         webview.windows[0].evaluate_js(js_cmd)
         estado_startup = self.obter_status_startup()
@@ -769,6 +782,9 @@ class BotAPI:
         cfg_atual['do_discord'] = 's' if dados_html['discord'] else 'n'
         cfg_atual['multi_account'] = 's' if dados_html['multi'] else 'n'
         cfg_atual['ms_new_tasks'] = 's' if dados_html['ms_new_tasks'] else 'n'
+        
+        # Salva o status do botão Global no config.json
+        cfg_atual['discord_global_quests'] = 's' if dados_html['discord_global_quests'] else 'n'
         
         cfg_atual['discord_cooldown'] = int(dados_html['discord_cooldown'])
         cfg_atual['webhook_url'] = dados_html['webhook']

@@ -412,6 +412,7 @@ def carregar_config():
         "do_discord": "n",
         "discord_cooldown": 5,
         "ms_new_tasks": "n",
+        "discord_global_quests": "n",
         "language": "pt"
     }
     
@@ -781,6 +782,7 @@ def gerar_termo_humanizado(banco, idioma="pt"):
     return t
 
 def limpar_todas_as_missoes(driver):
+    update_ui("bing", "Painel...", 30)
     LOGGER(f"\n{t['verificando_paineis']}")
     paginas_para_limpar = ["https://rewards.bing.com/dashboard", "https://rewards.bing.com/earn"]
     missoes_feitas = 0
@@ -902,6 +904,7 @@ def limpar_todas_as_missoes(driver):
     LOGGER(f"\n{t['total_missoes'].format(missoes_feitas)}")
 
 def verificar_pesquisas_restantes(driver, tipo):
+    update_ui("bing", "Pesquisas Restantes...", 60)
     valor_ponto = 3 
     
     urls_checagem = [
@@ -987,6 +990,7 @@ def verificar_pesquisas_restantes(driver, tipo):
     return 20
 
 def realizar_pesquisas(driver, num, banco):
+    update_ui("bing", "Realizando Pesquisas...", 80)
     num_real = random.choices([num, max(1, num - 1), max(1, num - 2)], weights=[0.6, 0.25, 0.15], k=1)[0]
     LOGGER(t['executando_pesquisas'].format(num_real))
     amostra = random.sample(banco, min(num_real + 5, len(banco)))
@@ -1370,6 +1374,7 @@ def modo_configuracao(nome_perfil):
     LOGGER(f"{t['modo_config_salvo']} {nome_perfil}!")
 
 def processar_conta(nome_perfil, cfg, banco, usar_proxy=False):
+    update_ui("bing", f"Preparando {nome_perfil}...", 10)
     LOGGER(f"\n==============================================")
     LOGGER(f"{t['iniciando_conta']} {nome_perfil} <<<")
     LOGGER(f"==============================================")
@@ -1596,6 +1601,7 @@ def iniciar_ciclo_farm():
             # ===========================================================
             
         limpar_excesso_historico()
+        update_ui("bing", "Concluído!", 100)
         
     except Exception as e:
         # GERADOR DE CRASH LOG (A "Caixa Preta")
