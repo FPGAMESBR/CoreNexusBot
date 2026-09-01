@@ -329,12 +329,12 @@ HTML_INTERFACE = """
                         <div class="update-content">
                             <h3 id="update-title">O que há de novo na [APP_VERSION]</h3>
                             <p>
-                               <span id="update-1">✨ Interface 'Stealth' reformulada com animações dinâmicas.</span><br>
-                               <span id="update-2">⚙️ Fila de Entropia Comportamental (Modo Caos & Café).</span><br>
-                               <span id="update-3">🔥 Camuflagem de OS (Discord) e Bypass de Interface.</span>
+                               <span id="update-1">🌍 Missões Globais Nativas (API Scraper + Motor Tor Automático).</span><br>
+                               <span id="update-2">🎛️ Novo Mini-Painel Flutuante & Integração na Bandeja (Tray).</span><br>
+                               <span id="update-3">🛑 Advanced Kill Switch para encerramento seguro (Anti-Zumbis).</span>
                             </p>
                         </div>
-                        <a href="https://github.com/FPGAMESBR/CoreNexusBot" target="_blank" class="github-btn">
+                        <a href="https://github.com/FPGAMESBR/CoreNexusBot/releases" target="_blank" class="github-btn">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57C20.565 21.795 24 17.31 24 12c0-6.63-5.37-12-12-12z"/></svg>
                             <span id="btn-github-text">Ver no GitHub</span>
                         </a>
@@ -444,9 +444,9 @@ HTML_INTERFACE = """
         const TRANSLATIONS = {
             "en": {
                 title: "What's new in [APP_VERSION]",
-                item1: "✨ Redesigned 'Stealth' interface with dynamic animations.",
-                item2: "⚙️ Behavioral Entropy Queue & Organic 'Coffee Mode'.",
-                item3: "🔥 OS Forging (Discord) & Aggressive UI Bypass.",
+                item1: "🌍 Built-in Global Quests (API Scraper + Auto-Tor Engine).",
+                item2: "🎛️ New Floating Mini-Panel & System Tray Integration.",
+                item3: "🛑 Advanced Kill Switch for safe background termination.",
                 btnGit: "View on GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
@@ -456,9 +456,9 @@ HTML_INTERFACE = """
             },
             "pt": {
                 title: "O que há de novo na [APP_VERSION]",
-                item1: "✨ Interface 'Stealth' reformulada com animações dinâmicas.",
-                item2: "⚙️ Fila de Entropia Comportamental (Modo Caos & Café).",
-                item3: "🔥 Camuflagem de OS (Discord) e Bypass de Interface.",
+                item1: "🌍 Missões Globais Nativas (API Scraper + Motor Tor Automático).",
+                item2: "🎛️ Novo Mini-Painel Flutuante & Integração na Bandeja (Tray).",
+                item3: "🛑 Advanced Kill Switch para encerramento seguro (Anti-Zumbis).",
                 btnGit: "Ver no GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
@@ -908,18 +908,14 @@ if __name__ == '__main__':
     modo_startup = False
     if len(sys.argv) > 1 and sys.argv[1] == "--auto":
         modo_startup = True
-        # Se foi o Windows que iniciou, segura o código até a internet conectar
         if not aguardar_internet(timeout_horas=1):
             sys.exit(1)
 
     api = BotAPI()
-    # Ativa o escudo contra desligamento abrupto do Windows
     registrar_interceptador_os(api)
     
-    # 1. Cria a janela principal. Se for boot do OS, ela já nasce oculta.
     janela_principal = webview.create_window(title=f'{APP_NAME} {APP_VERSION}', html=HTML_INTERFACE, js_api=api, frameless=True, easy_drag=False, width=1050, height=720, background_color='#070b14', resizable=False, hidden=modo_startup)
     
-    # 2. Cria a Janela Fantasma encolhida e FORA DA TELA
     janela_popup = webview.create_window(
         'Painel Invisivel', 
         html=HTML_POPUP, 
@@ -932,27 +928,41 @@ if __name__ == '__main__':
         background_color='#111827' 
     )
 
-    # 3. Conecta a API do Popup
+    # === NOVO: INTERCEPTADORES DE FECHAMENTO (COMPORTAMENTO DE BANDEJA) ===
+    def interceptar_fechamento_principal():
+        try: janela_principal.hide()
+        except: pass
+        return False  # Cancela a destruição imposta pelo Windows, apenas esconde
+
+    def interceptar_fechamento_popup():
+        try: GerenciadorBandeja.fechar_popup_sistema()
+        except: pass
+        return False  # Cancela a destruição imposta pelo Windows, recolhe o painel
+
+    janela_principal.events.closing += interceptar_fechamento_principal
+    janela_popup.events.closing += interceptar_fechamento_popup
+    # ======================================================================
+
     api_popup = MiniPanelAPI(janela_principal, janela_popup)
     janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch)
 
-    # 4. Transfere o controle das janelas para o Gerenciador da Bandeja
     GerenciadorBandeja.janela_principal = janela_principal
     GerenciadorBandeja.janela_popup = janela_popup
 
-    # 5. Inicia o ícone perto do relógio (Visível mesmo no modo automático)
     GerenciadorBandeja.iniciar_tray_em_background()
     
     def evento_inicializacao():
-        janela_popup.hide()
+        # Força o mini-painel a ficar oculto e fora da tela durante o boot empacotado
+        try:
+            janela_popup.move(-2000, -2000)
+            janela_popup.hide()
+        except: pass
         
-        # Se o Windows iniciou o bot, nós "apertamos o botão de Run" invisivelmente
         if modo_startup:
-            janela_principal.hide() # Garantia extra de invisibilidade
+            janela_principal.hide() 
             api.rodando = True
             GerenciadorBandeja.iniciar_cronometro()
             
-            # Verifica o cooldown antes de gastar processamento
             rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
             if rodar_rewards:
                 threading.Thread(target=api.loop_farm, daemon=True).start()
