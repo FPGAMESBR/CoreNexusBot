@@ -2,6 +2,7 @@ import os
 import glob
 import time
 import subprocess
+import socket
 import urllib.request
 import json
 import re
@@ -20,28 +21,6 @@ SCRIPT_JS = r"""
     try {
         delete window.$;
 
-        // ==========================================
-        // PLANO B: BLOQUEADOR DE FOCO ABSOLUTO
-        // Engana o player de vídeo dizendo que a aba está sempre visível
-        // ==========================================
-        try {
-            Document.prototype.hasFocus = function() { return true; };
-            Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
-            Object.defineProperty(Document.prototype, 'hidden', { get: () => false, configurable: true });
-            
-            const ogDocAdd = Document.prototype.addEventListener;
-            Document.prototype.addEventListener = function(type, listener, options) {
-                if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
-                return ogDocAdd.call(this, type, listener, options);
-            };
-            const ogWinAdd = Window.prototype.addEventListener;
-            Window.prototype.addEventListener = function(type, listener, options) {
-                if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
-                return ogWinAdd.call(this, type, listener, options);
-            };
-        } catch(e) {}
-        // ==========================================
-        
         let wpRequire = window.webpackChunkdiscord_app.push([[Symbol()], {}, r => r]);
         window.webpackChunkdiscord_app.pop();
         
@@ -69,7 +48,6 @@ SCRIPT_JS = r"""
             window.discordQuestsDone = true; return;
         }
 
-        // FETCH LIMPO E DIRETO (Resolvido)
         const request = async (method, path, body = null) => {
             let options = { method: method, headers: { 'Authorization': token, 'Content-Type': 'application/json' } };
             if (body) options.body = JSON.stringify(body);
@@ -103,7 +81,7 @@ SCRIPT_JS = r"""
             window.discordQuestsDone = true; return;
         }
 
-        console.log(`[JS] Encontrada(s) ${quests.length} missao(oes) pendente(s). Iniciando arquitetura HIBRIDA...`);
+        console.log(`[JS] Encontrada(s) ${quests.length} missao(oes) pendente(s). Iniciando motor contextual...`);
 
         let doJob = async function() {
             const quest = quests.pop();
@@ -125,6 +103,7 @@ SCRIPT_JS = r"""
             
             const secondsNeeded = taskData.target || 900;
             const isVideo = (taskName === "WATCH_VIDEO" || taskName === "WATCH_VIDEO_ON_MOBILE");
+            const isGame = (taskName === "PLAY_ON_DESKTOP" || taskName === "STREAM_ON_DESKTOP");
             const extraSeconds = isVideo ? 0 : Math.floor(Math.random() * 240) + 60; 
             const targetTimeWithFat = secondsNeeded + extraSeconds;
 
@@ -135,66 +114,152 @@ SCRIPT_JS = r"""
                 await new Promise(r => setTimeout(r, 2000));
             }
 
-            // Se for missão exclusiva de celular, pula educadamente para não travar no QR Code
             if(taskName === "WATCH_VIDEO_ON_MOBILE") {
                 console.log(`[JS] -> Missao: ${questName} requer dispositivo movel (QR Code). Pulando...`);
                 setTimeout(doJob, 1000);
                 return;
             }
 
+            // ==========================================
+            // MOTOR CONTEXTUAL E INÍCIOS ALEATÓRIOS
+            // ==========================================
+            let ghostInterval = null;
+            if (isVideo) {
+                // 1. Bloqueador de Foco Absoluto (APENAS PARA VÍDEO)
+                try {
+                    Document.prototype.hasFocus = function() { return true; };
+                    Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
+                    Object.defineProperty(Document.prototype, 'hidden', { get: () => false, configurable: true });
+                    const ogDocAdd = Document.prototype.addEventListener;
+                    Document.prototype.addEventListener = function(type, listener, options) {
+                        if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
+                        return ogDocAdd.call(this, type, listener, options);
+                    };
+                    const ogWinAdd = Window.prototype.addEventListener;
+                    Window.prototype.addEventListener = function(type, listener, options) {
+                        if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
+                        return ogWinAdd.call(this, type, listener, options);
+                    };
+                } catch(e) {}
+
+                // 2. Mouse Fantasma Confinado (Apenas dentro do Player de Vídeo)
+                const ghostMouseVideo = () => {
+                    try {
+                        let videoContainer = document.querySelector('[data-testid="discord-web-video-player-container"]');
+                        if (videoContainer) {
+                            let rect = videoContainer.getBoundingClientRect();
+                            let x = rect.left + Math.floor(Math.random() * rect.width);
+                            let y = rect.top + Math.floor(Math.random() * rect.height);
+                            
+                            videoContainer.dispatchEvent(new MouseEvent('mousemove', {
+                                view: window, bubbles: true, cancelable: true,
+                                clientX: x, clientY: y,
+                                movementX: Math.floor(Math.random() * 12 - 6),
+                                movementY: Math.floor(Math.random() * 12 - 6)
+                            }));
+                        }
+                    } catch(e) {}
+                    // Frequência de 5 a 12 segundos (Altamente Orgânico)
+                    ghostInterval = setTimeout(ghostMouseVideo, 5000 + Math.floor(Math.random() * 7000));
+                };
+                ghostMouseVideo();
+
+            } else if (isGame) {
+                // Blur: Diz para o Discord que o usuário deu Alt+Tab pro jogo
+                console.log(`[JS] Missao de Jogo detectada. Executando 'Alt+Tab' virtual (Blur)...`);
+                window.dispatchEvent(new Event('blur'));
+                
+                let startDelay = 12000 + Math.floor(Math.random() * 25000);
+                console.log(`[JS] Simulando abertura do jogo. Aguardando ${Math.floor(startDelay/1000)}s...`);
+                await new Promise(r => setTimeout(r, startDelay));
+            }
+
+            const executarDesligamento = () => {
+                if (ghostInterval) clearTimeout(ghostInterval);
+                let endDelay = 4000 + Math.floor(Math.random() * 8000);
+                console.log(`[JS] Objetivo cumprido! Descompressao organica de ${Math.floor(endDelay/1000)}s antes da proxima acao...`);
+                setTimeout(() => {
+                    document.title = "REWARDS_KILL:ALL";
+                    setTimeout(doJob, 3000);
+                }, endDelay);
+            };
+
+            // ==========================================
+            // EXECUÇÃO CAÓTICA E TÉRMINOS ALEATÓRIOS
+            // ==========================================
             if(isVideo) {
-                console.log(`[JS] Acionando Plano B (Automacao DOM) para o Video...`);
                 let card = document.getElementById('quest-tile-' + quest.id);
-                if(!card) { console.log(`[JS] Card nao encontrado.`); doJob(); return; }
+                if(!card) { console.log(`[JS] Card nao encontrado.`); executarDesligamento(); return; }
                 
                 let btns = Array.from(card.querySelectorAll('button'));
-                let watchBtn = btns.find(b => /(assistir|continuar|watch|play)/i.test(b.innerText) && b.classList.contains('primary_a22cb0')) || btns.find(b => b.classList.contains('primary_a22cb0'));
+                let watchBtn = btns.find(b => /(assistir|continuar|watch|play|jogar)/i.test(b.innerText) && b.classList.contains('primary_a22cb0')) || btns.find(b => b.classList.contains('primary_a22cb0'));
                 
-                if(watchBtn) watchBtn.click();
-                else { console.log(`[JS] Botao Play nao encontrado.`); doJob(); return; }
+                if(watchBtn) {
+                    // 3. Atraso randômico antes de clicar em Play (Tempo de leitura humana)
+                    let readDelay = 3000 + Math.floor(Math.random() * 5000);
+                    console.log(`[JS] Analisando os detalhes da missao por ${Math.floor(readDelay/1000)}s...`);
+                    setTimeout(() => {
+                        console.log(`[JS] Acionando Play no Video...`);
+                        watchBtn.click();
+                        iniciarVideoLoop();
+                    }, readDelay);
+                } else { 
+                    console.log(`[JS] Botao Play nao encontrado.`); executarDesligamento(); return; 
+                }
 
-                let currentWait = 0, maxWait = secondsNeeded + 60;
-                let videoPoller = setInterval(() => {
-                    currentWait += 2;
+                const iniciarVideoLoop = () => {
+                    let currentWait = 0, maxWait = secondsNeeded + 60;
                     
-                    // Detecção de Segurança: Verifica se o Discord abriu modal de QR Code
-                    let qrModal = document.querySelector('[class*="qrCode"], img[alt*="QR"], [data-testid*="qr-code"]');
-                    if (qrModal) {
-                        clearInterval(videoPoller);
-                        console.log(`[JS] Tela de QR Code detectada. Fechando modal e avancando...`);
-                        let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
-                        if(closeBtn) closeBtn.click();
-                        setTimeout(doJob, 2000);
-                        return;
-                    }
-
-                    let video = document.querySelector('video[data-testid="discord-web-video-player-video"]');
-                    if(video) {
-                        video.muted = true;
-                        if(video.paused) { try { video.play(); } catch(e) {} }
-                        
-                        let cur = video.currentTime || 0;
-                        let dur = video.duration || secondsNeeded;
-                        console.log(`[JS] Assistindo [Video DOM]: ${cur.toFixed(1)}s / ${dur.toFixed(1)}s`);
-                        
-                        let updatedQuest = QuestsStore.getQuest(quest.id);
-                        let completed = (updatedQuest && updatedQuest.userStatus?.completedAt != null) || (dur > 0 && cur >= dur - 0.5);
-                        
-                        if(completed || currentWait >= maxWait) {
-                            clearInterval(videoPoller);
-                            console.log(`[JS] Reproducao finalizada!`);
-                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"]');
+                    const videoLoop = () => {
+                        currentWait += 2;
+                        let qrModal = document.querySelector('[class*="qrCode"], img[alt*="QR"], [data-testid*="qr-code"]');
+                        if (qrModal) {
+                            console.log(`[JS] Tela de QR Code detectada. Fechando modal e avancando...`);
+                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
                             if(closeBtn) closeBtn.click();
-                            setTimeout(doJob, 3000);
+                            executarDesligamento();
+                            return;
                         }
-                    } else if (currentWait > 15) {
-                        clearInterval(videoPoller);
-                        console.log(`[JS] Falha ao carregar player de video. Fechando janela...`);
-                        let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
-                        if(closeBtn) closeBtn.click();
-                        setTimeout(doJob, 2000);
-                    }
-                }, 2000);
+
+                        let video = document.querySelector('video[data-testid="discord-web-video-player-video"]');
+                        if(video) {
+                            video.muted = true;
+                            if(video.paused) { try { video.play(); } catch(e) {} }
+                            
+                            let cur = video.currentTime || 0;
+                            let dur = video.duration || secondsNeeded;
+                            
+                            // Imprime log de forma menos repetitiva
+                            if (currentWait % 6 === 0) {
+                                console.log(`[JS] Assistindo [Video DOM]: ${cur.toFixed(0)}s / ${dur.toFixed(0)}s`);
+                            }
+                            
+                            let updatedQuest = QuestsStore.getQuest(quest.id);
+                            let completed = (updatedQuest && updatedQuest.userStatus?.completedAt != null) || (dur > 0 && cur >= dur - 0.5);
+                            
+                            if(completed || currentWait >= maxWait) {
+                                console.log(`[JS] Reproducao finalizada! Simulando tempo de reacao humana antes de fechar...`);
+                                // 4. Atraso randômico antes de fechar o modal (Reaction Time)
+                                setTimeout(() => {
+                                    let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"]');
+                                    if(closeBtn) closeBtn.click();
+                                    executarDesligamento();
+                                }, 2000 + Math.floor(Math.random() * 4000));
+                                return;
+                            }
+                        } else if (currentWait > 15) {
+                            console.log(`[JS] Falha ao carregar player de video. Fechando janela...`);
+                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
+                            if(closeBtn) closeBtn.click();
+                            executarDesligamento();
+                            return;
+                        }
+                        
+                        // Jitter de telemetria: a checagem varia entre 1.8s e 2.3s
+                        setTimeout(videoLoop, 1800 + Math.floor(Math.random() * 500));
+                    };
+                    videoLoop();
+                };
             }
             else if(taskName === "PLAY_ON_DESKTOP") {
                 let appDataRes = await request('GET', `/applications/public?application_ids=${applicationId}`);
@@ -213,7 +278,6 @@ SCRIPT_JS = r"""
                     waitCycles++;
                 }
                 const pid = window.novoPidCamuflado || 10432; 
-                console.log(`[JS] Ponte estabelecida. PID Autentico: ${pid}`);
 
                 const fakeGame = { cmdLine: `C:\\Program Files\\${appData.name || questName}\\${cleanExeName}`, exeName: cleanExeName, exePath: `c:/program files/${(appData.name || questName).toLowerCase()}/${cleanExeName}`, hidden: false, isLauncher: false, id: applicationId, name: appData.name || questName, pid: pid, pidPath: [pid], processName: appData.name || questName, start: Date.now() };
 
@@ -248,21 +312,23 @@ SCRIPT_JS = r"""
                         let simulatedProgress = progress;
                         const finishUp = () => {
                             completingThisQuest = true;
-                            console.log(`[JS] Objetivo e gordura cumpridos! Limpando memoria OS...`);
                             if (RunningGameStore) { RunningGameStore.getRunningGames = realGetRunningGames; RunningGameStore.getGameForPID = realGetGameForPID; }
                             if (FluxDispatcher) { FluxDispatcher.dispatch({type: "RUNNING_GAMES_CHANGE", removed: [fakeGame], added: [], games: []}); FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn); }
-                            document.title = "REWARDS_KILL:ALL";
-                            setTimeout(doJob, 3000);
+                            executarDesligamento();
                         };
 
                         if(fatRemaining <= 0) finishUp();
                         else {
-                            let fatInterval = setInterval(() => {
-                                simulatedProgress += 5;
+                            const queimarGordura = () => {
+                                if(simulatedProgress >= targetTimeWithFat) { finishUp(); return; }
+                                // Progressão randômica com saltos grandes para simular latência de servidor
+                                let ganho = 8 + Math.floor(Math.random() * 12);
+                                simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
                                 console.log(`[JS] Tracker Furtivo: ${simulatedProgress} / ${targetTimeWithFat}s`);
-                                if (simulatedProgress >= targetTimeWithFat) { clearInterval(fatInterval); finishUp(); }
-                            }, 5000);
+                                setTimeout(queimarGordura, (ganho * 1000) + Math.floor(Math.random() * 2000));
+                            };
+                            queimarGordura();
                         }
                     }
                 };
@@ -299,21 +365,22 @@ SCRIPT_JS = r"""
                         let simulatedProgress = progress;
                         const finishUp = () => {
                             completingThisQuest = true;
-                            console.log(`[JS] Streaming finalizado 100% furtivo!`);
                             if (ApplicationStreamingStore) ApplicationStreamingStore.getStreamerActiveStreamMetadata = realFunc;
                             if (FluxDispatcher) FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
-                            document.title = "REWARDS_KILL:ALL";
-                            setTimeout(doJob, 3000);
+                            executarDesligamento();
                         };
 
                         if(fatRemaining <= 0) finishUp();
                         else {
-                            let fatInterval = setInterval(() => {
-                                simulatedProgress += 5;
+                            const queimarGorduraStream = () => {
+                                if(simulatedProgress >= targetTimeWithFat) { finishUp(); return; }
+                                let ganho = 8 + Math.floor(Math.random() * 12);
+                                simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
                                 console.log(`[JS] Tracker Furtivo (Stream): ${simulatedProgress} / ${targetTimeWithFat}s`);
-                                if (simulatedProgress >= targetTimeWithFat) { clearInterval(fatInterval); finishUp(); }
-                            }, 5000);
+                                setTimeout(queimarGorduraStream, (ganho * 1000) + Math.floor(Math.random() * 2000));
+                            };
+                            queimarGorduraStream();
                         }
                     }
                 };
@@ -350,7 +417,7 @@ SCRIPT_JS = r"""
                         await new Promise(resolve => setTimeout(resolve, caosDelay));
                     }
                     console.log(`[JS] Atividade Call finalizada e disfarçada!`);
-                    doJob();
+                    executarDesligamento();
                 };
                 fn();
             }
@@ -401,13 +468,34 @@ def localizar_aplicativo_discord():
                 return exe_path, versao # No Mac o nome do executável não tem .exe
                 
     return None, None
+    
+def bloquear_update_discord(exe_name):
+    """Injeta a trava de atualização no settings.json antes do Discord abrir"""
+    sistema = platform.system().lower()
+    if sistema != "windows": 
+        return
+        
+    pasta_appdata = os.environ.get('APPDATA', '')
+    pasta_discord = "discordcanary" if "canary" in exe_name.lower() else "discordptb"
+    settings_path = os.path.join(pasta_appdata, pasta_discord, "settings.json")
+    
+    try:
+        dados = {}
+        if os.path.exists(settings_path):
+            with open(settings_path, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                
+        # Trava absoluta contra a tela do "Update.exe"
+        if not dados.get("SKIP_HOST_UPDATE"):
+            dados["SKIP_HOST_UPDATE"] = True
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(dados, f, indent=4)
+            RewardsCore.LOGGER("[DISCORD] Update Blocker ativado no arquivo nativo (SKIP_HOST_UPDATE).")
+    except Exception:
+        pass
 
 def iniciar_farm_discord():
     cfg = RewardsCore.carregar_config()
-    
-    # ----------------------------------------------------
-    # TABELA DE TRADUÇÃO DINÂMICA
-    # ----------------------------------------------------
     lang = "pt" if cfg.get("language", "pt") == "pt" else "en"
     
     d_msgs = {
@@ -420,7 +508,9 @@ def iniciar_farm_discord():
             "check_login": "[DISCORD] Checking login state...",
             "wait_login": "[DISCORD] App is waiting for User Login/QR Code!",
             "login_ok": "[DISCORD] Login detected! Proceeding...",
-            "open_quests": "[DISCORD] Opening 'Quests' tab to load data into memory...",
+            "open_quests": "[DISCORD] Opening 'Quests' tab (Attempt {}/{})...",
+            "quests_ready": "[DISCORD] Stage Validated: Quests tab successfully loaded!",
+            "quests_retry": "[DISCORD] Validation Failed. Trying to reload Quests tab (Attempt {}/3)...",
             "inject_core": "[DISCORD] Injecting Webpack Core Script...",
             "script_attached": "[DISCORD] Script attached! Processing quests in background...",
             "forge_os": "[DISCORD] Forging OS camouflage: {}",
@@ -442,7 +532,9 @@ def iniciar_farm_discord():
             "check_login": "[DISCORD] Verificando estado de login...",
             "wait_login": "[DISCORD] App está aguardando Login do Usuário/QR Code!",
             "login_ok": "[DISCORD] Login detectado! Prosseguindo...",
-            "open_quests": "[DISCORD] Abrindo aba 'Missões' para carregar dados na memória...",
+            "open_quests": "[DISCORD] Abrindo aba 'Missões' (Tentativa {}/{})...",
+            "quests_ready": "[DISCORD] Estágio Validado: Aba de Missões carregada com sucesso!",
+            "quests_retry": "[DISCORD] Falha na Validação. Tentando recarregar aba (Tentativa {}/3)...",
             "inject_core": "[DISCORD] Injetando Script Webpack Core...",
             "script_attached": "[DISCORD] Script anexado! Processando missões em segundo plano...",
             "forge_os": "[DISCORD] Fabricando camuflagem no Sistema: {}",
@@ -539,7 +631,6 @@ def iniciar_farm_discord():
         }
         """
         
-        # Injeta as variáveis de texto no JS
         js_popup = js_popup.replace("POPUP_TITLE", pop_title)
         js_popup = js_popup.replace("POPUP_DESC", pop_desc)
         js_popup = js_popup.replace("POPUP_BTN_CANARY", pop_btn_c)
@@ -552,11 +643,51 @@ def iniciar_farm_discord():
         return
 
     PORTA_DEBUG = 9222
-    processo = None
-    driver = None
-    dummy_processes = []
+    RewardsCore.update_ui("discord", "Iniciando App...", 10)
+    # 1. Escaneamento Paciente do Túnel Tor (Fase 1 e Fase 2)
+    fases_execucao = [False] 
+    is_tor_available = False
     
-    try:
+    import socket
+    RewardsCore.LOGGER("[DISCORD] Buscando servico Tor (GoLiveBypass) na porta 9060...")
+    
+    # Tenta achar a porta do Tor por até 30 segundos (ideal para boot do PC)
+    for _ in range(15): 
+        try:
+            with socket.create_connection(("127.0.0.1", 9060), timeout=1):
+                is_tor_available = True
+                break
+        except OSError:
+            time.sleep(2)
+
+    if is_tor_available:
+        RewardsCore.LOGGER("[DISCORD] Tunel Tor localizado! Fase 2 (Global) agendada.")
+        fases_execucao.append(True)
+    else:
+        RewardsCore.LOGGER("[DISCORD] Tunel Tor nao detectado. Apenas missoes locais serao feitas.")
+
+    # 2. Execução Sequencial das Fases
+    for is_tor_active in fases_execucao:
+        processo = None
+        driver = None
+        dummy_processes = []
+        
+        try:
+            pasta_appdata = os.environ.get('APPDATA', '')
+            pasta_discord = "discordcanary" if "canary" in exe_name.lower() else "discordptb"
+            settings_path = os.path.join(pasta_appdata, pasta_discord, "settings.json")
+            
+            if os.path.exists(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    dados_discord = json.load(f)
+                    
+                if not dados_discord.get("SKIP_HOST_UPDATE"):
+                    dados_discord["SKIP_HOST_UPDATE"] = True
+                    with open(settings_path, "w", encoding="utf-8") as f:
+                        json.dump(dados_discord, f, indent=4)
+                    RewardsCore.LOGGER("[DISCORD] Update Blocker ativado nativamente no settings.json.")
+        except Exception: pass
+        
         args_discord = [
             exe_path, 
             f"--remote-debugging-port={PORTA_DEBUG}",
@@ -565,13 +696,20 @@ def iniciar_farm_discord():
             "--disable-renderer-backgrounding"
         ]
         
+        if is_tor_active:
+            RewardsCore.LOGGER("[DISCORD] >>> INICIANDO FASE 2: CATALOGO INTERNACIONAL (TOR) <<<")
+            RewardsCore.LOGGER("[DISCORD] Aquecendo circuitos do Tor... Aguardando 20s para garantir conexao estavel.")
+            time.sleep(20) 
+            args_discord.append("--proxy-server=socks5://127.0.0.1:9060")
+        else:
+            RewardsCore.LOGGER("[DISCORD] >>> INICIANDO FASE 1: CATALOGO NATIVO <<<")
+        
         if cfg.get("modo_oculto", "s") == "s":
             args_discord.append("--start-minimized")
             RewardsCore.LOGGER(d_msgs[lang]["stealth_on"])
         else:
             RewardsCore.LOGGER(d_msgs[lang]["visible_on"])
             
-        # Variáveis bilíngues dinâmicas para os novos módulos
         msg_booting = "[DISCORD] Booting App Process... (Try {}/2)" if lang == "en" else "[DISCORD] Iniciando Processo do App... (Tentativa {}/2)"
         msg_blocked = "[DISCORD] Port 9222 blocked or Update finished. Forcing second invisible boot..." if lang == "en" else "[DISCORD] Porta 9222 bloqueada ou Update finalizado. Forçando segunda inicialização invisível..."
         msg_engine = "[DISCORD] Waiting for the app's graphical engine to load..." if lang == "en" else "[DISCORD] Aguardando o motor grafico do aplicativo carregar..."
@@ -579,7 +717,6 @@ def iniciar_farm_discord():
         err_timeout2 = "Timeout: Main Discord window did not respond in time." if lang == "en" else "Timeout: A janela principal do Discord nao respondeu a tempo."
         err_timeout3 = "Timeout: Failed to connect to Discord after 3 attempts." if lang == "en" else "Timeout: Falha ao conectar no Discord após 3 tentativas."
 
-        # --- INICIALIZADOR BLINDADO ANTI-UPDATER ---
         porta_aberta = False
         for tentativa_lancamento in range(2): 
             sistema_atual = platform.system().lower()
@@ -593,9 +730,9 @@ def iniciar_farm_discord():
             processo = subprocess.Popen(args_discord)
             RewardsCore.LOGGER(msg_booting.format(tentativa_lancamento + 1))
             
-            # Poller Dinâmico PACIENTE: Espera até 120 segundos
             for _ in range(60): 
                 try:
+                    import urllib.request
                     req = urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2)
                     if req.getcode() == 200:
                         porta_aberta = True
@@ -610,24 +747,25 @@ def iniciar_farm_discord():
 
         if not porta_aberta:
             raise Exception(err_timeout1)
-        # -------------------------------------------------------------
         
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
         chrome_options = Options()
         chrome_options.debugger_address = f"127.0.0.1:{PORTA_DEBUG}"
         
         try:
             req = urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=5)
             dados_json = json.loads(req.read())
+            import re
             match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
             if match: chrome_options.browser_version = match.group(1)
         except Exception: pass
 
-        # --- CONEXÃO BLINDADA DO SELENIUM ---
         for tentativa in range(3):
             try:
                 servico = Service()
                 if os.name == 'nt':
-                    servico.creation_flags = 0x08000000 # Oculta a janela preta do CMD
+                    servico.creation_flags = 0x08000000
                 driver = webdriver.Chrome(service=servico, options=chrome_options)
                 break
             except Exception:
@@ -635,12 +773,10 @@ def iniciar_farm_discord():
                 
         if not driver:
             raise Exception(err_timeout3)
-        # -------------------------------------
 
-        # --- CAÇADOR DE JANELAS BLINDADO (Foco no Startup) ---
         RewardsCore.LOGGER(msg_engine)
         janela_correta = None
-        for _ in range(25):  # Tenta por até 50 segundos
+        for _ in range(25):  
             try:
                 for handle in driver.window_handles:
                     driver.switch_to.window(handle)
@@ -656,14 +792,12 @@ def iniciar_farm_discord():
         if not janela_correta:
             raise Exception(err_timeout2)
             
-        # O SEGREDO: Garante que as variaveis internas do Discord (Webpack) ja nasceram na memoria
         for _ in range(15):
             try:
                 is_ready = driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';")
                 if is_ready: break
             except: pass
             time.sleep(2)
-        # -----------------------------------------------------
 
         RewardsCore.LOGGER(d_msgs[lang]["check_login"])
         logado = driver.execute_script("return window.location.pathname !== '/login';")
@@ -679,25 +813,84 @@ def iniciar_farm_discord():
                 time.sleep(5)
                 espera += 5
             else: return
-
-        RewardsCore.LOGGER(d_msgs[lang]["open_quests"])
-        try:
-            driver.execute_script("""
-                let elementos = document.querySelectorAll('*');
-                for (let i = 0; i < elementos.length; i++) {
-                    let el = elementos[i];
-                    if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests')) {
-                        let clicavel = el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el;
-                        clicavel.click(); break;
+        RewardsCore.update_ui("discord", "Buscando Missões...", 30)
+        sucesso_missoes = False
+        for tentativa in range(3):
+            RewardsCore.LOGGER(d_msgs[lang]["open_quests"].format(tentativa + 1, 3))
+            try:
+                driver.execute_script("""
+                    let elementos = document.querySelectorAll('*');
+                    for (let i = 0; i < elementos.length; i++) {
+                        let el = elementos[i];
+                        if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests')) {
+                            let clicavel = el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el;
+                            clicavel.click(); break;
+                        }
                     }
-                }
-            """)
-        except Exception: pass
+                """)
+            except Exception: pass
 
-        time.sleep(8) 
-        
+            time.sleep(6) 
+            
+            is_quests_ready = driver.execute_script("""
+                return window.location.pathname.includes('quests') || 
+                       document.querySelector('[class*="questTile"]') !== null ||
+                       document.querySelector('div[class*="quests"]') !== null;
+            """)
+            
+            if is_quests_ready:
+                sucesso_missoes = True
+                RewardsCore.LOGGER(d_msgs[lang]["quests_ready"], "success")
+                break
+            else:
+                RewardsCore.LOGGER(d_msgs[lang]["quests_retry"].format(tentativa + 1), "warning")
+                driver.refresh()
+                time.sleep(5)
+                
+        if not sucesso_missoes:
+            raise Exception("Falha de Estágio: A aba de Missões não pôde ser validada após 3 tentativas. A UI do Discord não respondeu ou atualizou.")
+
         RewardsCore.LOGGER(d_msgs[lang]["inject_core"])
-        driver.execute_script(SCRIPT_JS)
+        
+        # =======================================================
+        # CRAWLER DE MISSÕES GLOBAIS (DiscordQuest API)
+        # =======================================================
+        ids_globais = []
+        RewardsCore.LOGGER("[DISCORD] Interceptando catalogo global via API DiscordQuest...")
+        
+        # 1. Puxa todos os IDs da API do site automaticamente
+        try:
+            import urllib.request
+            import re
+            RewardsCore.update_ui("discord", "Farmando em Segundo Plano...", 60)
+            req = urllib.request.Request(
+                "https://api.discordquest.com/api/quests", 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                texto_api = response.read().decode('utf-8')
+                # Expressão Regular infalível: Caça qualquer número de 17 a 19 dígitos associado a missões
+                encontrados = re.findall(r'(?:quests/|id["\']?\s*:\s*["\']?)(\d{17,19})', texto_api)
+                ids_globais.extend(encontrados)
+                RewardsCore.LOGGER(f"[DISCORD] {len(set(ids_globais))} missoes globais mapeadas com sucesso!")
+        except Exception as e:
+            RewardsCore.LOGGER(f"[DISCORD] Aviso: API externa indisponivel no momento. Detalhes: {str(e)[:50]}")
+
+        # 2. Fallback de Segurança: Lê o arquivo local caso a API caia
+        caminho_ids = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quests_globais.txt")
+        if os.path.exists(caminho_ids):
+            with open(caminho_ids, "r", encoding="utf-8") as f:
+                locais = [linha.strip() for linha in f if linha.strip().isdigit()]
+                ids_globais.extend(locais)
+                
+        # Remove duplicatas da lista final
+        ids_globais = list(set(ids_globais))
+        
+        # Injeta a lista massiva no Javascript do Discord
+        script_injetado = SCRIPT_JS.replace("INJECT_GLOBAL_IDS", json.dumps(ids_globais))
+        # =======================================================
+        
+        driver.execute_script(script_injetado)
         RewardsCore.LOGGER(d_msgs[lang]["script_attached"])
         
         try:
@@ -711,11 +904,13 @@ def iniciar_farm_discord():
                         exe_needed = titulo_atual.split("REWARDS_EXE:")[1].strip()
                         RewardsCore.LOGGER(d_msgs[lang]["forge_os"].format(exe_needed))
                         
+                        import tempfile
                         temp_dir = tempfile.gettempdir()
                         fake_exe_path = os.path.join(temp_dir, exe_needed)
                         
                         sistema_atual = platform.system().lower()
                         if sistema_atual == "windows":
+                            import shutil
                             shutil.copy(r"C:\Windows\System32\ping.exe", fake_exe_path)
                             dp = subprocess.Popen([fake_exe_path, "127.0.0.1", "-n", "3600"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
                         else:
@@ -753,34 +948,43 @@ def iniciar_farm_discord():
                 if terminou: break
 
             RewardsCore.LOGGER(d_msgs[lang]["all_completed"])
-            RewardsCore.registrar_data_execucao("discord")
+            
+            # Só carimba o término global do dia se for a última fase (Fase 2 se houver Tor, ou Fase 1 se não houver)
+            if is_tor_active == fases_execucao[-1]:
+                RewardsCore.registrar_data_execucao("discord")
+                RewardsCore.update_ui("discord", "Concluído!", 100)
             
         except Exception as e:
             RewardsCore.LOGGER(d_msgs[lang]["loop_error"].format(str(e)[:200]))
         
-    except Exception as e:
-        safe_msg = str(e).split('\n')[0] if e else "Unknown Error"
-        RewardsCore.LOGGER(d_msgs[lang]["fatal_error"].format(safe_msg))
-    finally:
-        RewardsCore.LOGGER(d_msgs[lang]["terminate"])
-        for dp, path in dummy_processes:
-            try: dp.kill()
-            except: pass
-            try: 
-                if path: os.remove(path)
-            except: pass
+        except Exception as e:
+            safe_msg = str(e).split('\n')[0] if e else "Unknown Error"
+            RewardsCore.LOGGER(d_msgs[lang]["fatal_error"].format(safe_msg))
+        finally:
+            RewardsCore.LOGGER(d_msgs[lang]["terminate"])
+            for dp, path in dummy_processes:
+                try: dp.kill()
+                except: pass
+                try: 
+                    if path: os.remove(path)
+                except: pass
+                
+            try:
+                if driver:
+                    RewardsCore.LOGGER(d_msgs[lang]["safe_quit"])
+                    driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
+                    time.sleep(4) 
+                    driver.quit() 
+            except Exception: 
+                pass
             
-        try:
-            if driver:
-                RewardsCore.LOGGER(d_msgs[lang]["safe_quit"])
-                driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
-                time.sleep(4) 
-                driver.quit() 
-        except Exception: 
-            pass
-        
-        subprocess.run(f"taskkill /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(2)
-        subprocess.run(f"taskkill /F /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        RewardsCore.LOGGER(d_msgs[lang]["closed_ok"])
+            subprocess.run(f"taskkill /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(2)
+            subprocess.run(f"taskkill /F /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            RewardsCore.LOGGER(d_msgs[lang]["closed_ok"])
+            
+            # Tempo para o Windows limpar as conexões residuais de socket antes da Fase 2 abrir na porta 9222
+            if not is_tor_active and len(fases_execucao) > 1:
+                RewardsCore.LOGGER("[DISCORD] Preparando transição para Fase 2 (Proxy Global). Aguardando 15s...")
+                time.sleep(15)

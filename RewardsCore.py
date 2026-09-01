@@ -348,6 +348,15 @@ ARQUIVO_HISTORICO = BASE_DIR / "historic.json"
 ARQUIVO_LOG = BASE_DIR / "Exe.json"
 ARQUIVO_CONFIG = BASE_DIR / "RewardsConfig.json"
 
+def update_ui(modulo, status, porcentagem):
+    try:
+        import webview
+        # Procura a janela ativa do pywebview e injeta o comando JS
+        for window in webview.windows:
+            window.evaluate_js(f"if(typeof atualizarPainel === 'function') atualizarPainel('{modulo}', '{status}', {porcentagem});")
+    except Exception:
+        pass
+
 def preparar_ambiente_adb():
     cfg = carregar_config()
     if cfg.get("multi_account", "n") == "n":
@@ -780,11 +789,33 @@ def limpar_todas_as_missoes(driver):
     for pagina in paginas_para_limpar:
         LOGGER(f"\n{t['analisando_pagina'].format(pagina)}")
         try:
-            driver.get(pagina)
-            # Aguarda a página carregar completamente (Essencial para o Startup)
-            try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-            except: pass
-            time.sleep(random.uniform(6.0, 9.0)) 
+            # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO BING REWARDS ---
+            sucesso_carregamento = False
+            for tentativa in range(3):
+                try:
+                    driver.get(pagina)
+                    try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+                    except: pass
+                    time.sleep(random.uniform(5.0, 8.0)) 
+                    
+                    # Verifica se os cards de missões ou o painel de pontos existem fisicamente no DOM
+                    painel_carregou = driver.execute_script("""
+                        let oldUi = document.querySelector('#daily-sets') !== null || document.querySelector('.c-card') !== null;
+                        let newUi = document.getElementById('dailyset') !== null || document.getElementById('offers') !== null || document.querySelector('[data-rac]') !== null;
+                        return oldUi || newUi;
+                    """)
+                    
+                    if painel_carregou:
+                        sucesso_carregamento = True
+                        break
+                    else:
+                        LOGGER(f"[CHROME] Painel nao validado visualmente. Retentando carregar {pagina} (Tentativa {tentativa+1}/3)...", "warning")
+                except Exception: pass
+                
+            if not sucesso_carregamento:
+                LOGGER(f"[CHROME] [ERRO] Falha de Estagio: Pagina {pagina} nao carregou corretamente. Pulando bloco.", "error")
+                continue
+            # ---------------------------------------------------------
             
             if verificar_conta_suspensa(driver, "Perfil Atual"):
                 break
@@ -816,8 +847,10 @@ def limpar_todas_as_missoes(driver):
                             text.includes("concluído") || 
                             text.includes("completed") || 
                             html.includes("bg-statussuccess") || 
+                            html.includes("statussuccessrewardsbg") ||
                             html.includes("text-statussuccesstintfg") || // <--- Nova classe do Checkmark Verde
-                            html.includes("mee-icon-statuscirclecheckmark") || 
+                            html.includes("1.788 1.953 3.25-3.743") ||
+                            html.includes("mee-icon-statuscirclecheckmark") ||
                             html.includes("mee-icon-skypecirclecheck") || 
                             html.includes("✓") || 
                             html.includes("10 10s-4.477 10-10 10s2 17.523"); // <--- Path SVG do Checkmark Verde
@@ -1064,19 +1097,34 @@ def fazer_pesquisa_visual(driver):
     try:
         LOGGER(t['visual_init'], "info")
         
-        driver.get("https://rewards.bing.com/dashboard")
-        
-        # CHECAGEM DE STARTUP: Força o código a esperar o navegador renderizar a página
-        try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-        except: pass
-        time.sleep(8) 
+        # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO DASHBOARD ---
+        sucesso_dashboard = False
+        for tentativa in range(3):
+            driver.get("https://rewards.bing.com/dashboard")
+            try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+            except: pass
+            time.sleep(6)
+            
+            if driver.execute_script("""
+                let oldUi = document.querySelector('.c-card') !== null;
+                let newUi = document.getElementById('dailyset') !== null || document.getElementById('offers') !== null || document.querySelector('[data-rac]') !== null;
+                return oldUi || newUi;
+            """):
+                sucesso_dashboard = True
+                break
+            LOGGER(f"[BING] Interface Visual nao validada. Retentando (Tentativa {tentativa+1}/3)...", "warning")
+            
+        if not sucesso_dashboard:
+            LOGGER("[BING] Erro Critico: Dashboard nao carregou para acionar a Pesquisa Visual.", "error")
+            return
         
         driver.execute_script("""
-            let cards = document.querySelectorAll('div, a, span');
+            let cards = document.querySelectorAll('div, a, span, button');
             for (let el of cards) {
                 let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                if (texto.includes('pesquisa visual') && (el.onclick || el.tagName === 'A' || el.getAttribute('role') === 'button' || el.closest('.c-card'))) {
-                    el.click();
+                if (texto.includes('pesquisa visual') || texto.includes('visual search')) {
+                    let clicavel = el.closest('button, a, [role="button"]') || el;
+                    clicavel.click();
                     break;
                 }
             }

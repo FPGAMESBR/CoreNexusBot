@@ -6,15 +6,18 @@ import platform
 import subprocess
 import json
 import time
+import ctypes
+import signal
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 import RewardsCore 
 import DiscordQuests
+from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v2.2"
+APP_VERSION = "v2.3"
 APP_CODENAME = "Stealth Architecture"
 
 HTML_INTERFACE = """
@@ -240,6 +243,19 @@ HTML_INTERFACE = """
         .account-name:hover { color: white; }
         .account-delete { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border: none; border-left: 1px solid rgba(14, 165, 233, 0.3); padding: 8px 12px; cursor: pointer; transition: 0.2s; }
         .account-delete:hover { background: var(--accent-red); color: white; }
+        
+        /* ANIMAÇÃO DO AVISO DE UPDATE */
+        @keyframes pulseUpdate {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .pulse-update {
+            animation: pulseUpdate 2s infinite;
+            background: var(--accent-green) !important;
+            color: #fff !important;
+            border: 1px solid #fff;
+        }
     </style>
 </head>
 <body>
@@ -446,6 +462,7 @@ HTML_INTERFACE = """
             }
         };
         let currentLang = "pt";
+        let updatePendente = null;
 
         setTimeout(() => {
             const loader = document.getElementById('loader-wrapper');
@@ -523,7 +540,11 @@ HTML_INTERFACE = """
             document.getElementById('update-1').innerText = TRANSLATIONS[currentLang].item1;
             document.getElementById('update-2').innerText = TRANSLATIONS[currentLang].item2;
             document.getElementById('update-3').innerText = TRANSLATIONS[currentLang].item3;
-            document.getElementById('btn-github-text').innerText = TRANSLATIONS[currentLang].btnGit;
+            if (updatePendente) {
+                document.getElementById('btn-github-text').innerText = currentLang === 'en' ? `Download ${updatePendente}` : `Baixar ${updatePendente}`;
+            } else {
+                document.getElementById('btn-github-text').innerText = TRANSLATIONS[currentLang].btnGit;
+            }
             document.getElementById('label-cooldown').innerText = TRANSLATIONS[currentLang].cooldownLabel;
             document.getElementById('label-star-bonus').innerText = TRANSLATIONS[currentLang].starBonusLabel;
         }
@@ -555,8 +576,27 @@ HTML_INTERFACE = """
             };
             pywebview.api.salvar_configuracoes_ui(config);
         }
+        
+        function mostrarAvisoUpdate(novaVersao) {
+            updatePendente = novaVersao;
+            let btn = document.querySelector('.github-btn');
+            let span = document.getElementById('btn-github-text');
+            let titulo = document.getElementById('update-title');
 
-        window.addEventListener('DOMContentLoaded', () => { setTimeout(() => { pywebview.api.rodar_diagnostico_ui(); }, 500); });
+            btn.classList.add('pulse-update');
+            span.innerText = currentLang === 'en' ? `Download ${novaVersao}` : `Baixar ${novaVersao}`;
+
+            if (!titulo.innerHTML.includes('Nova versão')) {
+                titulo.innerHTML += ` <span style="color:var(--accent-green);font-size:0.7em;">(Nova versão disponível!)</span>`;
+            }
+        }
+        
+        window.addEventListener('DOMContentLoaded', () => { 
+            setTimeout(() => { 
+                pywebview.api.rodar_diagnostico_ui(); 
+                pywebview.api.checar_atualizacao(); 
+            }, 500); 
+        });
     </script>
 </body>
 </html>
@@ -588,7 +628,30 @@ class BotAPI:
         os._exit(0)
         
     def minimizar_janela(self):
-        webview.windows[0].minimize()
+        webview.windows[0].hide()
+        
+    def checar_atualizacao(self):
+        def radar_silencioso():
+            try:
+                import urllib.request
+                import json
+                
+                # Bate na porta da API do seu repositório
+                url = "https://api.github.com/repos/FPGAMESBR/CoreNexusBot/releases/latest"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    dados = json.loads(response.read().decode('utf-8'))
+                    versao_nuvem = dados.get("tag_name", "").strip()
+                    
+                    # Se a versão da nuvem for diferente da local, dispara o alerta na UI
+                    if versao_nuvem and versao_nuvem != APP_VERSION:
+                        webview.windows[0].evaluate_js(f"mostrarAvisoUpdate('{versao_nuvem}')")
+            except Exception:
+                pass # Falhou por falta de internet ou limite de API? Ignora silenciosamente.
+
+        # Roda em uma thread separada para não travar a abertura do bot
+        threading.Thread(target=radar_silencioso, daemon=True).start()
 
     def iniciar(self):
         if self.rodando: 
@@ -601,6 +664,9 @@ class BotAPI:
         webview.windows[0].evaluate_js("switchTab('console', document.querySelectorAll('.nav-item')[0]);")
         self.log_ui("Initializing Stealth loop...", "info")
         
+        # INICIA O CRONÔMETRO NO MINI-PAINEL
+        GerenciadorBandeja.iniciar_cronometro()
+        
         threading.Thread(target=self.loop_farm, daemon=True).start()
         threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True).start()
 
@@ -608,6 +674,9 @@ class BotAPI:
         self.log_ui("KILL SWITCH ACTIVATED. Initiating safe shutdown...", "error")
         self.rodando = False
         RewardsCore.ABORTAR_PROCESSO = True 
+        
+        # PARA O CRONÔMETRO NO MINI-PAINEL
+        GerenciadorBandeja.parar_cronometro()
         
         sistema = platform.system().lower()
         if sistema == "windows":
@@ -782,32 +851,96 @@ def aguardar_internet(timeout_horas=1):
             time.sleep(30)
     return False
 
+def registrar_interceptador_os(api_instance):
+    def encerramento_seguro(*args, **kwargs):
+        api_instance.log_ui("OS SHUTDOWN DETECTED! Pausando para salvar dados...", "warning")
+        
+        # 1. Corta a energia do loop do bot imediatamente
+        RewardsCore.ABORTAR_PROCESSO = True
+        api_instance.rodando = False
+        
+        
+        time.sleep(4)
+        
+        # 3. Libera o desligamento
+        return True
+
+    sistema = platform.system().lower()
+    if sistema == "windows":
+        try:
+            @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
+            def handler_desligamento(ctrl_type):
+                # 2=Fechamento do terminal, 5=Logoff, 6=Desligamento do Windows
+                if ctrl_type in (2, 5, 6): 
+                    return encerramento_seguro()
+                return False
+            
+            global _hook_desligamento 
+            _hook_desligamento = handler_desligamento
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(_hook_desligamento, True)
+        except: pass
+    else:
+        # Sinais nativos POSIX (Garante a compatibilidade com Linux e macOS)
+        try:
+            signal.signal(signal.SIGINT, encerramento_seguro)
+            signal.signal(signal.SIGTERM, encerramento_seguro)
+        except: pass
+
 if __name__ == '__main__':
     import sys
     
+    modo_startup = False
     if len(sys.argv) > 1 and sys.argv[1] == "--auto":
-        # MODO INICIALIZAÇÃO DO SISTEMA OPERACIONAL
-        # Trava o bot até ter internet (máximo de 1 hora)
+        modo_startup = True
+        # Se foi o Windows que iniciou, segura o código até a internet conectar
         if not aguardar_internet(timeout_horas=1):
-            sys.exit(1) # Desliga silenciosamente se passou 1 hora e nada de internet
-            
-        rodar_rewards = False
-        if not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0):
-            # REMOVIDO DAQUI: Ele só vai carimbar se chegar até o final sem o PC desligar
-            rodar_rewards = True
-
-        threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True).start()
-        
-        if rodar_rewards:
-            RewardsCore.preparar_ambiente_adb()
-            RewardsCore.LOGGER = lambda msg, tipo="info": None
-            RewardsCore.iniciar_ciclo_farm()
-            
-            # CARIMBO TRANSFERIDO PARA CÁ: Só registra o dia como concluído se finalizar o ciclo!
-            RewardsCore.registrar_data_execucao("rewards")
-            
-        sys.exit(0)
+            sys.exit(1)
 
     api = BotAPI()
-    janela = webview.create_window(title=f'{APP_NAME} {APP_VERSION}', html=HTML_INTERFACE, js_api=api, frameless=True, easy_drag=False, width=1050, height=720, background_color='#070b14', resizable=False)
-    webview.start()
+    # Ativa o escudo contra desligamento abrupto do Windows
+    registrar_interceptador_os(api)
+    
+    # 1. Cria a janela principal. Se for boot do OS, ela já nasce oculta.
+    janela_principal = webview.create_window(title=f'{APP_NAME} {APP_VERSION}', html=HTML_INTERFACE, js_api=api, frameless=True, easy_drag=False, width=1050, height=720, background_color='#070b14', resizable=False, hidden=modo_startup)
+    
+    # 2. Cria a Janela Fantasma encolhida e FORA DA TELA
+    janela_popup = webview.create_window(
+        'Painel Invisivel', 
+        html=HTML_POPUP, 
+        width=320, height=270,  
+        frameless=True,      
+        transparent=True,    
+        on_top=True,         
+        hidden=True,         
+        x=-2000, y=-2000,
+        background_color='#111827' 
+    )
+
+    # 3. Conecta a API do Popup
+    api_popup = MiniPanelAPI(janela_principal, janela_popup)
+    janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch)
+
+    # 4. Transfere o controle das janelas para o Gerenciador da Bandeja
+    GerenciadorBandeja.janela_principal = janela_principal
+    GerenciadorBandeja.janela_popup = janela_popup
+
+    # 5. Inicia o ícone perto do relógio (Visível mesmo no modo automático)
+    GerenciadorBandeja.iniciar_tray_em_background()
+    
+    def evento_inicializacao():
+        janela_popup.hide()
+        
+        # Se o Windows iniciou o bot, nós "apertamos o botão de Run" invisivelmente
+        if modo_startup:
+            janela_principal.hide() # Garantia extra de invisibilidade
+            api.rodando = True
+            GerenciadorBandeja.iniciar_cronometro()
+            
+            # Verifica o cooldown antes de gastar processamento
+            rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
+            if rodar_rewards:
+                threading.Thread(target=api.loop_farm, daemon=True).start()
+                
+            threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True).start()
+
+    webview.start(evento_inicializacao)
