@@ -156,11 +156,13 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
     except Exception as e:
         LOGGER(f"[STAR ENGINE] [X] Erro no Modo Café: {e}", "error")
     finally:
-        if d_cafe: d_cafe.quit()
+        if d_cafe: 
+            try: d_cafe.quit()
+            except: pass
+        time.sleep(4) # FOLGA PARA O WINDOWS LIMPAR A RAM ANTES DO PRÓXIMO CHUNK
 
 
 def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
-    # CORREÇÃO APLICADA: RewardsCore. antes do update_ui
     RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
     LOGGER("======================================================")
     LOGGER(f"\n>>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
@@ -189,15 +191,12 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
     random.shuffle(acoes)
     
     # Regra de Segurança: Impede que o "Modo Café" seja a última ação da lista
-    # (Para garantir que o bot termine o ciclo pesquisando ou abrindo o painel para o Bing registrar)
     if acoes[-1] == "MODO_CAFE":
         acoes[-1], acoes[0] = acoes[0], acoes[-1]
 
-    # Contadores para sabermos se devemos fazer 'metade' ou 'tudo' do que falta
     pc_chunks_restantes = acoes.count("PC_CHUNK")
     mob_chunks_restantes = acoes.count("MOB_CHUNK")
     
-    # CORREÇÃO APLICADA: RewardsCore. antes do update_ui
     RewardsCore.update_ui("bing", "Pesquisas...", 50)
 
     # ---------------------------------------------------------
@@ -214,6 +213,9 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
                 d_task = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
                 
+                if d_task is None:
+                    raise Exception("ChromeDriver não iniciou corretamente (None). O Sistema Operacional está bloqueando a porta.")
+                    
                 d_task.get("https://rewards.bing.com/")
                 time.sleep(5)
                 
@@ -222,11 +224,17 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                     return 
                     
                 RewardsCore.limpar_todas_as_missoes(d_task)
-                RewardsCore.fazer_pesquisa_visual(d_task)
+                # TENTA FAZER A PESQUISA VISUAL SE ESTIVER NA TELA
+                try: RewardsCore.fazer_pesquisa_visual(d_task)
+                except: pass
+                
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
             finally:
-                if d_task: d_task.quit()
+                if d_task: 
+                    try: d_task.quit()
+                    except: pass
+                time.sleep(4) # FOLGA PARA O WINDOWS
                 
         elif acao == "PC_CHUNK":
             d_pc = None
@@ -234,15 +242,13 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
                 d_pc = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
                 
-                # O segredo: Avalia o saldo a cada bloco, nunca faz de forma cega!
+                if d_pc is None: raise Exception("Driver Nulo.")
                 faltam = RewardsCore.verificar_pesquisas_restantes(d_pc, 'pc')
                 
                 if faltam > 0:
                     if pc_chunks_restantes > 1:
-                        # Se ainda tem outro bloco de PC na fila, faz só de 40% a 60% do que falta
                         qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6))
                     else:
-                        # Se é o último bloco de PC na fila, tenta zerar o saldo
                         qtd = faltam
                         
                     if qtd > 0:
@@ -254,7 +260,10 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha no Bloco PC: {e}", "error")
             finally:
-                if d_pc: d_pc.quit()
+                if d_pc: 
+                    try: d_pc.quit()
+                    except: pass
+                time.sleep(4)
                 
         elif acao == "MOB_CHUNK":
             d_mob = None
@@ -262,8 +271,9 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 identidade_mob = RewardsCore.obter_fingerprint(nome_perfil, 'mobile')
                 d_mob = RewardsCore.configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
                 
+                if d_mob is None: raise Exception("Driver Nulo.")
                 faltam = RewardsCore.verificar_pesquisas_restantes(d_mob, 'mobile')
-                # Fallback de segurança se falhar a leitura
+                
                 if faltam == -1: faltam = cfg.get('limite_mobile', 20)
                     
                 if faltam > 0:
@@ -281,7 +291,10 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha no Bloco Mobile: {e}", "error")
             finally:
-                if d_mob: d_mob.quit()
+                if d_mob: 
+                    try: d_mob.quit()
+                    except: pass
+                time.sleep(4)
                 
         elif acao == "MODO_CAFE":
             _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)

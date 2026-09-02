@@ -783,24 +783,24 @@ def gerar_termo_humanizado(banco, idioma="pt"):
 
 def limpar_todas_as_missoes(driver):
     update_ui("bing", "Painel...", 30)
-    LOGGER(f"\n{t['verificando_paineis']}")
+    LOGGER(f"\n{t.get('verificando_paineis', 'Verificando painéis...')}")
     paginas_para_limpar = ["https://rewards.bing.com/dashboard", "https://rewards.bing.com/earn"]
     missoes_feitas = 0
     links_visitados = []
     
     for pagina in paginas_para_limpar:
-        LOGGER(f"\n{t['analisando_pagina'].format(pagina)}")
+        LOGGER(f"\n[CHROME] -> Analisando: {pagina}")
         try:
-            # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO BING REWARDS ---
             sucesso_carregamento = False
             for tentativa in range(3):
+                if ABORTAR_PROCESSO: return
                 try:
                     driver.get(pagina)
+                    from selenium.webdriver.support.ui import WebDriverWait
                     try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
                     except: pass
                     time.sleep(random.uniform(5.0, 8.0)) 
                     
-                    # Verifica se os cards de missões ou o painel de pontos existem fisicamente no DOM
                     painel_carregou = driver.execute_script("""
                         let oldUi = document.querySelector('#daily-sets') !== null || document.querySelector('.c-card') !== null;
                         let newUi = document.getElementById('dailyset') !== null || document.getElementById('offers') !== null || document.querySelector('[data-rac]') !== null;
@@ -811,71 +811,79 @@ def limpar_todas_as_missoes(driver):
                         sucesso_carregamento = True
                         break
                     else:
-                        LOGGER(f"[CHROME] Painel nao validado visualmente. Retentando carregar {pagina} (Tentativa {tentativa+1}/3)...", "warning")
+                        LOGGER(f"[CHROME] Painel não validado visualmente. Retentando carregar {pagina} (Tentativa {tentativa+1}/3)...", "warning")
                 except Exception: pass
                 
             if not sucesso_carregamento:
-                LOGGER(f"[CHROME] [ERRO] Falha de Estagio: Pagina {pagina} nao carregou corretamente. Pulando bloco.", "error")
+                LOGGER(f"[CHROME] [ERRO] Falha de Estágio: Página {pagina} não carregou corretamente. Pulando bloco.", "error")
                 continue
-            # ---------------------------------------------------------
             
             if verificar_conta_suspensa(driver, "Perfil Atual"):
                 break
             principal = driver.current_window_handle
             
+            from selenium.webdriver.support import expected_conditions as EC
+            
             while True:
+                if ABORTAR_PROCESSO: return
                 alvo_info = driver.execute_script("""
                     let visitados = arguments[0];
-                    let links = document.querySelectorAll('a[href]');
+                    let links = document.querySelectorAll('a[class*="rounded-cornerCardDefault"], a[href]');
                     
                     for (let link of links) {
-                        let href = link.href;
+                        let href = link.href || "";
+                        if (!href || href === "") continue;
                         let hrefLower = href.toLowerCase();
                         
-                        // 1. ZONA DE EXCLUSÃO: Ignora Header, Footer e seções que não dão pontos
-                        if (link.closest('header, footer, nav, #redeem, #snapshot, #achievements, #streaks, #welcome')) {
-                            continue;
-                        }
+                        if (link.closest('header, footer, nav, #redeem, #snapshot, #achievements, #welcome')) continue;
                         
-                        // 2. Bloqueio extra de URLs sensíveis e de navegação externa
                         let ign = ['/redeem', '/about', '/badges', '/status', '/history', '/dashboard', '/earn', '/refer', 'rwgbopen=1', 'microsoft.com/edge', 'xbox.com', 'bingapp.microsoft.com', 'vsstreak', 'support.microsoft.com', 'go.microsoft.com', 'choice.microsoft.com'];
                         if (ign.some(i => hrefLower.includes(i))) continue;
                         
-                        // 3. Verifica se a missão já foi concluída (Caça aos Sinais da Nova UI Tailwind)
                         let html = link.innerHTML.toLowerCase();
                         let text = link.innerText ? link.innerText.toLowerCase() : '';
                         
                         let isCompleted = 
                             text.includes("concluído") || 
                             text.includes("completed") || 
-                            html.includes("bg-statussuccess") || 
-                            html.includes("statussuccessrewardsbg") ||
-                            html.includes("text-statussuccesstintfg") || // <--- Nova classe do Checkmark Verde
-                            html.includes("1.788 1.953 3.25-3.743") ||
+                            html.includes("bg-statussuccessrewardsbg") || 
+                            html.includes("text-statussuccesstintfg") || 
+                            html.includes("1.788 1.953 3.25-3.743") || 
                             html.includes("mee-icon-statuscirclecheckmark") ||
                             html.includes("mee-icon-skypecirclecheck") || 
                             html.includes("✓") || 
-                            html.includes("10 10s-4.477 10-10 10s2 17.523"); // <--- Path SVG do Checkmark Verde
+                            html.includes("10 10s-4.477 10-10 10s2 17.523");
+                            
+                        let progressBars = link.querySelectorAll('[role="progressbar"]');
+                        progressBars.forEach(pb => {
+                            let valNow = pb.getAttribute('aria-valuenow');
+                            let valMax = pb.getAttribute('aria-valuemax');
+                            if (valNow && valMax && valNow === valMax && valMax !== "0") {
+                                isCompleted = true;
+                            }
+                        });
                             
                         if (isCompleted) continue;
                         
-                        // 4. Confirma que o link é visível na tela e ainda não foi visitado
                         if (!visitados.includes(href) && link.offsetWidth > 0) {
-                            return [link, href];
+                            let titleEl = link.querySelector('p.text-globalBody2Strong') || link.querySelector('h3, h4, .title');
+                            let titulo = titleEl ? titleEl.innerText : "Missao_Extra";
+                            return [link, href, titulo];
                         }
                     }
                     return null;
                 """, links_visitados)
                 
                 if not alvo_info: 
-                    LOGGER(t['painel_limpo'])
+                    LOGGER(t.get('painel_limpo', '  > Painel limpo e processado!'))
                     break
                 
                 alvo_elemento = alvo_info[0]
                 link_alvo = alvo_info[1]
+                titulo_missao = alvo_info[2]
                 
                 links_visitados.append(link_alvo)
-                LOGGER(t['clicando_missao'].format(missoes_feitas + 1))
+                LOGGER(f"    - Iniciando Tarefa: {titulo_missao[:40]}")
                 
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", alvo_elemento)
                 wait_human(1.0, 2.5, long_pause_chance=0.0)
@@ -884,7 +892,7 @@ def limpar_todas_as_missoes(driver):
                 driver.execute_script("arguments[0].click();", alvo_elemento)
                 
                 try: WebDriverWait(driver, 6).until(EC.new_window_is_opened(janelas_antes))
-                except TimeoutException: pass
+                except Exception: pass
                 
                 janelas_depois = driver.window_handles
                 novas = [j for j in janelas_depois if j not in janelas_antes]
@@ -892,6 +900,25 @@ def limpar_todas_as_missoes(driver):
                 if novas:
                     driver.switch_to.window(novas[0])
                     wait_human(8.0, 15.0, long_pause_chance=0.2) 
+                    
+                    try:
+                        from selenium.webdriver.common.by import By
+                        espera_quiz = WebDriverWait(driver, 4)
+                        try:
+                            btn_start = espera_quiz.until(EC.element_to_be_clickable((By.ID, "rqStartQuiz")))
+                            btn_start.click()
+                            time.sleep(3)
+                        except: pass
+                        
+                        for _ in range(12):
+                            if ABORTAR_PROCESSO: break
+                            try:
+                                opt = driver.find_element(By.CSS_SELECTOR, ".rqOption, .btOption, .b_cards")
+                                opt.click()
+                                time.sleep(random.uniform(1.5, 3.0))
+                            except: break
+                    except: pass
+                    
                     driver.close()
                     driver.switch_to.window(principal)
                 else:
@@ -899,9 +926,9 @@ def limpar_todas_as_missoes(driver):
                     
                 missoes_feitas += 1
         except Exception as e:
-            LOGGER(t['erro_pagina'].format(str(e)[:80]))
+            LOGGER(f"    [!] Erro na varredura: {str(e)[:80]}")
             
-    LOGGER(f"\n{t['total_missoes'].format(missoes_feitas)}")
+    LOGGER(f"\n[CHROME] --- Total de {missoes_feitas} missões concluídas com sucesso! ---")
 
 def verificar_pesquisas_restantes(driver, tipo):
     update_ui("bing", "Pesquisas Restantes...", 60)
@@ -1105,14 +1132,14 @@ def fazer_pesquisa_visual(driver):
         sucesso_dashboard = False
         for tentativa in range(3):
             driver.get("https://rewards.bing.com/dashboard")
+            from selenium.webdriver.support.ui import WebDriverWait
             try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
             except: pass
             time.sleep(6)
             
             if driver.execute_script("""
-                let oldUi = document.querySelector('.c-card') !== null;
-                let newUi = document.getElementById('dailyset') !== null || document.getElementById('offers') !== null || document.querySelector('[data-rac]') !== null;
-                return oldUi || newUi;
+                let text = document.body.innerText.toLowerCase();
+                return text.includes('pesquisa visual') || text.includes('visual search');
             """):
                 sucesso_dashboard = True
                 break
@@ -1122,81 +1149,38 @@ def fazer_pesquisa_visual(driver):
             LOGGER("[BING] Erro Critico: Dashboard nao carregou para acionar a Pesquisa Visual.", "error")
             return
         
+        # 1. Abre o Flyout lateral clicando no card principal (Novo padrão da Microsoft)
         driver.execute_script("""
-            let cards = document.querySelectorAll('div, a, span, button');
+            let cards = document.querySelectorAll('div, a, span, button, p');
             for (let el of cards) {
                 let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                if (texto.includes('pesquisa visual') || texto.includes('visual search')) {
+                if (texto === 'pesquisa visual' || texto === 'visual search') {
                     let clicavel = el.closest('button, a, [role="button"]') || el;
                     clicavel.click();
                     break;
                 }
             }
         """)
-        time.sleep(6) # Delay ampliado para o menu lateral abrir em PCs lentos
+        time.sleep(4) 
 
+        # 2. Captura o link de tracking da missão dentro do painel lateral (Flyout) e acessa
         driver.execute_script("""
             let link = document.querySelector('a[href*="vsstreak"]');
             if (link) { window.location.href = link.href; } 
             else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
         """)
         
-        # CHECAGEM DE STARTUP 2: Aguarda o motor do Bing.com acordar
         try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
         except: pass
-        time.sleep(8) 
+        time.sleep(6) 
 
+        # 3. GERA A IMAGEM E FAZ A PESQUISA DIRETAMENTE PELA URL (Bypassa o bloqueio do Enter)
         semente = random.randint(1, 100000)
         url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
         
-        sucesso_injecao = driver.execute_script("""
-            let imgUrl = arguments[0];
-            return new Promise((resolve) => {
-                let tentativas = 0;
-                let verificador = setInterval(() => {
-                    tentativas++;
-                    
-                    let inputReal = document.getElementById('sb_imgpst');
-                    let isVisivel = inputReal && inputReal.offsetWidth > 0 && inputReal.offsetHeight > 0;
-                    
-                    if (isVisivel) {
-                        clearInterval(verificador);
-                        let nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-                        if(nativeSetter) { nativeSetter.call(inputReal, imgUrl); }
-                        else { inputReal.value = imgUrl; }
-                        
-                        inputReal.dispatchEvent(new Event('input', { bubbles: true }));
-                        inputReal.dispatchEvent(new Event('change', { bubbles: true }));
-                        
-                        let enterEvent = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});
-                        inputReal.dispatchEvent(enterEvent);
-                        resolve("dom_success");
-                        
-                    } else {
-                        let camDiv = document.getElementById('sb_sbi');
-                        let camImg = document.getElementById('sbi_b');
-                        let alvo = camImg || camDiv;
-                        
-                        if (alvo) {
-                            alvo.click();
-                            alvo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-                            alvo.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-                        }
-                        
-                        // PACIÊNCIA EXTENDIDA: Aguarda até 15 segundos (30 tentativas) pelo popup no Startup
-                        if (tentativas >= 30) { 
-                            clearInterval(verificador);
-                            window.location.href = "https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:" + encodeURIComponent(imgUrl) + "&features=vsstreak";
-                            resolve("redirect_success");
-                        }
-                    }
-                }, 500);
-            });
-        """, url_imagem_aleatoria)
+        url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem_aleatoria}&features=vsstreak"
+        driver.get(url_pesquisa_direta)
         
-        if sucesso_injecao == "redirect_success":
-            LOGGER("[BING] UI travada pelo lag do PC. Roteamento alternativo (com tracking) forçado.", "warning")
-            
         LOGGER(t['visual_img_ok'].format(url_imagem_aleatoria), "info")
         time.sleep(12)
 

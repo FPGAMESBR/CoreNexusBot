@@ -3,8 +3,18 @@ import pystray
 from PIL import Image, ImageDraw
 import threading
 import time
+import sys
 import os
 import RewardsCore
+
+def resource_path(relative_path):
+    try:
+        # PyInstaller cria uma pasta temporária e guarda o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class MiniPanelAPI:
     def __init__(self, janela_principal, janela_popup):
@@ -124,10 +134,11 @@ class SysTrayApp:
         if self.icone_tray is not None:
             return
             
-        # Tenta carregar a imagem original ou gera a de emergência
+        # Tenta carregar a imagem embutida no EXE ou gera a de emergência
         try:
-            if os.path.exists("rewards.ico"):
-                imagem = Image.open("rewards.ico")
+            caminho_icone = resource_path("rewards.ico")
+            if os.path.exists(caminho_icone):
+                imagem = Image.open(caminho_icone)
             else:
                 imagem = self.gerar_icone_emergencia()
         except:

@@ -17,7 +17,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.0"
+APP_VERSION = "v3.1"
 APP_CODENAME = "Stealth Architecture"
 
 HTML_INTERFACE = """
@@ -916,10 +916,11 @@ if __name__ == '__main__':
     
     janela_principal = webview.create_window(title=f'{APP_NAME} {APP_VERSION}', html=HTML_INTERFACE, js_api=api, frameless=True, easy_drag=False, width=1050, height=720, background_color='#070b14', resizable=False, hidden=modo_startup)
     
+    # ATUALIZAÇÃO DA ALTURA PARA 320 PARA ACOMODAR OS BOTÕES DE VELOCIDADE
     janela_popup = webview.create_window(
         'Painel Invisivel', 
         html=HTML_POPUP, 
-        width=320, height=270,  
+        width=320, height=320,  
         frameless=True,      
         transparent=True,    
         on_top=True,         
@@ -928,45 +929,73 @@ if __name__ == '__main__':
         background_color='#111827' 
     )
 
-    # === NOVO: INTERCEPTADORES DE FECHAMENTO (COMPORTAMENTO DE BANDEJA) ===
     def interceptar_fechamento_principal():
         try: janela_principal.hide()
         except: pass
-        return False  # Cancela a destruição imposta pelo Windows, apenas esconde
+        return False  
 
     def interceptar_fechamento_popup():
         try: GerenciadorBandeja.fechar_popup_sistema()
         except: pass
-        return False  # Cancela a destruição imposta pelo Windows, recolhe o painel
+        return False  
 
     janela_principal.events.closing += interceptar_fechamento_principal
     janela_popup.events.closing += interceptar_fechamento_popup
-    # ======================================================================
 
     api_popup = MiniPanelAPI(janela_principal, janela_popup)
-    janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch)
+    # INCLUSÃO DO EXPOSE PARA O BOTÃO DE MARCHA (VELOCIDADE) FUNCIONAR
+    try: janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch, api_popup.set_marcha)
+    except: janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch)
 
     GerenciadorBandeja.janela_principal = janela_principal
     GerenciadorBandeja.janela_popup = janela_popup
 
     GerenciadorBandeja.iniciar_tray_em_background()
     
+    # === NOVO: COORDENADOR DE AUTO-CLOSE PARA O STARTUP ===
+    def coordenador_auto_close():
+        threads_vivas = []
+        
+        # 1. Verifica e dispara a Thread do Rewards
+        if not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0):
+            t_bing = threading.Thread(target=api.loop_farm, daemon=True)
+            t_bing.start()
+            threads_vivas.append(t_bing)
+            
+        # 2. Verifica e dispara a Thread do Discord
+        cfg = RewardsCore.carregar_config()
+        if cfg.get("do_discord", "n") == "s":
+            t_disc = threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True)
+            t_disc.start()
+            threads_vivas.append(t_disc)
+            
+        # 3. Trava o coordenador até que ambas as tarefas terminem
+        for t in threads_vivas:
+            t.join()
+            
+        # 4. Encerra o bot automaticamente se não houve intervenção manual
+        if not RewardsCore.ABORTAR_PROCESSO and modo_startup:
+            api.log_ui("[SISTEMA] Automação de Startup finalizada. O bot se desligará em 5s...", "warning")
+            time.sleep(5)
+            api.fechar_janela()
+
     def evento_inicializacao():
-        # Força o mini-painel a ficar oculto e fora da tela durante o boot empacotado
-        try:
-            janela_popup.move(-2000, -2000)
-            janela_popup.hide()
-        except: pass
+        # Atraso estratégico para o Windows renderizar o processo antes de esconde-lo da barra
+        def ocultar_telas_seguro():
+            time.sleep(0.8)
+            try:
+                janela_popup.move(-2000, -2000)
+                janela_popup.hide()
+                if modo_startup:
+                    janela_principal.hide()
+            except: pass
+
+        threading.Thread(target=ocultar_telas_seguro, daemon=True).start()
         
         if modo_startup:
-            janela_principal.hide() 
             api.rodando = True
             GerenciadorBandeja.iniciar_cronometro()
-            
-            rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
-            if rodar_rewards:
-                threading.Thread(target=api.loop_farm, daemon=True).start()
-                
-            threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True).start()
+            # Chama o coordenador em vez de lançar as threads soltas
+            threading.Thread(target=coordenador_auto_close, daemon=True).start()
 
     webview.start(evento_inicializacao)
