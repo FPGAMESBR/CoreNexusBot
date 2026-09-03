@@ -16,9 +16,15 @@ from selenium.webdriver.chrome.service import Service
 
 import RewardsCore
 
+# ======================================================
+# JAVASCRIPT INJETOR ATUALIZADO (PONTE DE COMUNICAÇÃO SEGURA)
+# ======================================================
 SCRIPT_JS = r"""
 (async function() {
     window.discordQuestsDone = false;
+    window.recompensas_logs = window.recompensas_logs || [];
+    const logP = (msg) => { window.recompensas_logs.push(msg); };
+
     try {
         delete window.$;
 
@@ -45,7 +51,7 @@ SCRIPT_JS = r"""
         let token = findStore(x => typeof x.getToken === 'function')?.getToken();
 
         if (!token) {
-            console.log("[JS] ERRO FATAL: Token VIP nao encontrado!");
+            logP("[JS] ERRO FATAL: Token VIP nao encontrado!");
             window.discordQuestsDone = true; return;
         }
 
@@ -57,18 +63,14 @@ SCRIPT_JS = r"""
             return data;
         };
 
-        // ==========================================
-        // INJETOR DE MISSÕES GLOBAIS (FORÇA BRUTA)
-        // ==========================================
         const globalIds = INJECT_GLOBAL_IDS;
         if (globalIds && globalIds.length > 0) {
-            console.log(`[JS] Injetando ${globalIds.length} missoes da API Global...`);
+            logP(`[JS] Injetando ${globalIds.length} missoes da API Global...`);
             for (let id of globalIds) {
                 try { await request('POST', `/quests/${id}/enroll`, { location: 2 }); } catch(e) {}
             }
             await new Promise(r => setTimeout(r, 2000));
         }
-        // ==========================================
 
         let quests = QuestsStore ? [...QuestsStore.quests.values()] : [];
         if (quests.length === 0) {
@@ -91,16 +93,16 @@ SCRIPT_JS = r"""
         });
 
         if(quests.length === 0) {
-            console.log("[JS] Nenhuma missao compativel pendente na sua conta.");
+            logP("[JS] Nenhuma missao compativel pendente na sua conta.");
             window.discordQuestsDone = true; return;
         }
 
-        console.log(`[JS] Encontrada(s) ${quests.length} missao(oes) pendente(s). Iniciando motor contextual...`);
+        logP(`[JS] Encontrada(s) ${quests.length} missao(oes) pendente(s). Iniciando motor contextual...`);
 
         let doJob = async function() {
             const quest = quests.pop();
             if(!quest) {
-                console.log("[JS] Operacao finalizada. Farm concluido com sucesso absoluto!");
+                logP("[JS] Operacao finalizada. Farm concluido com sucesso absoluto!");
                 window.discordQuestsDone = true; return;
             }
 
@@ -121,7 +123,7 @@ SCRIPT_JS = r"""
             const extraSeconds = isVideo ? 0 : Math.floor(Math.random() * 240) + 60; 
             const targetTimeWithFat = secondsNeeded + extraSeconds;
 
-            console.log(`[JS] -> Missao: ${questName} | Base: ${secondsNeeded}s | Furtiva: ${targetTimeWithFat}s`);
+            logP(`[JS] -> Missao: ${questName} | Base: ${secondsNeeded}s | Furtiva: ${targetTimeWithFat}s`);
 
             if (!(uStatus.enrolled_at || uStatus.enrolledAt)) {
                 try { await request('POST', `/quests/${quest.id}/enroll`, { location: 2 }); } catch(e) {}
@@ -129,7 +131,7 @@ SCRIPT_JS = r"""
             }
 
             if(taskName === "WATCH_VIDEO_ON_MOBILE") {
-                console.log(`[JS] -> Missao: ${questName} requer dispositivo movel. Pulando...`);
+                logP(`[JS] -> Missao: ${questName} requer dispositivo movel. Pulando...`);
                 setTimeout(doJob, 1000);
                 return;
             }
@@ -172,26 +174,26 @@ SCRIPT_JS = r"""
                 ghostMouseVideo();
 
             } else if (isGame) {
-                console.log(`[JS] Missao de Jogo detectada. Executando 'Alt+Tab' virtual (Blur)...`);
+                logP(`[JS] Missao de Jogo detectada. Executando 'Alt+Tab' virtual (Blur)...`);
                 window.dispatchEvent(new Event('blur'));
                 let startDelay = 12000 + Math.floor(Math.random() * 25000);
-                console.log(`[JS] Simulando abertura do jogo. Aguardando ${Math.floor(startDelay/1000)}s...`);
+                logP(`[JS] Simulando abertura do jogo. Aguardando ${Math.floor(startDelay/1000)}s...`);
                 await new Promise(r => setTimeout(r, startDelay));
             }
 
             const executarDesligamento = () => {
                 if (ghostInterval) clearTimeout(ghostInterval);
                 let endDelay = 4000 + Math.floor(Math.random() * 8000);
-                console.log(`[JS] Objetivo cumprido! Descompressao organica de ${Math.floor(endDelay/1000)}s antes da proxima acao...`);
+                logP(`[JS] Objetivo cumprido! Descompressao organica de ${Math.floor(endDelay/1000)}s...`);
                 setTimeout(() => {
-                    document.title = "REWARDS_KILL:ALL";
+                    window.recompensas_cmd = "REWARDS_KILL:ALL";
                     setTimeout(doJob, 3000);
                 }, endDelay);
             };
 
             if(isVideo) {
                 let card = document.getElementById('quest-tile-' + quest.id);
-                if(!card) { console.log(`[JS] Card nao encontrado.`); executarDesligamento(); return; }
+                if(!card) { logP(`[JS] ALERTA: Card de video nao encontrado (Aba de missoes fechada?). Encerrando bloco.`); executarDesligamento(); return; }
                 
                 let btns = Array.from(card.querySelectorAll('button'));
                 let watchBtn = btns.find(b => /(assistir|continuar|watch|play|jogar)/i.test(b.innerText) && b.classList.contains('primary_a22cb0')) || btns.find(b => b.classList.contains('primary_a22cb0'));
@@ -199,12 +201,12 @@ SCRIPT_JS = r"""
                 if(watchBtn) {
                     let readDelay = 3000 + Math.floor(Math.random() * 5000);
                     setTimeout(() => {
-                        console.log(`[JS] Acionando Play no Video...`);
+                        logP(`[JS] Acionando Play no Video...`);
                         watchBtn.click();
                         iniciarVideoLoop();
                     }, readDelay);
                 } else { 
-                    console.log(`[JS] Botao Play nao encontrado.`); executarDesligamento(); return; 
+                    logP(`[JS] Botao Play nao encontrado.`); executarDesligamento(); return; 
                 }
 
                 const iniciarVideoLoop = () => {
@@ -213,7 +215,7 @@ SCRIPT_JS = r"""
                         currentWait += 2;
                         let qrModal = document.querySelector('[class*="qrCode"], img[alt*="QR"], [data-testid*="qr-code"]');
                         if (qrModal) {
-                            console.log(`[JS] Tela de QR Code detectada. Fechando modal e avancando...`);
+                            logP(`[JS] Tela de QR Code detectada. Fechando modal e avancando...`);
                             let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
                             if(closeBtn) closeBtn.click();
                             executarDesligamento();
@@ -227,13 +229,13 @@ SCRIPT_JS = r"""
                             let cur = video.currentTime || 0;
                             let dur = video.duration || secondsNeeded;
                             
-                            if (currentWait % 6 === 0) console.log(`[JS] Assistindo [Video DOM]: ${cur.toFixed(0)}s / ${dur.toFixed(0)}s`);
+                            if (currentWait % 6 === 0) logP(`[JS] Assistindo [Video DOM]: ${cur.toFixed(0)}s / ${dur.toFixed(0)}s`);
                             
                             let updatedQuest = QuestsStore.getQuest(quest.id);
                             let completed = (updatedQuest && updatedQuest.userStatus?.completedAt != null) || (dur > 0 && cur >= dur - 0.5);
                             
                             if(completed || currentWait >= maxWait) {
-                                console.log(`[JS] Reproducao finalizada! Simulando tempo de reacao humana antes de fechar...`);
+                                logP(`[JS] Reproducao finalizada! Simulando tempo de reacao humana antes de fechar...`);
                                 setTimeout(() => {
                                     let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"]');
                                     if(closeBtn) closeBtn.click();
@@ -242,7 +244,7 @@ SCRIPT_JS = r"""
                                 return;
                             }
                         } else if (currentWait > 15) {
-                            console.log(`[JS] Falha ao carregar player de video. Fechando janela...`);
+                            logP(`[JS] Falha ao carregar player de video. Fechando janela...`);
                             let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
                             if(closeBtn) closeBtn.click();
                             executarDesligamento();
@@ -260,15 +262,17 @@ SCRIPT_JS = r"""
                 let cleanExeName = rawExeName.replace(/[\/\\:*?"<>|\n\r]/g, "").trim();
                 if (!cleanExeName.toLowerCase().endsWith(".exe")) cleanExeName += ".exe";
 
-                console.log(`[JS] Solicitando camuflagem OS ao Python: ${cleanExeName}`);
+                logP(`[JS] Solicitando camuflagem OS ao Python: ${cleanExeName}`);
                 window.novoPidCamuflado = null; 
-                document.title = "REWARDS_EXE:" + cleanExeName;
+                window.recompensas_cmd = "REWARDS_EXE:" + cleanExeName;
                 
                 let waitCycles = 0;
                 while (!window.novoPidCamuflado && waitCycles < 40) {
                     await new Promise(resolve => setTimeout(resolve, 500));
                     waitCycles++;
                 }
+                
+                if(!window.novoPidCamuflado) logP("[JS] Alerta: Python demorou para responder. Usando PID generico de fallback.");
                 const pid = window.novoPidCamuflado || 10432; 
 
                 const fakeGame = { cmdLine: `C:\\Program Files\\${appData.name || questName}\\${cleanExeName}`, exeName: cleanExeName, exePath: `c:/program files/${(appData.name || questName).toLowerCase()}/${cleanExeName}`, hidden: false, isLauncher: false, id: applicationId, name: appData.name || questName, pid: pid, pidPath: [pid], processName: appData.name || questName, start: Date.now() };
@@ -288,14 +292,14 @@ SCRIPT_JS = r"""
                 let fn = data => {
                     if(completingThisQuest) return;
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
-                    if(!fatTimerStarted) console.log(`[JS] Tracker Nativo: ${progress} / ${targetTimeWithFat}s`);
+                    if(!fatTimerStarted) logP(`[JS] Tracker Nativo: ${progress} / ${targetTimeWithFat}s`);
                     
                     if(!fatTimerStarted && (progress >= secondsNeeded || data.userStatus?.completedAt || data.userStatus?.completed_at)) {
                         fatTimerStarted = true;
                         let fatRemaining = targetTimeWithFat - progress;
                         if(fatRemaining < 0) fatRemaining = 0;
                         
-                        console.log(`[JS] Meta oficial atingida! Mantendo o jogo aberto por mais ${fatRemaining}s (Gordura Stealth)...`);
+                        logP(`[JS] Meta oficial atingida! Mantendo o jogo aberto por mais ${fatRemaining}s (Gordura Stealth)...`);
                         let simulatedProgress = progress;
                         const finishUp = () => {
                             completingThisQuest = true;
@@ -311,7 +315,7 @@ SCRIPT_JS = r"""
                                 let ganho = 8 + Math.floor(Math.random() * 12);
                                 simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
-                                console.log(`[JS] Tracker Furtivo: ${simulatedProgress} / ${targetTimeWithFat}s`);
+                                logP(`[JS] Tracker Furtivo: ${simulatedProgress} / ${targetTimeWithFat}s`);
                                 setTimeout(queimarGordura, (ganho * 1000) + Math.floor(Math.random() * 2000));
                             };
                             queimarGordura();
@@ -323,7 +327,7 @@ SCRIPT_JS = r"""
             else if(taskName === "STREAM_ON_DESKTOP") {
                 let cleanExeName = questName.replace(/[\/\\:*?"<>|\n\r]/g, "").trim() + ".exe";
                 window.novoPidCamuflado = null; 
-                document.title = "REWARDS_EXE:" + cleanExeName;
+                window.recompensas_cmd = "REWARDS_EXE:" + cleanExeName;
                 
                 let waitCycles = 0;
                 while (!window.novoPidCamuflado && waitCycles < 40) { await new Promise(resolve => setTimeout(resolve, 500)); waitCycles++; }
@@ -337,13 +341,13 @@ SCRIPT_JS = r"""
                 let fn = data => {
                     if(completingThisQuest) return;
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
-                    if(!fatTimerStarted) console.log(`[JS] Stream Nativo: ${progress} / ${targetTimeWithFat}s`);
+                    if(!fatTimerStarted) logP(`[JS] Stream Nativo: ${progress} / ${targetTimeWithFat}s`);
                     
                     if(!fatTimerStarted && (progress >= secondsNeeded || data.userStatus?.completedAt || data.userStatus?.completed_at)) {
                         fatTimerStarted = true;
                         let fatRemaining = targetTimeWithFat - progress;
                         if(fatRemaining < 0) fatRemaining = 0;
-                        console.log(`[JS] Meta oficial da Stream atingida! Queimando gordura stealth (${fatRemaining}s)...`);
+                        logP(`[JS] Meta oficial da Stream atingida! Queimando gordura stealth (${fatRemaining}s)...`);
                         
                         let simulatedProgress = progress;
                         const finishUp = () => {
@@ -360,7 +364,7 @@ SCRIPT_JS = r"""
                                 let ganho = 8 + Math.floor(Math.random() * 12);
                                 simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
-                                console.log(`[JS] Tracker Furtivo (Stream): ${simulatedProgress} / ${targetTimeWithFat}s`);
+                                logP(`[JS] Tracker Furtivo (Stream): ${simulatedProgress} / ${targetTimeWithFat}s`);
                                 setTimeout(queimarGorduraStream, (ganho * 1000) + Math.floor(Math.random() * 2000));
                             };
                             queimarGorduraStream();
@@ -377,7 +381,7 @@ SCRIPT_JS = r"""
                 let initialSeconds = secondsDone;
                 
                 let fn = async () => {
-                    console.log(`[JS] Call detectada (${questName}). Iniciando heartbeats hibridos...`);
+                    logP(`[JS] Call detectada (${questName}). Iniciando heartbeats hibridos...`);
                     while(true) {
                         let progress = 0;
                         try {
@@ -387,7 +391,7 @@ SCRIPT_JS = r"""
                         
                         let elapsed = Math.floor((Date.now() - startTime) / 1000);
                         let bestProg = Math.max(progress, initialSeconds + elapsed);
-                        console.log(`[JS] Atividade Call: ${bestProg} / ${targetTimeWithFat}s`);
+                        logP(`[JS] Atividade Call: ${bestProg} / ${targetTimeWithFat}s`);
                         
                         if(bestProg >= targetTimeWithFat) {
                             try { await request('POST', `/quests/${quest.id}/heartbeat`, {stream_key: streamKey, terminal: true}); } catch(e) {}
@@ -395,7 +399,7 @@ SCRIPT_JS = r"""
                         }
                         await new Promise(resolve => setTimeout(resolve, 18000 + Math.floor(Math.random() * 8000)));
                     }
-                    console.log(`[JS] Atividade Call finalizada e disfarçada!`);
+                    logP(`[JS] Atividade Call finalizada e disfarçada!`);
                     executarDesligamento();
                 };
                 fn();
@@ -404,7 +408,7 @@ SCRIPT_JS = r"""
         doJob();
 
     } catch(err) {
-        console.error("[JS] Erro critico na espinha dorsal:", err);
+        logP("[JS] Erro critico na espinha dorsal: " + err.message);
         window.discordQuestsDone = true;
     }
 })();
@@ -640,14 +644,24 @@ def iniciar_farm_discord():
             
         RewardsCore.update_ui("discord", "Sincronizando...", 50)
         
+        # Garante que a página de Missões seja aberta para os cards de vídeo carregarem
         for _ in range(3):
             if RewardsCore.ABORTAR_PROCESSO: return
             try:
                 driver.execute_script("""
-                    let els = document.querySelectorAll('*');
-                    for (let el of els) {
-                        if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests')) {
-                            (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); break;
+                    // 1. Tenta achar links diretos para a rota da nova aba de missões
+                    let btnMissao = document.querySelector('[href="/quest-home"], [href="/quests"], [data-list-item-id*="quests"]');
+                    
+                    if (btnMissao) { 
+                        btnMissao.click(); 
+                    } else {
+                        // 2. Fallback de Força Bruta: Procura pela palavra "Missões" ou "Quests" na barra
+                        let els = document.querySelectorAll('*');
+                        for (let el of els) {
+                            if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests' || el.textContent.trim() === 'Descobrir')) {
+                                (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); 
+                                break;
+                            }
                         }
                     }
                 """)
@@ -657,7 +671,7 @@ def iniciar_farm_discord():
             if RewardsCore.ABORTAR_PROCESSO: return
             
             try:
-                if driver.execute_script("return window.location.pathname.includes('quests') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
+                if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
             except: pass
             
             try: driver.refresh()
@@ -680,7 +694,7 @@ def iniciar_farm_discord():
         
         try: driver.execute_script(script_injetado)
         except Exception:
-            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO ao injetar Webpack. O aplicativo do Discord crashou.")
+            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO ao injetar Webpack. O aplicativo crashou.")
             return
         
         RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
@@ -689,46 +703,54 @@ def iniciar_farm_discord():
         try:
             while True:
                 if RewardsCore.ABORTAR_PROCESSO: return
-                time.sleep(5)
-                try:
-                    titulo_atual = driver.title
-                    if "REWARDS_EXE:" in titulo_atual:
-                        exe_needed = titulo_atual.split("REWARDS_EXE:")[1].strip()
-                        temp_dir = tempfile.gettempdir()
-                        fake_exe_path = os.path.join(temp_dir, exe_needed)
-                        
-                        if platform.system().lower() == "windows":
-                            shutil.copy(r"C:\Windows\System32\ping.exe", fake_exe_path)
-                            dp = subprocess.Popen([fake_exe_path, "127.0.0.1", "-n", "3600"], creationflags=subprocess.CREATE_NO_WINDOW)
-                        else:
-                            shutil.copy(shutil.which("sleep") or "/bin/sleep", fake_exe_path)
-                            os.chmod(fake_exe_path, 0o755) 
-                            dp = subprocess.Popen([fake_exe_path, "3600"])
-
-                        dummy_processes.append((dp, fake_exe_path))
-                        driver.execute_script(f"window.novoPidCamuflado = {dp.pid}; document.title = 'Discord';") 
-                        
-                    elif "REWARDS_KILL:ALL" in titulo_atual:
-                        for dp, path in dummy_processes:
-                            try: dp.kill()
-                            except: pass
-                            try: os.remove(path)
-                            except: pass
-                        dummy_processes.clear()
-                        driver.execute_script("document.title = 'Discord';")
-                except: pass
+                time.sleep(2) # TEMPO DE RESPOSTA MAIS AGRESSIVO!
                 
                 try:
-                    for log in driver.get_log("browser"):
-                        msg = log.get("message", "")
-                        if "[JS]" in msg:
-                            clean_msg = msg[msg.find("[JS]"):].replace("\\n", "").strip(" '\"\\")
-                            RewardsCore.LOGGER(clean_msg)
+                    # EXTRAÇÃO BLINDADA DOS LOGS E COMANDOS DIRETAMENTE DA MEMÓRIA DO JAVASCRIPT
+                    js_data = driver.execute_script("""
+                        let res = { cmd: window.recompensas_cmd, logs: window.recompensas_logs || [] };
+                        window.recompensas_cmd = null;
+                        window.recompensas_logs = [];
+                        return res;
+                    """)
+                    
+                    if js_data:
+                        # 1. Despeja todos os Logs que o JS guardou
+                        for msg in js_data.get('logs', []):
+                            RewardsCore.LOGGER(msg)
+                            
+                        # 2. Executa comandos isolados
+                        cmd = js_data.get('cmd')
+                        if cmd:
+                            if "REWARDS_EXE:" in cmd:
+                                exe_needed = cmd.split("REWARDS_EXE:")[1].strip()
+                                temp_dir = tempfile.gettempdir()
+                                fake_exe_path = os.path.join(temp_dir, exe_needed)
+                                
+                                if platform.system().lower() == "windows":
+                                    shutil.copy(r"C:\Windows\System32\ping.exe", fake_exe_path)
+                                    dp = subprocess.Popen([fake_exe_path, "127.0.0.1", "-n", "3600"], creationflags=subprocess.CREATE_NO_WINDOW)
+                                else:
+                                    shutil.copy(shutil.which("sleep") or "/bin/sleep", fake_exe_path)
+                                    os.chmod(fake_exe_path, 0o755) 
+                                    dp = subprocess.Popen([fake_exe_path, "3600"])
+
+                                dummy_processes.append((dp, fake_exe_path))
+                                driver.execute_script(f"window.novoPidCamuflado = {dp.pid};") 
+                                
+                            elif "REWARDS_KILL:ALL" in cmd:
+                                for dp, path in dummy_processes:
+                                    try: dp.kill()
+                                    except: pass
+                                    try: os.remove(path)
+                                    except: pass
+                                dummy_processes.clear()
                 except: pass
                 
                 try:
                     if driver.execute_script("return window.discordQuestsDone === true;"): break
                 except: break
+                
         except Exception as e:
             if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(d_msgs[lang]["loop_error"].format(str(e)[:100]))
             

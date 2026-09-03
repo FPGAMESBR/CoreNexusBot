@@ -190,9 +190,13 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
     # Embaralha tudo de forma orgânica
     random.shuffle(acoes)
     
-    # Regra de Segurança: Impede que o "Modo Café" seja a última ação da lista
-    if acoes[-1] == "MODO_CAFE":
-        acoes[-1], acoes[0] = acoes[0], acoes[-1]
+    if "MODO_CAFE" in acoes:
+        if acoes[0] == "MODO_CAFE":
+            # Troca com o segundo elemento
+            acoes[0], acoes[1] = acoes[1], acoes[0]
+        if acoes[-1] == "MODO_CAFE":
+            # Troca com o penúltimo elemento
+            acoes[-1], acoes[-2] = acoes[-2], acoes[-1]
 
     pc_chunks_restantes = acoes.count("PC_CHUNK")
     mob_chunks_restantes = acoes.count("MOB_CHUNK")
