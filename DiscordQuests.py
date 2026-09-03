@@ -492,291 +492,294 @@ def verificar_porta_tor():
     except OSError: return False
 
 def iniciar_farm_discord():
-    cfg = RewardsCore.carregar_config()
-    lang = "pt" if cfg.get("language", "pt") == "pt" else "en"
-    d_msgs = {
-        "en": {"cooldown": "[DISCORD] Cooldown active. Skipping for now.", "not_found": "[DISCORD] ERROR: App not found.", "loop_error": "[DISCORD] Error: {}"},
-        "pt": {"cooldown": "[DISCORD] Cooldown ativo. Pulando.", "not_found": "[DISCORD] ERRO: App nao encontrado.", "loop_error": "[DISCORD] Erro: {}"}
-    }
-    
-    cooldown_dias = int(cfg.get("discord_cooldown", 3))
-    if cfg.get("do_discord", "n") != "s": return
-    if RewardsCore.verificar_se_rodou_hoje("discord", dias_cooldown=cooldown_dias):
-        RewardsCore.LOGGER(d_msgs[lang]["cooldown"])
-        return
-
-    exe_path, exe_name = localizar_aplicativo_discord()
-    if not exe_path: 
-        RewardsCore.LOGGER(d_msgs[lang]["not_found"])
-        return
-
-    PORTA_DEBUG = 9222
-    RewardsCore.update_ui("discord", "Iniciando Preparativos...", 10)
-    
-    fazer_globais = cfg.get("discord_global_quests", "n") == "s"
-    fases = [{"nome": "Fase 1: Missoes Locais (Nativo)", "usa_tor": False}]
-    if fazer_globais and platform.system().lower() == "windows":
-        fases.append({"nome": "Fase 2: Missoes Globais (Tor)", "usa_tor": True})
-
-    processo_tor = None
-
-    for i, fase in enumerate(fases):
-        if RewardsCore.ABORTAR_PROCESSO: return
-        RewardsCore.LOGGER(f"[DISCORD] >>> INICIANDO {fase['nome'].upper()} <<<")
-        RewardsCore.update_ui("discord", fase["nome"], 20 + (i * 30))
+    import threading
+    if not hasattr(RewardsCore, 'TRAVA_EXECUCAO'):
+        RewardsCore.TRAVA_EXECUCAO = threading.Lock()
         
-        args_discord = [
-            exe_path, f"--remote-debugging-port={PORTA_DEBUG}",
-            "--disable-background-timer-throttling",
-            "--disable-backgrounding-occluded-windows",
-            "--disable-renderer-backgrounding"
-        ]
+    if RewardsCore.TRAVA_EXECUCAO.locked():
+        RewardsCore.LOGGER("\n[SISTEMA] O Bing está usando o motor no momento. Colocando o Discord na fila de espera...", "warning")
+        
+    with RewardsCore.TRAVA_EXECUCAO:
+        if RewardsCore.ABORTAR_PROCESSO: return
+        
+        cfg = RewardsCore.carregar_config()
+        lang = "pt" if cfg.get("language", "pt") == "pt" else "en"
+        d_msgs = {
+            "en": {"cooldown": "[DISCORD] Cooldown active. Skipping for now.", "not_found": "[DISCORD] ERROR: App not found.", "loop_error": "[DISCORD] Error: {}"},
+            "pt": {"cooldown": "[DISCORD] Cooldown ativo. Pulando.", "not_found": "[DISCORD] ERRO: App nao encontrado.", "loop_error": "[DISCORD] Erro: {}"}
+        }
+        
+        cooldown_dias = int(cfg.get("discord_cooldown", 3))
+        if cfg.get("do_discord", "n") != "s": return
+        if RewardsCore.verificar_se_rodou_hoje("discord", dias_cooldown=cooldown_dias):
+            RewardsCore.LOGGER(d_msgs[lang]["cooldown"])
+            return
 
-        if fase["usa_tor"]:
-            tor_data = gerenciar_daemon_tor()
-            if tor_data:
-                tor_exe, torrc = tor_data
-                if not verificar_porta_tor():
-                    RewardsCore.LOGGER("[DISCORD] Subindo servico de Proxy Global...")
-                    processo_tor = subprocess.Popen([tor_exe, "-f", torrc], creationflags=subprocess.CREATE_NO_WINDOW, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    for _ in range(15):
-                        if RewardsCore.ABORTAR_PROCESSO: return
-                        if verificar_porta_tor(): break
-                        time.sleep(2)
-                
-                if verificar_porta_tor():
-                    RewardsCore.LOGGER("[DISCORD] Proxy Global Ativo. Conectando Discord ao tunel...")
-                    args_discord.append("--proxy-server=socks5://127.0.0.1:9060")
-                    for _ in range(7):
-                        if RewardsCore.ABORTAR_PROCESSO: return
-                        time.sleep(2) 
+        exe_path, exe_name = localizar_aplicativo_discord()
+        if not exe_path: 
+            RewardsCore.LOGGER(d_msgs[lang]["not_found"])
+            return
+
+        PORTA_DEBUG = 9222
+        RewardsCore.update_ui("discord", "Iniciando Preparativos...", 10)
+        
+        fazer_globais = cfg.get("discord_global_quests", "n") == "s"
+        fases = [{"nome": "Fase 1: Missoes Locais (Nativo)", "usa_tor": False}]
+        if fazer_globais and platform.system().lower() == "windows":
+            fases.append({"nome": "Fase 2: Missoes Globais (Tor)", "usa_tor": True})
+
+        processo_tor = None
+
+        for i, fase in enumerate(fases):
+            if RewardsCore.ABORTAR_PROCESSO: return
+            RewardsCore.LOGGER(f"[DISCORD] >>> INICIANDO {fase['nome'].upper()} <<<")
+            RewardsCore.update_ui("discord", fase["nome"], 20 + (i * 30))
+            
+            args_discord = [
+                exe_path, f"--remote-debugging-port={PORTA_DEBUG}",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding"
+            ]
+
+            if fase["usa_tor"]:
+                tor_data = gerenciar_daemon_tor()
+                if tor_data:
+                    tor_exe, torrc = tor_data
+                    if not verificar_porta_tor():
+                        RewardsCore.LOGGER("[DISCORD] Subindo servico de Proxy Global...")
+                        processo_tor = subprocess.Popen([tor_exe, "-f", torrc], creationflags=subprocess.CREATE_NO_WINDOW, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        for _ in range(15):
+                            if RewardsCore.ABORTAR_PROCESSO: return
+                            if verificar_porta_tor(): break
+                            time.sleep(2)
+                    
+                    if verificar_porta_tor():
+                        RewardsCore.LOGGER("[DISCORD] Proxy Global Ativo. Conectando Discord ao tunel...")
+                        args_discord.append("--proxy-server=socks5://127.0.0.1:9060")
+                        for _ in range(7):
+                            if RewardsCore.ABORTAR_PROCESSO: return
+                            time.sleep(2) 
+                    else:
+                        RewardsCore.LOGGER("[DISCORD] Falha ao subir Porta 9060. Pulando Fase Global.")
+                        continue
                 else:
-                    RewardsCore.LOGGER("[DISCORD] Falha ao subir Porta 9060. Pulando Fase Global.")
                     continue
-            else:
+                    
+            if cfg.get("modo_oculto", "s") == "s": args_discord.append("--start-minimized")
+
+            if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /IM \"{exe_name}\" /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(3)
+            if RewardsCore.ABORTAR_PROCESSO: return
+
+            processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            porta_aberta = False
+            for _ in range(60): 
+                if RewardsCore.ABORTAR_PROCESSO: return
+                try:
+                    urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2)
+                    porta_aberta = True; break
+                except: time.sleep(2)
+
+            if not porta_aberta:
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout aguardando porta 9222. Fase ignorada.")
+                continue
+            
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.chrome.service import Service
+            chrome_options = Options()
+            chrome_options.debugger_address = f"127.0.0.1:{PORTA_DEBUG}"
+
+            try:
+                req = urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=5)
+                dados_json = json.loads(req.read())
+                match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
+                if match: chrome_options.browser_version = match.group(1)
+            except Exception: pass
+
+            driver = None
+            for _ in range(3):
+                if RewardsCore.ABORTAR_PROCESSO: return
+                try:
+                    servico = Service()
+                    if os.name == 'nt': servico.creation_flags = 0x08000000
+                    driver = webdriver.Chrome(service=servico, options=chrome_options)
+                    break
+                except Exception: time.sleep(5)
+                
+            if not driver:
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Falha ao iniciar Selenium.")
+                continue
+
+            janela_correta = None
+            for _ in range(25):  
+                if RewardsCore.ABORTAR_PROCESSO: return
+                try:
+                    for handle in driver.window_handles:
+                        driver.switch_to.window(handle)
+                        if any(x in driver.current_url.lower() for x in ["discord.com/app", "discord.com/channels", "discord.com/login"]):
+                            janela_correta = handle; break
+                    if janela_correta: break
+                except: pass
+                time.sleep(2)
+                
+            if not janela_correta:
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout ao tentar localizar a aba principal do Discord.")
                 continue
                 
-        if cfg.get("modo_oculto", "s") == "s": args_discord.append("--start-minimized")
-
-        if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /IM \"{exe_name}\" /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(3)
-        if RewardsCore.ABORTAR_PROCESSO: return
-
-        processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        porta_aberta = False
-        for _ in range(60): 
-            if RewardsCore.ABORTAR_PROCESSO: return
-            try:
-                urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2)
-                porta_aberta = True; break
-            except: time.sleep(2)
-
-        if not porta_aberta:
-            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout aguardando porta 9222. Fase ignorada.")
-            continue
-        
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
-        chrome_options = Options()
-        chrome_options.debugger_address = f"127.0.0.1:{PORTA_DEBUG}"
-
-        try:
-            req = urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=5)
-            dados_json = json.loads(req.read())
-            match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
-            if match: chrome_options.browser_version = match.group(1)
-        except Exception: pass
-
-        driver = None
-        for _ in range(3):
-            if RewardsCore.ABORTAR_PROCESSO: return
-            try:
-                servico = Service()
-                if os.name == 'nt': servico.creation_flags = 0x08000000
-                driver = webdriver.Chrome(service=servico, options=chrome_options)
-                break
-            except Exception: time.sleep(5)
-            
-        if not driver:
-            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Falha ao iniciar Selenium/ChromeDriver.")
-            continue
-
-        janela_correta = None
-        for _ in range(25):  
-            if RewardsCore.ABORTAR_PROCESSO: return
-            try:
-                for handle in driver.window_handles:
-                    driver.switch_to.window(handle)
-                    if any(x in driver.current_url.lower() for x in ["discord.com/app", "discord.com/channels", "discord.com/login"]):
-                        janela_correta = handle; break
-                if janela_correta: break
-            except: pass
-            time.sleep(2)
-            
-        if not janela_correta:
-            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout ao tentar localizar a aba principal do Discord.")
-            continue
-            
-        for _ in range(15):
-            if RewardsCore.ABORTAR_PROCESSO: return
-            try:
-                if driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';"): break
-            except: pass
-            time.sleep(2)
-
-        try:
-            logado = driver.execute_script("return window.location.pathname !== '/login';")
-            if not logado:
-                espera = 0
-                while espera < 300: 
-                    if RewardsCore.ABORTAR_PROCESSO: return
-                    try:
-                        if driver.execute_script("return window.location.pathname !== '/login';"):
-                            time.sleep(10); break
-                    except: pass
-                    time.sleep(5); espera += 5
-                else:
-                    if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: App ficou preso na tela de Login.")
-                    continue
-        except Exception:
-            pass
-            
-        RewardsCore.update_ui("discord", "Sincronizando...", 50)
-        
-        # Garante que a página de Missões seja aberta para os cards de vídeo carregarem
-        for _ in range(3):
-            if RewardsCore.ABORTAR_PROCESSO: return
-            try:
-                driver.execute_script("""
-                    // 1. Tenta achar links diretos para a rota da nova aba de missões
-                    let btnMissao = document.querySelector('[href="/quest-home"], [href="/quests"], [data-list-item-id*="quests"]');
-                    
-                    if (btnMissao) { 
-                        btnMissao.click(); 
-                    } else {
-                        // 2. Fallback de Força Bruta: Procura pela palavra "Missões" ou "Quests" na barra
-                        let els = document.querySelectorAll('*');
-                        for (let el of els) {
-                            if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests' || el.textContent.trim() === 'Descobrir')) {
-                                (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); 
-                                break;
-                            }
-                        }
-                    }
-                """)
-            except: pass
-            
-            time.sleep(6) 
-            if RewardsCore.ABORTAR_PROCESSO: return
-            
-            try:
-                if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
-            except: pass
-            
-            try: driver.refresh()
-            except: break
-            time.sleep(5)
-
-        if RewardsCore.ABORTAR_PROCESSO: return
-
-        ids_globais = []
-        if fase["usa_tor"]:
-            try:
-                RewardsCore.update_ui("discord", "Puxando Catalogo Global...", 70)
-                req = urllib.request.Request("https://api.discordquest.com/api/quests", headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    ids_globais.extend(re.findall(r'(?:quests/|id["\']?\s*:\s*["\']?)(\d{17,19})', response.read().decode('utf-8')))
-            except: pass
-            
-        ids_globais = list(set(ids_globais))
-        script_injetado = SCRIPT_JS.replace("INJECT_GLOBAL_IDS", json.dumps(ids_globais))
-        
-        try: driver.execute_script(script_injetado)
-        except Exception:
-            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO ao injetar Webpack. O aplicativo crashou.")
-            return
-        
-        RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
-        
-        dummy_processes = []
-        try:
-            while True:
+            for _ in range(15):
                 if RewardsCore.ABORTAR_PROCESSO: return
-                time.sleep(2) # TEMPO DE RESPOSTA MAIS AGRESSIVO!
-                
                 try:
-                    # EXTRAÇÃO BLINDADA DOS LOGS E COMANDOS DIRETAMENTE DA MEMÓRIA DO JAVASCRIPT
-                    js_data = driver.execute_script("""
-                        let res = { cmd: window.recompensas_cmd, logs: window.recompensas_logs || [] };
-                        window.recompensas_cmd = null;
-                        window.recompensas_logs = [];
-                        return res;
-                    """)
-                    
-                    if js_data:
-                        # 1. Despeja todos os Logs que o JS guardou
-                        for msg in js_data.get('logs', []):
-                            RewardsCore.LOGGER(msg)
-                            
-                        # 2. Executa comandos isolados
-                        cmd = js_data.get('cmd')
-                        if cmd:
-                            if "REWARDS_EXE:" in cmd:
-                                exe_needed = cmd.split("REWARDS_EXE:")[1].strip()
-                                temp_dir = tempfile.gettempdir()
-                                fake_exe_path = os.path.join(temp_dir, exe_needed)
-                                
-                                if platform.system().lower() == "windows":
-                                    shutil.copy(r"C:\Windows\System32\ping.exe", fake_exe_path)
-                                    dp = subprocess.Popen([fake_exe_path, "127.0.0.1", "-n", "3600"], creationflags=subprocess.CREATE_NO_WINDOW)
-                                else:
-                                    shutil.copy(shutil.which("sleep") or "/bin/sleep", fake_exe_path)
-                                    os.chmod(fake_exe_path, 0o755) 
-                                    dp = subprocess.Popen([fake_exe_path, "3600"])
-
-                                dummy_processes.append((dp, fake_exe_path))
-                                driver.execute_script(f"window.novoPidCamuflado = {dp.pid};") 
-                                
-                            elif "REWARDS_KILL:ALL" in cmd:
-                                for dp, path in dummy_processes:
-                                    try: dp.kill()
-                                    except: pass
-                                    try: os.remove(path)
-                                    except: pass
-                                dummy_processes.clear()
+                    if driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';"): break
                 except: pass
-                
-                try:
-                    if driver.execute_script("return window.discordQuestsDone === true;"): break
-                except: break
-                
-        except Exception as e:
-            if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(d_msgs[lang]["loop_error"].format(str(e)[:100]))
-            
-        for dp, path in dummy_processes:
-            try: dp.kill()
-            except: pass
-            try: os.remove(path)
-            except: pass
-            
-        try:
-            driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
-            time.sleep(4); driver.quit() 
-        except: pass
-        subprocess.run(f"taskkill /F /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        if i < len(fases) - 1: 
-            for _ in range(7):
-                if RewardsCore.ABORTAR_PROCESSO: return
                 time.sleep(2)
 
-    if processo_tor:
-        RewardsCore.LOGGER("[DISCORD] Encerrando daemon do Tor...")
-        try: processo_tor.kill()
-        except: pass
+            try:
+                logado = driver.execute_script("return window.location.pathname !== '/login';")
+                if not logado:
+                    espera = 0
+                    while espera < 300: 
+                        if RewardsCore.ABORTAR_PROCESSO: return
+                        try:
+                            if driver.execute_script("return window.location.pathname !== '/login';"):
+                                time.sleep(10); break
+                        except: pass
+                        time.sleep(5); espera += 5
+                    else:
+                        if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: App ficou preso na tela de Login.")
+                        continue
+            except Exception:
+                pass
+                
+            RewardsCore.update_ui("discord", "Sincronizando...", 50)
+            
+            for _ in range(3):
+                if RewardsCore.ABORTAR_PROCESSO: return
+                try:
+                    driver.execute_script("""
+                        let btnMissao = document.querySelector('[href="/quest-home"], [href="/quests"], [data-list-item-id*="quests"]');
+                        if (btnMissao) { 
+                            btnMissao.click(); 
+                        } else {
+                            let els = document.querySelectorAll('*');
+                            for (let el of els) {
+                                if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests' || el.textContent.trim() === 'Descobrir')) {
+                                    (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); 
+                                    break;
+                                }
+                            }
+                        }
+                    """)
+                except: pass
+                
+                time.sleep(6) 
+                if RewardsCore.ABORTAR_PROCESSO: return
+                
+                try:
+                    if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
+                except: pass
+                
+                try: driver.refresh()
+                except: break
+                time.sleep(5)
 
-    if not RewardsCore.ABORTAR_PROCESSO:
-        RewardsCore.registrar_data_execucao("discord")
-        RewardsCore.update_ui("discord", "Concluído!", 100)
-        RewardsCore.LOGGER("[DISCORD] PROCESSO TOTAL FINALIZADO COM SUCESSO!")
+            if RewardsCore.ABORTAR_PROCESSO: return
+
+            ids_globais = []
+            if fase["usa_tor"]:
+                try:
+                    RewardsCore.update_ui("discord", "Puxando Catalogo Global...", 70)
+                    req = urllib.request.Request("https://api.discordquest.com/api/quests", headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        ids_globais.extend(re.findall(r'(?:quests/|id["\']?\s*:\s*["\']?)(\d{17,19})', response.read().decode('utf-8')))
+                except: pass
+                
+            ids_globais = list(set(ids_globais))
+            script_injetado = SCRIPT_JS.replace("INJECT_GLOBAL_IDS", json.dumps(ids_globais))
+            
+            try: driver.execute_script(script_injetado)
+            except Exception:
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO ao injetar Webpack. O aplicativo crashou.")
+                return
+            
+            RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
+            
+            dummy_processes = []
+            try:
+                while True:
+                    if RewardsCore.ABORTAR_PROCESSO: return
+                    time.sleep(2) 
+                    
+                    try:
+                        js_data = driver.execute_script("""
+                            let res = { cmd: window.recompensas_cmd, logs: window.recompensas_logs || [] };
+                            window.recompensas_cmd = null;
+                            window.recompensas_logs = [];
+                            return res;
+                        """)
+                        
+                        if js_data:
+                            for msg in js_data.get('logs', []):
+                                RewardsCore.LOGGER(msg)
+                                
+                            cmd = js_data.get('cmd')
+                            if cmd:
+                                if "REWARDS_EXE:" in cmd:
+                                    exe_needed = cmd.split("REWARDS_EXE:")[1].strip()
+                                    temp_dir = tempfile.gettempdir()
+                                    fake_exe_path = os.path.join(temp_dir, exe_needed)
+                                    
+                                    if platform.system().lower() == "windows":
+                                        shutil.copy(r"C:\Windows\System32\ping.exe", fake_exe_path)
+                                        dp = subprocess.Popen([fake_exe_path, "127.0.0.1", "-n", "3600"], creationflags=subprocess.CREATE_NO_WINDOW)
+                                    else:
+                                        shutil.copy(shutil.which("sleep") or "/bin/sleep", fake_exe_path)
+                                        os.chmod(fake_exe_path, 0o755) 
+                                        dp = subprocess.Popen([fake_exe_path, "3600"])
+
+                                    dummy_processes.append((dp, fake_exe_path))
+                                    driver.execute_script(f"window.novoPidCamuflado = {dp.pid};") 
+                                    
+                                elif "REWARDS_KILL:ALL" in cmd:
+                                    for dp, path in dummy_processes:
+                                        try: dp.kill()
+                                        except: pass
+                                        try: os.remove(path)
+                                        except: pass
+                                    dummy_processes.clear()
+                    except: pass
+                    
+                    try:
+                        if driver.execute_script("return window.discordQuestsDone === true;"): break
+                    except: break
+                    
+            except Exception as e:
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(d_msgs[lang]["loop_error"].format(str(e)[:100]))
+                
+            for dp, path in dummy_processes:
+                try: dp.kill()
+                except: pass
+                try: os.remove(path)
+                except: pass
+                
+            try:
+                driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
+                time.sleep(4); driver.quit() 
+            except: pass
+            subprocess.run(f"taskkill /F /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            if i < len(fases) - 1: 
+                for _ in range(7):
+                    if RewardsCore.ABORTAR_PROCESSO: return
+                    time.sleep(2)
+
+        if processo_tor:
+            RewardsCore.LOGGER("[DISCORD] Encerrando daemon do Tor...")
+            try: processo_tor.kill()
+            except: pass
+
+        if not RewardsCore.ABORTAR_PROCESSO:
+            RewardsCore.registrar_data_execucao("discord")
+            RewardsCore.update_ui("discord", "Concluído!", 100)
+            RewardsCore.LOGGER("[DISCORD] PROCESSO TOTAL FINALIZADO COM SUCESSO!")

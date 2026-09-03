@@ -1259,6 +1259,18 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
     caminho_perfil = BASE_PROFILES_DIR / nome_perfil
     caminho_perfil.mkdir(parents=True, exist_ok=True)
     
+    # --- ANTI-CORRUPÇÃO: REMOVEDOR DE TRAVA DE PERFIL (SingletonLock) ---
+    try:
+        lock_file = caminho_perfil / "SingletonLock"
+        cookie_file = caminho_perfil / "SingletonCookie"
+        if lock_file.exists():
+            lock_file.unlink()
+        if cookie_file.exists():
+            cookie_file.unlink()
+    except Exception: 
+        pass # Se der erro de permissão, significa que há um Chrome invisível realmente rodando.
+    # --------------------------------------------------------------------
+    
     opts = uc.ChromeOptions()
     opts.add_argument(f"--user-data-dir={caminho_perfil}")
     opts.add_argument("--log-level=3")

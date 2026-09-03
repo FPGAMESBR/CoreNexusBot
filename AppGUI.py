@@ -952,32 +952,37 @@ if __name__ == '__main__':
 
     GerenciadorBandeja.iniciar_tray_em_background()
     
-    # === NOVO: COORDENADOR DE AUTO-CLOSE PARA O STARTUP ===
+    # === NOVO: COORDENADOR DE AUTO-CLOSE (FILA SEQUENCIAL BLINDADA) ===
     def coordenador_auto_close():
-        threads_vivas = []
-        
-        # 1. Verifica e dispara a Thread do Rewards
-        if not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0):
-            t_bing = threading.Thread(target=api.loop_farm, daemon=True)
-            t_bing.start()
-            threads_vivas.append(t_bing)
-            
-        # 2. Verifica e dispara a Thread do Discord
         cfg = RewardsCore.carregar_config()
+        
+        # 1. Roda o Discord primeiro (Ele precisa do foco do mouse/teclado)
         if cfg.get("do_discord", "n") == "s":
-            t_disc = threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True)
-            t_disc.start()
-            threads_vivas.append(t_disc)
+            try:
+                DiscordQuests.iniciar_farm_discord()
+            except Exception as e:
+                api.log_ui(f"[ERRO] Falha no Discord: {e}", "error")
+                
+        # 2. Só inicia o Bing APÓS o Discord terminar e liberar a tela
+        rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
+        if rodar_rewards and not RewardsCore.ABORTAR_PROCESSO:
+            try:
+                api.loop_farm()
+            except Exception as e:
+                api.log_ui(f"[ERRO] Falha no Bing: {e}", "error")
             
-        # 3. Trava o coordenador até que ambas as tarefas terminem
-        for t in threads_vivas:
-            t.join()
-            
-        # 4. Encerra o bot automaticamente se não houve intervenção manual
+        # 3. Extermínio total da memória (Garante que o bot feche de verdade)
         if not RewardsCore.ABORTAR_PROCESSO and modo_startup:
             api.log_ui("[SISTEMA] Automação de Startup finalizada. O bot se desligará em 5s...", "warning")
             time.sleep(5)
-            api.fechar_janela()
+            
+            # Desmonta o ícone da bandeja graciosamente
+            try: GerenciadorBandeja.parar_tray()
+            except: pass
+            
+            # Força o sistema operacional a matar a raiz do programa
+            import os
+            os._exit(0)
 
     def evento_inicializacao():
         # Atraso estratégico para o Windows renderizar o processo antes de esconde-lo da barra

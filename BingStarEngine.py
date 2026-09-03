@@ -163,146 +163,118 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
 
 
 def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
-    RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
-    LOGGER("======================================================")
-    LOGGER(f"\n>>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
-    LOGGER("======================================================")
-    
-    # ---------------------------------------------------------
-    # MONTAGEM DA "RODA DO CAOS" (Pool de Tarefas)
-    # ---------------------------------------------------------
-    acoes = []
-    
-    if cfg.get('fazer_tarefas', 'n') == 's':
-        acoes.append("TAREFAS_DASHBOARD")
+    # Proteção de Thread: Evita choque de drivers
+    import threading
+    if not hasattr(RewardsCore, 'TRAVA_EXECUCAO'):
+        RewardsCore.TRAVA_EXECUCAO = threading.Lock()
         
-    # Dividimos o farm do PC em 2 metades (para espalhar as pesquisas)
-    if cfg.get('limite_pc', 0) > 0:
-        acoes.extend(["PC_CHUNK", "PC_CHUNK"])
+    if RewardsCore.TRAVA_EXECUCAO.locked():
+        LOGGER("\n[SISTEMA] O Discord está usando o motor no momento. Colocando o Bing na fila de espera...", "warning")
         
-    # Dividimos o farm do Celular em 2 metades
-    if cfg.get('limite_mobile', 0) > 0:
-        acoes.extend(["MOB_CHUNK", "MOB_CHUNK"])
-        
-    # A Pausa Orgânica para não parecer um robô
-    acoes.append("MODO_CAFE")
-    
-    # Embaralha tudo de forma orgânica
-    random.shuffle(acoes)
-    
-    if "MODO_CAFE" in acoes:
-        if acoes[0] == "MODO_CAFE":
-            # Troca com o segundo elemento
-            acoes[0], acoes[1] = acoes[1], acoes[0]
-        if acoes[-1] == "MODO_CAFE":
-            # Troca com o penúltimo elemento
-            acoes[-1], acoes[-2] = acoes[-2], acoes[-1]
+    with RewardsCore.TRAVA_EXECUCAO:
+        if RewardsCore.ABORTAR_PROCESSO: return
 
-    pc_chunks_restantes = acoes.count("PC_CHUNK")
-    mob_chunks_restantes = acoes.count("MOB_CHUNK")
-    
-    RewardsCore.update_ui("bing", "Pesquisas...", 50)
-
-    # ---------------------------------------------------------
-    # EXECUÇÃO DINÂMICA DA FILA
-    # ---------------------------------------------------------
-    for i, acao in enumerate(acoes):
-        if RewardsCore.ABORTAR_PROCESSO: break
+        RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
+        LOGGER("======================================================")
+        LOGGER(f"\n>>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
+        LOGGER("======================================================")
         
-        LOGGER(f"\n[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
+        acoes = []
+        if cfg.get('fazer_tarefas', 'n') == 's':
+            acoes.append("TAREFAS_DASHBOARD")
+            
+        if cfg.get('limite_pc', 0) > 0:
+            acoes.extend(["PC_CHUNK", "PC_CHUNK"])
+            
+        if cfg.get('limite_mobile', 0) > 0:
+            acoes.extend(["MOB_CHUNK", "MOB_CHUNK"])
+            
+        acoes.append("MODO_CAFE")
+        random.shuffle(acoes)
         
-        if acao == "TAREFAS_DASHBOARD":
-            d_task = None
-            try:
-                identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
-                d_task = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
-                
-                if d_task is None:
-                    raise Exception("ChromeDriver não iniciou corretamente (None). O Sistema Operacional está bloqueando a porta.")
-                    
-                d_task.get("https://rewards.bing.com/")
-                time.sleep(5)
-                
-                # Defesa Fail-Fast nativa
-                if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil):
-                    return 
-                    
-                RewardsCore.limpar_todas_as_missoes(d_task)
-                # TENTA FAZER A PESQUISA VISUAL SE ESTIVER NA TELA
-                try: RewardsCore.fazer_pesquisa_visual(d_task)
-                except: pass
-                
-            except Exception as e:
-                LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
-            finally:
-                if d_task: 
-                    try: d_task.quit()
-                    except: pass
-                time.sleep(4) # FOLGA PARA O WINDOWS
-                
-        elif acao == "PC_CHUNK":
-            d_pc = None
-            try:
-                identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
-                d_pc = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
-                
-                if d_pc is None: raise Exception("Driver Nulo.")
-                faltam = RewardsCore.verificar_pesquisas_restantes(d_pc, 'pc')
-                
-                if faltam > 0:
-                    if pc_chunks_restantes > 1:
-                        qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6))
-                    else:
-                        qtd = faltam
-                        
-                    if qtd > 0:
-                        _fazer_lote_pesquisas(d_pc, qtd, banco, "pc")
-                else:
-                    LOGGER("   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.", "success")
-                        
-                pc_chunks_restantes -= 1
-            except Exception as e:
-                LOGGER(f"[STAR ENGINE] Falha no Bloco PC: {e}", "error")
-            finally:
-                if d_pc: 
-                    try: d_pc.quit()
-                    except: pass
-                time.sleep(4)
-                
-        elif acao == "MOB_CHUNK":
-            d_mob = None
-            try:
-                identidade_mob = RewardsCore.obter_fingerprint(nome_perfil, 'mobile')
-                d_mob = RewardsCore.configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
-                
-                if d_mob is None: raise Exception("Driver Nulo.")
-                faltam = RewardsCore.verificar_pesquisas_restantes(d_mob, 'mobile')
-                
-                if faltam == -1: faltam = cfg.get('limite_mobile', 20)
-                    
-                if faltam > 0:
-                    if mob_chunks_restantes > 1:
-                        qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6))
-                    else:
-                        qtd = faltam
-                        
-                    if qtd > 0:
-                        _fazer_lote_pesquisas(d_mob, qtd, banco, "mobile")
-                else:
-                    LOGGER("   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco.", "success")
-                        
-                mob_chunks_restantes -= 1
-            except Exception as e:
-                LOGGER(f"[STAR ENGINE] Falha no Bloco Mobile: {e}", "error")
-            finally:
-                if d_mob: 
-                    try: d_mob.quit()
-                    except: pass
-                time.sleep(4)
-                
-        elif acao == "MODO_CAFE":
-            _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)
+        if "MODO_CAFE" in acoes:
+            if acoes[0] == "MODO_CAFE":
+                acoes[0], acoes[1] = acoes[1], acoes[0]
+            if acoes[-1] == "MODO_CAFE":
+                acoes[-1], acoes[-2] = acoes[-2], acoes[-1]
 
-    hora_atual = time.strftime("%H:%M:%S")
-    RewardsCore.update_ui("bing", "Concluído!", 100)
-    LOGGER(f"\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")
+        pc_chunks_restantes = acoes.count("PC_CHUNK")
+        mob_chunks_restantes = acoes.count("MOB_CHUNK")
+        
+        RewardsCore.update_ui("bing", "Pesquisas...", 50)
+
+        for i, acao in enumerate(acoes):
+            if RewardsCore.ABORTAR_PROCESSO: break
+            LOGGER(f"\n[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
+            
+            if acao == "TAREFAS_DASHBOARD":
+                d_task = None
+                try:
+                    identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
+                    d_task = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
+                    
+                    if d_task is None: raise Exception("ChromeDriver não iniciou. Sistema Operacional retendo a porta.")
+                        
+                    d_task.get("https://rewards.bing.com/")
+                    time.sleep(5)
+                    if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil): return 
+                    RewardsCore.limpar_todas_as_missoes(d_task)
+                    try: RewardsCore.fazer_pesquisa_visual(d_task)
+                    except: pass
+                except Exception as e:
+                    LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
+                finally:
+                    if d_task: 
+                        try: d_task.quit()
+                        except: pass
+                    time.sleep(5) # APENAS FOLGA, SEM TASKKILL
+                    
+            elif acao == "PC_CHUNK":
+                d_pc = None
+                try:
+                    identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
+                    d_pc = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
+                    
+                    if d_pc is None: raise Exception("Driver Nulo.")
+                    faltam = RewardsCore.verificar_pesquisas_restantes(d_pc, 'pc')
+                    if faltam > 0:
+                        qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6)) if pc_chunks_restantes > 1 else faltam
+                        if qtd > 0: _fazer_lote_pesquisas(d_pc, qtd, banco, "pc")
+                    else: LOGGER("   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.", "success")
+                    pc_chunks_restantes -= 1
+                except Exception as e:
+                    LOGGER(f"[STAR ENGINE] Falha no Bloco PC: {e}", "error")
+                finally:
+                    if d_pc: 
+                        try: d_pc.quit()
+                        except: pass
+                    time.sleep(5)
+                    
+            elif acao == "MOB_CHUNK":
+                d_mob = None
+                try:
+                    identidade_mob = RewardsCore.obter_fingerprint(nome_perfil, 'mobile')
+                    d_mob = RewardsCore.configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
+                    
+                    if d_mob is None: raise Exception("Driver Nulo.")
+                    faltam = RewardsCore.verificar_pesquisas_restantes(d_mob, 'mobile')
+                    if faltam == -1: faltam = cfg.get('limite_mobile', 20)
+                    if faltam > 0:
+                        qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6)) if mob_chunks_restantes > 1 else faltam
+                        if qtd > 0: _fazer_lote_pesquisas(d_mob, qtd, banco, "mobile")
+                    else: LOGGER("   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco.", "success")
+                    mob_chunks_restantes -= 1
+                except Exception as e:
+                    LOGGER(f"[STAR ENGINE] Falha no Bloco Mobile: {e}", "error")
+                finally:
+                    if d_mob: 
+                        try: d_mob.quit()
+                        except: pass
+                    time.sleep(5)
+                    
+            elif acao == "MODO_CAFE":
+                _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)
+
+        hora_atual = time.strftime("%H:%M:%S")
+        RewardsCore.update_ui("bing", "Concluído!", 100)
+        LOGGER(f"\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")
