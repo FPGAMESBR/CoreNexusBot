@@ -1252,45 +1252,33 @@ def obter_versao_chrome():
             
     return None
 
-# ==============================================================
-# CONFIGURAÇÃO DO DRIVER BLINDADA (WebAuthn + Identidade Fixa)
-# ==============================================================
 def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=False, usar_proxy=False):
     caminho_perfil = BASE_PROFILES_DIR / nome_perfil
     caminho_perfil.mkdir(parents=True, exist_ok=True)
     
-    # --- ANTI-CORRUPÇÃO: REMOVEDOR DE TRAVA DE PERFIL (SingletonLock) ---
+    # --- REMOVEDOR DE TRAVA DO CHROME ---
     try:
         lock_file = caminho_perfil / "SingletonLock"
-        cookie_file = caminho_perfil / "SingletonCookie"
-        if lock_file.exists():
-            lock_file.unlink()
-        if cookie_file.exists():
-            cookie_file.unlink()
-    except Exception: 
-        pass # Se der erro de permissão, significa que há um Chrome invisível realmente rodando.
-    # --------------------------------------------------------------------
+        if lock_file.exists(): lock_file.unlink()
+    except: pass
     
     opts = uc.ChromeOptions()
     opts.add_argument(f"--user-data-dir={caminho_perfil}")
     opts.add_argument("--log-level=3")
     opts.add_argument("--lang=pt-BR")
     
-    if usar_proxy:
-        opts.add_argument(f'--proxy-server=http://127.0.0.1:{PORTA_PROXY}')
+    if usar_proxy: opts.add_argument(f'--proxy-server=http://127.0.0.1:{PORTA_PROXY}')
     
     opts.add_argument("--disable-background-timer-throttling")
     opts.add_argument("--disable-backgrounding-occluded-windows")
     opts.add_argument("--disable-renderer-backgrounding")
-    
-    # NOVAS FLAGS DE EVASÃO
     opts.add_argument("--disable-features=site-per-process,CalculateNativeWinOcclusion,WebAuthentication,PasswordManagerOnboarding,PasswordManager,EnablePasswordsAccountStorage,Passkeys")
     opts.add_argument("--disable-blink-features=Attestation,AutomationControlled")
     opts.add_argument("--no-first-run")
     opts.add_argument("--no-default-browser-check")
     
-    modo_invisivel = True if (oculto == 's' and not forcar_visivel) else False
-
+    modo_invisivel = (oculto == 's') and (not forcar_visivel)
+    
     if modo_invisivel:
         opts.add_argument("--headless=new")
         opts.add_argument("--window-position=100000,100000") 
@@ -1299,48 +1287,67 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
         opts.add_argument("--window-position=0,0") 
         opts.add_argument("--window-size=1280,800")
         
-    versao_local = obter_versao_chrome()
     driver = None
+    
+    # === PATCH ANTI-INVISIBILIDADE (FILTRO DE CMD) ===
+    _original_popen = subprocess.Popen
+    
+    if getattr(sys, 'frozen', False) and not modo_invisivel:
+        class VisiblePopen(_original_popen):
+            def __init__(self, *args, **kwargs):
+                if os.name == 'nt':
+                    # Verifica qual processo o Python está tentando abrir
+                    cmd = args[0]
+                    is_driver = False
+                    if isinstance(cmd, str) and 'chromedriver' in cmd.lower():
+                        is_driver = True
+                    elif isinstance(cmd, list) and any('chromedriver' in str(x).lower() for x in cmd):
+                        is_driver = True
+                    
+                    si = kwargs.get('startupinfo')
+                    if not si: si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    
+                    # 0 = Oculta o CMD preto / 5 = Exibe a janela normal do Chrome
+                    si.wShowWindow = 0 if is_driver else 5  
+                    kwargs['startupinfo'] = si
+                super().__init__(*args, **kwargs)
+        subprocess.Popen = VisiblePopen
+    # ==============================================================
+
     for tentativa in range(3):
         try:
-            if versao_local:
-                driver = uc.Chrome(options=opts, use_subprocess=True, version_main=versao_local)
-            else:
-                driver = uc.Chrome(options=opts, use_subprocess=True)
+            driver = uc.Chrome(options=opts, use_subprocess=True)
             break 
-        except Exception:
-            LOGGER(f"   {t['tentativa_chrome'].format(tentativa+1)}")
+        except Exception as e:
+            LOGGER(t['tentativa_chrome'].format(tentativa+1))
             time.sleep(3)
             
-    if not driver:
-        return None
+    # Restaura o sistema ao normal para não bugar outras funções
+    subprocess.Popen = _original_popen
+    
+    if not driver: return None
 
-    # Injeção da Identidade Fixa para Celular
+    # Força a janela a saltar para frente do monitor
+    if not modo_invisivel:
+        try: driver.maximize_window()
+        except: pass
+
     if tipo == 'mobile' and identidade_ua != "default_pc":
         driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": identidade_ua, "platform": "MacIntel" if "iPhone" in identidade_ua else "Linux"})
         driver.execute_cdp_cmd('Emulation.setDeviceMetricsOverride', {"width": 390, "height": 844, "deviceScaleFactor": 3, "mobile": True})
         driver.execute_cdp_cmd('Network.enable', {})
-        latencia = random.randint(45, 95)
-        download_bps = random.randint(1500000, 3500000)
-        upload_bps = random.randint(500000, 1500000)
-        driver.execute_cdp_cmd('Network.emulateNetworkConditions', {'offline': False, 'latency': latencia, 'downloadThroughput': download_bps, 'uploadThroughput': upload_bps, 'connectionType': 'cellular4g'})
+        driver.execute_cdp_cmd('Network.emulateNetworkConditions', {'offline': False, 'latency': random.randint(45, 95), 'downloadThroughput': random.randint(1500000, 3500000), 'uploadThroughput': random.randint(500000, 1500000), 'connectionType': 'cellular4g'})
 
-    # Scripts anti-detecção finais (WebAuthn + Sensores forjados)
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
-            Object.defineProperty(navigator, 'credentials', { 
-                value: { 
-                    create: () => Promise.reject(new Error('WebAuthn disabled')), 
-                    get: () => Promise.reject(new Error('WebAuthn disabled')) 
-                } 
-            });
+            Object.defineProperty(navigator, 'credentials', { value: { create: () => Promise.reject(new Error('WebAuthn disabled')), get: () => Promise.reject(new Error('WebAuthn disabled')) } });
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); 
             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => """ + str(random.choice([4,6,8,12,16])) + """ }); 
             Object.defineProperty(navigator, 'deviceMemory', { get: () => """ + str(random.choice([4,8,16])) + """ }); 
             Object.defineProperty(navigator, 'maxTouchPoints', { get: () => """ + str(random.choice([0,1,5])) + """ });
         """
     })
-    
     return driver
 
 def modo_configuracao(nome_perfil):
