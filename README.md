@@ -32,7 +32,7 @@ If you encounter issues while running the bot, check these common fixes before o
   - Ensure you have closed all active instances of Google Chrome before starting the bot.
   - If the profile is corrupted, close the bot, go to the folder where the bot is installed, and delete the `RewardsProfiles` folder. The bot will automatically create a fresh, clean profile on the next run.
 * **Discord Quests are stuck at 0%:** 
-  - Make sure you are logged into Discord on your default Google Chrome profile and have accepted the quest manually at least once. 
+  - Check if you are logged into Discord via your standard DiscordCanary/PTB program.
 * **Crash Logs (`CRASH_LOG_YYYY-MM-DD.txt`):** 
   - The bot features a **Fail-Fast Defense Mechanism** to protect proxy integrity and account standing. If a fatal exception occurs (e.g., unexpected DOM changes, complete network failure), the bot generates a detailed crash log file in the root directory containing the full stack trace. Please include this file when reporting bugs.
 
@@ -73,7 +73,7 @@ Se você encontrar erros ao rodar o bot, verifique estas soluções comuns antes
   - Certifique-se de fechar todas as instâncias e abas do Google Chrome antes de dar "Run" no bot.
   - Se o seu perfil de usuário corrompeu, feche o bot, vá até a pasta onde ele está instalado e apague a pasta `RewardsProfiles`. O bot criará um perfil totalmente novo, limpo e sem erros na próxima vez que você abri-lo.
 * **Missões do Discord travadas em 0%:** 
-  - Verifique se você está logado no Discord através do seu navegador Google Chrome padrão e se aceitou a missão manualmente pelo menos uma vez antes de usar o bot.
+  - Verifique se você está logado no Discord através do seu Programa DiscordCanary/PTB padrão.
 * **Uso dos Crash Logs (`CRASH_LOG_YYYY-MM-DD.txt`):** 
   - O bot possui um **Mecanismo de Defesa Fail-Fast**. Se ocorrer um erro crítico ou uma exceção não tratada (ex: Microsoft mudou a página de recompensas do nada, ou sua internet caiu), o bot desliga sozinho e gera um arquivo de Crash Log contendo todas as linhas e causas do erro. Sempre anexe esse arquivo quando for reportar um erro no GitHub.
 
