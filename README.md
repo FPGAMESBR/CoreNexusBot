@@ -1,3 +1,5 @@
+(outdated)
+
 # CoreNexusBot 
 *Cross-Platform Evasion Framework for Microsoft Rewards & Discord Quests*
 
