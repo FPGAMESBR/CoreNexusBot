@@ -40,6 +40,11 @@ class MiniPanelAPI:
         except: pass
         os._exit(0)
 
+    def mudar_marcha(self, nova_marcha):
+        print(f"[SISTEMA] Marcha alterada para: {nova_marcha}")
+        RewardsCore.SPEED = nova_marcha
+        RewardsCore.LOGGER(f"[SISTEMA] ⚙️ Marcha alterada em tempo real para: {nova_marcha.upper()}", "warning")
+
 class SysTrayApp:
     def __init__(self):
         self.janela_principal = None
@@ -240,6 +245,13 @@ HTML_POPUP = """
             font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s;
         }
         .kill-btn:hover { background: #dc2626; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+        
+        .speed-controls { display: flex; gap: 5px; margin-top: 10px; }
+        .btn-speed { flex: 1; padding: 6px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-speed.active { background: #3b82f6; color: #fff; border-color: #60a5fa; box-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
+        .btn-speed:hover:not(.active) { background: #334155; color: #e2e8f0; }
+        .btn-speed.turbo.active { background: #ef4444; border-color: #f87171; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+        .btn-speed.stealth.active { background: #10b981; border-color: #34d399; box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
     </style>
 </head>
 <body>
@@ -267,6 +279,12 @@ HTML_POPUP = """
                 </div>
                 <div class="progress-bg"><div class="progress-fill" id="discord-bar" style="background: #8b5cf6;"></div></div>
             </div>
+
+            <div class="speed-controls">
+                <button id="btn-stealth" class="btn-speed stealth" onclick="setSpeed('stealth')">STEALTH</button>
+                <button id="btn-normal" class="btn-speed active" onclick="setSpeed('normal')">NORMAL</button>
+                <button id="btn-turbo" class="btn-speed turbo" onclick="setSpeed('turbo')">TURBO</button>
+            </div>
         </div>
 
         <div class="footer">
@@ -276,6 +294,12 @@ HTML_POPUP = """
 
     <script>
         let podeFecharPorBlur = false;
+
+        function setSpeed(speed) {
+            document.querySelectorAll('.btn-speed').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + speed).classList.add('active');
+            pywebview.api.mudar_marcha(speed);
+        }
 
         function reiniciarFoco() {
             podeFecharPorBlur = false;

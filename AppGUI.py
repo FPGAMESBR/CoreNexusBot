@@ -17,8 +17,8 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.1.1"
-APP_CODENAME = "Stealth Architecture"
+APP_VERSION = "v3.2.0"
+APP_CODENAME = "Intelligent Bypass"
 
 HTML_INTERFACE = """
 <!DOCTYPE html>
@@ -124,6 +124,7 @@ HTML_INTERFACE = """
         .sidebar {
             width: 240px; background-color: var(--bg-panel); border-right: 1px solid var(--border-color);
             display: flex; flex-direction: column; padding: 20px 15px; z-index: 10; position: relative;
+            flex-shrink: 0;
         }
         .brand-container { text-align: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); }
         .brand-name { font-size: 1.3em; font-weight: 800; color: #fff; display: block; margin-bottom: 5px; }
@@ -329,9 +330,9 @@ HTML_INTERFACE = """
                         <div class="update-content">
                             <h3 id="update-title">O que há de novo na [APP_VERSION]</h3>
                             <p>
-                               <span id="update-1">🌍 Missões Globais Nativas (API Scraper + Motor Tor Automático).</span><br>
-                               <span id="update-2">🎛️ Novo Mini-Painel Flutuante & Integração na Bandeja (Tray).</span><br>
-                               <span id="update-3">🛑 Advanced Kill Switch para encerramento seguro (Anti-Zumbis).</span>
+                               <span id="update-1">🚀 Execução Paralela: Bing e Discord agora rodam simultaneamente!</span><br>
+                               <span id="update-2">🧠 Pesquisas Orgânicas: Nova base inteligente com Google Trends e Wikipedia.</span><br>
+                               <span id="update-3">⚡ Smart Start & Stealth: Pula esperas desnecessárias e roda 100% invisível.</span>
                             </p>
                         </div>
                         <a href="https://github.com/FPGAMESBR/CoreNexusBot/releases" target="_blank" class="github-btn">
@@ -400,11 +401,7 @@ HTML_INTERFACE = """
                                 <label>Do Dashboard Tasks (MS Rewards)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-tasks"><span class="slider"></span></label>
                             </div>
-                            <!-- NOVO SWITCH: BÔNUS BING STAR -->
-                            <div class="switch-group">
-                                <label id="label-star-bonus">Enable Bing Star Bonus (Beta)</label>
-                                <label class="switch"><input type="checkbox" id="cfg-star-bonus"><span class="slider"></span></label>
-                            </div>
+
                             <div class="switch-group">
                                 <label>Auto-Farm Discord Quests</label>
                                 <label class="switch"><input type="checkbox" id="cfg-discord"><span class="slider"></span></label>
@@ -414,17 +411,43 @@ HTML_INTERFACE = """
                                 <label class="switch"><input type="checkbox" id="cfg-multi"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group">
-                                <label id="label-global-quests" style="color: var(--accent-yellow);">Enable Global Quests (VPN/Tor)</label>
+                                <label id="label-global-quests" style="color: var(--accent-red);">Enable Global Quests (VPN/Tor)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-global-quests"><span class="slider"></span></label>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label id="label-chrono">Chrono-Gating (Extended Days)</label>
+                                <select id="cfg-extended-days" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none;">
+                                    <option value="n">Disabled</option>
+                                    <option value="w">Weekends Only</option>
+                                    <option value="a">Everyday</option>
+                                </select>
                             </div>
                         </div>
                         
                         <div class="card" style="grid-column: span 2;">
                             <h3>Integrations & Automation</h3>
                             <div class="form-group" style="margin-bottom: 25px;">
+                                <label>Language</label>
+                                <select id="cfg-lang" onchange="mudarIdiomaUI()" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none;">
+                                    <option value="pt">Português (Brasil)</option>
+                                    <option value="en">English</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 25px;">
                                 <label>Discord Webhook URL (Leave empty to disable)</label>
                                 <input type="text" id="cfg-webhook" placeholder="https://discord.com/api/webhooks/...">
                             </div>
+                            
+                            <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;">Engine Speed Mode</h3>
+                            <div class="form-group" style="margin-bottom: 5px;">
+                                <select id="cfg-speed-mode" onchange="updateSpeedDesc()" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none; font-weight: bold;">
+                                    <option value="turbo">TURBO (Highest Risk, Max Speed)</option>
+                                    <option value="normal">NORMAL (Balanced Organic)</option>
+                                    <option value="stealth">STEALTH (Paranoid & Slow)</option>
+                                </select>
+                            </div>
+                            <p id="desc-speed-mode" style="font-size: 0.85em; color: var(--text-muted); line-height: 1.4; margin-bottom: 25px;"></p>
                             
                             <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;">Startup Control</h3>
                             <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Toggle invisible boot with OS.</p>
@@ -444,27 +467,25 @@ HTML_INTERFACE = """
         const TRANSLATIONS = {
             "en": {
                 title: "What's new in [APP_VERSION]",
-                item1: "🌍 Built-in Global Quests (API Scraper + Auto-Tor Engine).",
-                item2: "🎛️ New Floating Mini-Panel & System Tray Integration.",
-                item3: "🛑 Advanced Kill Switch for safe background termination.",
+                item1: "🚀 Parallel Execution: Bing and Discord now run simultaneously!",
+                item2: "🧠 Organic Searches: New smart DB with Google Trends and Wikipedia.",
+                item3: "⚡ Smart Start & Stealth: Skips unnecessary waits and runs 100% invisible.",
                 btnGit: "View on GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
-                cooldownLabel: "Discord Cooldown (Days)",
-                starBonusLabel: "Enable Bing Star Bonus (Beta)",
-                globalQuestsLabel: "Enable Global Quests (VPN/Tor)"
+                cooldownLabel: "Discord Quests Cooldown (Hours):",
+                globalQuestsLabel: "Force Global Quests (If region is unsupported)"
             },
             "pt": {
                 title: "O que há de novo na [APP_VERSION]",
-                item1: "🌍 Missões Globais Nativas (API Scraper + Motor Tor Automático).",
-                item2: "🎛️ Novo Mini-Painel Flutuante & Integração na Bandeja (Tray).",
-                item3: "🛑 Advanced Kill Switch para encerramento seguro (Anti-Zumbis).",
+                item1: "🚀 Execução Paralela: Bing e Discord agora rodam simultaneamente!",
+                item2: "🧠 Pesquisas Orgânicas: Nova base inteligente com Google Trends e Wikipedia.",
+                item3: "⚡ Smart Start & Stealth: Pula esperas desnecessárias e roda 100% invisível.",
                 btnGit: "Ver no GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
-                cooldownLabel: "Discord Cooldown (Dias)",
-                starBonusLabel: "Ativar Bônus Bing Star (Beta)",
-                globalQuestsLabel: "Ativar Missões Globais (Tor/VPN)"
+                cooldownLabel: "Pausa entre Quests do Discord (Horas):",
+                globalQuestsLabel: "Forçar Quests Globais (Se sua região não suporta)"
             }
         };
         let currentLang = "pt";
@@ -528,20 +549,29 @@ HTML_INTERFACE = """
             if (nome) { abrirConta(nome); document.getElementById('new-account-name').value = ''; }
         }
 
-        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, lang, star_bonus, global_quests) {
+        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, lang, star_bonus, global_quests, extended_days, speed_mode) {
             document.getElementById('cfg-pc').value = pc;
             document.getElementById('cfg-mob').value = mob;
             document.getElementById('cfg-headless').checked = (headless === 's');
             document.getElementById('cfg-tasks').checked = (tasks === 's');
             document.getElementById('cfg-discord').checked = (discord === 's');
             document.getElementById('cfg-multi').checked = (multi === 's');
-            document.getElementById('cfg-star-bonus').checked = (star_bonus === 's');
             document.getElementById('cfg-global-quests').checked = (global_quests === 's');
             document.getElementById('cfg-discord-cooldown').value = cooldown;
             document.getElementById('cfg-webhook').value = webhook;
+            document.getElementById('cfg-lang').value = lang || 'pt';
+            document.getElementById('cfg-extended-days').value = extended_days || 'n';
+            document.getElementById('cfg-speed-mode').value = speed_mode || 'normal';
+            updateSpeedDesc();
             
-            // Aplica as Traduções do JSON
             currentLang = (lang === 'en') ? 'en' : 'pt';
+            mudarIdiomaUI(currentLang);
+        }
+
+        function mudarIdiomaUI(forceLang) {
+            if (forceLang) currentLang = forceLang;
+            else currentLang = document.getElementById('cfg-lang').value;
+            
             document.getElementById('update-title').innerText = TRANSLATIONS[currentLang].title;
             document.getElementById('update-1').innerText = TRANSLATIONS[currentLang].item1;
             document.getElementById('update-2').innerText = TRANSLATIONS[currentLang].item2;
@@ -552,8 +582,12 @@ HTML_INTERFACE = """
                 document.getElementById('btn-github-text').innerText = TRANSLATIONS[currentLang].btnGit;
             }
             document.getElementById('label-cooldown').innerText = TRANSLATIONS[currentLang].cooldownLabel;
-            document.getElementById('label-star-bonus').innerText = TRANSLATIONS[currentLang].starBonusLabel;
             document.getElementById('label-global-quests').innerText = TRANSLATIONS[currentLang].globalQuestsLabel;
+            
+            let btnStartup = document.getElementById('btn-startup');
+            if (btnStartup.innerText !== "OS STARTUP: CHECKING...") {
+                atualizarBotaoStartup(btnStartup.classList.contains('startup-on'));
+            }
         }
 
         function atualizarBotaoStartup(isAtivo) {
@@ -577,12 +611,27 @@ HTML_INTERFACE = """
                 tasks: document.getElementById('cfg-tasks').checked,
                 discord: document.getElementById('cfg-discord').checked,
                 multi: document.getElementById('cfg-multi').checked,
-                ms_new_tasks: document.getElementById('cfg-star-bonus').checked,
+                ms_new_tasks: true,
                 discord_global_quests: document.getElementById('cfg-global-quests').checked,
                 discord_cooldown: document.getElementById('cfg-discord-cooldown').value,
-                webhook: document.getElementById('cfg-webhook').value
+                webhook: document.getElementById('cfg-webhook').value,
+                lang: document.getElementById('cfg-lang').value,
+                extended_days: document.getElementById('cfg-extended-days').value,
+                speed_mode: document.getElementById('cfg-speed-mode').value
             };
             pywebview.api.salvar_configuracoes_ui(config);
+        }
+        
+        function updateSpeedDesc() {
+            let mode = document.getElementById('cfg-speed-mode').value;
+            let desc = document.getElementById('desc-speed-mode');
+            if(mode === 'turbo') {
+                desc.innerHTML = "<b>TURBO:</b> Ignora interações avançadas, pausas longas (Café) e erros de digitação. <b>Muito rápido, mas eleva o risco na conta.</b>";
+            } else if (mode === 'stealth') {
+                desc.innerHTML = "<b>STEALTH:</b> Simulação extrema e paranóica. Passa longos períodos lendo links e adiciona de 5 a 12 pesquisas fantasmas no limite para desviar telemetria.";
+            } else {
+                desc.innerHTML = "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pausa orgânica) e comete alguns erros de digitação leves.";
+            }
         }
         
         function mostrarAvisoUpdate(novaVersao) {
@@ -766,7 +815,7 @@ class BotAPI:
         lang = cfg.get("language", "pt")
         
         # Injeta o novo parâmetro cfg.get('discord_global_quests') no final da função JS
-        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}')"
+        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
         
         webview.windows[0].evaluate_js(js_cmd)
         estado_startup = self.obter_status_startup()
@@ -788,6 +837,10 @@ class BotAPI:
         
         cfg_atual['discord_cooldown'] = int(dados_html['discord_cooldown'])
         cfg_atual['webhook_url'] = dados_html['webhook']
+        
+        cfg_atual['speed_mode'] = dados_html.get('speed_mode', 'normal')
+        cfg_atual['language'] = dados_html.get('lang', 'pt')
+        RewardsCore.SPEED = cfg_atual['speed_mode']
         
         RewardsCore.salvar_config(cfg_atual)
         self.log_ui("Settings saved to disk!", "success")
@@ -956,22 +1009,29 @@ if __name__ == '__main__':
     def coordenador_auto_close():
         cfg = RewardsCore.carregar_config()
         
-        # 1. Roda o Discord primeiro (Ele precisa do foco do mouse/teclado)
+        # 1. O Fim do Fogo Amigo: Limpa processos ANTES de iniciar os bots em paralelo
+        RewardsCore.limpar_processos_zumbis()
+        
+        # 2. Inicia os robôs em threads paralelas
+        import threading
+        
+        threads = []
         if cfg.get("do_discord", "n") == "s":
-            try:
-                DiscordQuests.iniciar_farm_discord()
-            except Exception as e:
-                api.log_ui(f"[ERRO] Falha no Discord: {e}", "error")
-                
-        # 2. Só inicia o Bing APÓS o Discord terminar e liberar a tela
+            t_discord = threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True)
+            threads.append(t_discord)
+            t_discord.start()
+            
         rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
         if rodar_rewards and not RewardsCore.ABORTAR_PROCESSO:
-            try:
-                api.loop_farm()
-            except Exception as e:
-                api.log_ui(f"[ERRO] Falha no Bing: {e}", "error")
+            t_bing = threading.Thread(target=api.loop_farm, daemon=True)
+            threads.append(t_bing)
+            t_bing.start()
             
-        # 3. Extermínio total da memória (Garante que o bot feche de verdade)
+        # 3. Aguarda todos terminarem
+        for t in threads:
+            t.join()
+            
+        # 4. Extermínio total da memória (Garante que o bot feche de verdade)
         if not RewardsCore.ABORTAR_PROCESSO and modo_startup:
             api.log_ui("[SISTEMA] Automação de Startup finalizada. O bot se desligará em 5s...", "warning")
             time.sleep(5)

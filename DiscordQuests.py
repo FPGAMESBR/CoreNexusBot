@@ -193,67 +193,55 @@ SCRIPT_JS = r"""
 
             if(isVideo) {
                 let card = document.getElementById('quest-tile-' + quest.id);
+                if(!card) {
+                    let questsTab = document.querySelector('a[href="/quest-home"]');
+                    if (questsTab) {
+                        logP(`[JS] Aba de missões não ativa. Navegando para a aba de Missões...`);
+                        questsTab.click();
+                        quests.push(quest); // Coloca de volta para tentar de novo
+                        setTimeout(doJob, 3000);
+                        return;
+                    }
+                }
+                
                 if(!card) { logP(`[JS] ALERTA: Card de video nao encontrado (Aba de missoes fechada?). Encerrando bloco.`); executarDesligamento(); return; }
                 
                 let btns = Array.from(card.querySelectorAll('button'));
                 let watchBtn = btns.find(b => /(assistir|continuar|watch|play|jogar)/i.test(b.innerText) && b.classList.contains('primary_a22cb0')) || btns.find(b => b.classList.contains('primary_a22cb0'));
                 
                 if(watchBtn) {
+                    let extractedSeconds = secondsNeeded;
+                    let match = watchBtn.innerText.match(/Assistir\s+(\d+)(m|s)/i);
+                    if (match) {
+                        let val = parseInt(match[1]);
+                        if (match[2].toLowerCase() === 'm') extractedSeconds = val * 60;
+                        else extractedSeconds = val;
+                    }
+                    
                     let readDelay = 3000 + Math.floor(Math.random() * 5000);
                     setTimeout(() => {
-                        logP(`[JS] Acionando Play no Video...`);
+                        logP(`[JS] Acionando Play no Video... (Duração extraída: ${extractedSeconds}s)`);
                         watchBtn.click();
-                        iniciarVideoLoop();
+                        
+                        let waitTimeMs = (extractedSeconds + 15) * 1000;
+                        logP(`[JS] Aguardando ${extractedSeconds + 15}s (margem de erro) para concluir a missão de vídeo...`);
+                        
+                        setTimeout(() => {
+                            logP(`[JS] Tempo esgotado! Buscando botão de reivindicar recompensa...`);
+                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
+                            if(closeBtn) closeBtn.click();
+                            
+                            setTimeout(() => {
+                                logP(`[JS] Missão de vídeo concluída! A etapa de reivindicar recompensa foi pulada para evitar bloqueios de hCaptcha.`);
+                                executarDesligamento();
+                            }, 1000);
+                            
+                        }, waitTimeMs);
+                        
                     }, readDelay);
                 } else { 
-                    logP(`[JS] Botao Play nao encontrado.`); executarDesligamento(); return; 
+                    logP(`[JS] Botao Play (Assistir) nao encontrado.`); executarDesligamento(); return; 
                 }
-
-                const iniciarVideoLoop = () => {
-                    let currentWait = 0, maxWait = secondsNeeded + 60;
-                    const videoLoop = () => {
-                        currentWait += 2;
-                        let qrModal = document.querySelector('[class*="qrCode"], img[alt*="QR"], [data-testid*="qr-code"]');
-                        if (qrModal) {
-                            logP(`[JS] Tela de QR Code detectada. Fechando modal e avancando...`);
-                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
-                            if(closeBtn) closeBtn.click();
-                            executarDesligamento();
-                            return;
-                        }
-
-                        let video = document.querySelector('video[data-testid="discord-web-video-player-video"]');
-                        if(video) {
-                            video.muted = true;
-                            if(video.paused) { try { video.play(); } catch(e) {} }
-                            let cur = video.currentTime || 0;
-                            let dur = video.duration || secondsNeeded;
-                            
-                            if (currentWait % 6 === 0) logP(`[JS] Assistindo [Video DOM]: ${cur.toFixed(0)}s / ${dur.toFixed(0)}s`);
-                            
-                            let updatedQuest = QuestsStore.getQuest(quest.id);
-                            let completed = (updatedQuest && updatedQuest.userStatus?.completedAt != null) || (dur > 0 && cur >= dur - 0.5);
-                            
-                            if(completed || currentWait >= maxWait) {
-                                logP(`[JS] Reproducao finalizada! Simulando tempo de reacao humana antes de fechar...`);
-                                setTimeout(() => {
-                                    let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"]');
-                                    if(closeBtn) closeBtn.click();
-                                    executarDesligamento();
-                                }, 2000 + Math.floor(Math.random() * 4000));
-                                return;
-                            }
-                        } else if (currentWait > 15) {
-                            logP(`[JS] Falha ao carregar player de video. Fechando janela...`);
-                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
-                            if(closeBtn) closeBtn.click();
-                            executarDesligamento();
-                            return;
-                        }
-                        setTimeout(videoLoop, 1800 + Math.floor(Math.random() * 500));
-                    };
-                    videoLoop();
-                };
             }
             else if(taskName === "PLAY_ON_DESKTOP") {
                 let appDataRes = await request('GET', `/applications/public?application_ids=${applicationId}`);
@@ -605,6 +593,7 @@ def iniciar_farm_discord():
                     servico = Service()
                     if os.name == 'nt': servico.creation_flags = 0x08000000
                     driver = webdriver.Chrome(service=servico, options=chrome_options)
+                    driver.set_page_load_timeout(60)
                     break
                 except Exception: time.sleep(5)
                 
@@ -627,6 +616,28 @@ def iniciar_farm_discord():
             if not janela_correta:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout ao tentar localizar a aba principal do Discord.")
                 continue
+                
+            # BYPASS GLOBAL DA PAGE VISIBILITY API
+            try:
+                driver.execute_script("""
+                    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+                    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+                    window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+                    window.addEventListener('blur', e => e.stopImmediatePropagation(), true);
+                    document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+                    document.addEventListener('blur', e => e.stopImmediatePropagation(), true);
+                """)
+                driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+                    "source": """
+                        Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+                        Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+                        window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+                        window.addEventListener('blur', e => e.stopImmediatePropagation(), true);
+                        document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+                        document.addEventListener('blur', e => e.stopImmediatePropagation(), true);
+                    """
+                })
+            except: pass
                 
             for _ in range(15):
                 if RewardsCore.ABORTAR_PROCESSO: return
@@ -706,9 +717,13 @@ def iniciar_farm_discord():
             RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
             
             dummy_processes = []
+            timeout_maximo = time.time() + 3600
             try:
                 while True:
                     if RewardsCore.ABORTAR_PROCESSO: return
+                    if time.time() > timeout_maximo:
+                        RewardsCore.LOGGER("[DISCORD] ERRO FATAL: Tempo limite de 1 hora excedido. Matando processo anti-freeze.", "error")
+                        break
                     time.sleep(2) 
                     
                     try:

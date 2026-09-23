@@ -43,298 +43,194 @@ def detectar_idioma():
 
 IDIOMA_GLOBAL = detectar_idioma()
 
-TEXTOS = {
-    "pt": {
-        # ==========================================
-        # INTERFACE / MENU
-        # ==========================================
-        "janela_titulo": "title FPGAMESBR Rewards",
-        "menu_titulo": "SELECIONE UMA OPERAÇÃO",
-        "op_config": "Modo Configuração (Fazer Login / Criar Conta)",
-        "op_manual": "Modo Manual (Iniciar Farm com config. salva)",
-        "op_startup": "Ligar/Desligar Startup (Iniciar invisível com o Windows)",
-        "op_avancado": "Configurações Avançadas (Webhook, Limites, Headless)",
-        "escolha": "> Escolha uma opção (1 a 4): ",
-        "fechar": "Pressione ENTER para continuar/fechar...",
-        "contas_disp": "CONTAS DISPONÍVEIS:",
-        "add_conta": "+ Adicionar Nova Conta",
-        "escolha_num": "Escolha o número da conta (ou a opção de adicionar): ",
-        "digite_nome": "Digite o nome da nova conta: ",
-        "menu_avancado_titulo": "CONFIGURAÇÕES AVANÇADAS & WEBHOOK",
-        "dica_enter": "[Dica] Aperte ENTER sem digitar nada para manter o valor atual.",
-        "dica_webhook": "[Dica] Digite '0' no Webhook para desativar as notificações.",
-        "conf_webhook": "[Discord] URL do Webhook atual",
-        "conf_pc": "[Buscas] Limite para PC atual",
-        "conf_mob": "[Buscas] Limite para Mobile atual",
-        "conf_oculto": "[Sistema] Rodar navegador invisível (Headless)? (s/n)",
-        "conf_tarefas": "[Sistema] Fazer tarefas do painel/cards? (s/n)",
-        "conf_os_titulo": "[Sistema] Sistema Operacional atual:",
-        "conf_os_opcoes": "  [1] Windows  [2] Linux  [3] Mac",
-        "conf_os_escolha": "  > Digite 1, 2 ou 3 (ou ENTER para manter): ",
-        "voltar_menu": "> Pressione ENTER para voltar ao menu...",
-        "discord_sucesso": "✅ **Rewards Bot**\nO farm da conta `{0}` foi finalizado com sucesso às {1}!",
+SPEED = "normal"
 
-        # ==========================================
-        # [SYSTEM] - NÚCLEO, ARQUIVOS E OS
-        # ==========================================
-        "invalido": "[SYSTEM] [!] Opção inválida! Fechando o bot...",
-        "nome_inv": "[SYSTEM] [!] Nome inválido!",
-        "op_inv": "[SYSTEM] [!] Opção inválida!",
-        "ent_inv": "[SYSTEM] [!] Entrada inválida!",
-        "carregando": "[SYSTEM] [INFO] Carregando preferências do RewardsConfig.json...",
-        "sucesso": "[SYSTEM] [SUCESSO] Ciclo completo finalizado!",
-        "conf_salva": "[SYSTEM] [OK] Configurações salvas com sucesso no arquivo 'RewardsConfig.json'!",
-        "startup_desativado": "[SYSTEM] [!] Startup Desativado: O bot não iniciará mais com o OS.",
-        "startup_erro_rem": "[SYSTEM] [X] Erro ao remover startup:",
-        "startup_ativado": "[SYSTEM] [OK] Startup Ativado: O bot iniciará 100% invisível com o OS!",
-        "startup_erro_criar": "[SYSTEM] [X] Erro ao criar startup:",
-        "modo_config_salvo": "[SYSTEM] -> Configuração salva para",
-        "erro_notificacao": "[SYSTEM] [!] Aviso: Falha ao enviar notificação: {}",
-        "otimizando_historico": "[SYSTEM] -> Otimizando arquivo de histórico no disco...",
-        "zumbi_clean": "\n[SYSTEM] Escaneando e eliminando processos zumbis (chromedriver)...",
-        "alerta_ban": "⛔ **ALERTA CRÍTICO** ⛔\nA conta `{0}` parece ter sido SUSPENSA pela Microsoft! O bot abortou o farm para este perfil.",
-        "crash_log": "[SYSTEM] Erro fatal detectado! Crash log salvo em: {0}",
-        "crash_sos": "🚨 **ERRO FATAL (Crash)** 🚨\nO motor principal do bot desarmou!\n**Log gerado:** `{0}`\n**Detalhe:** `{1}`",
+def smart_sleep(base_min, base_max, cancelavel_por_turbo=False):
+    import random
+    import time
+    base = random.uniform(base_min, base_max)
+    
+    if cancelavel_por_turbo:
+        passos = int(base)
+        for _ in range(passos):
+            if SPEED == "turbo":
+                print("[SISTEMA] Turbo ativado! Abortando hibernação massiva.")
+                break
+            time.sleep(1)
+        time.sleep(base - passos)
+    else:
+        if SPEED == "turbo":
+            base *= 0.3
+        elif SPEED == "stealth":
+            base *= 2.5
+        time.sleep(base)
 
-        # ==========================================
-        # [NETWORK] - REDE, 4G E PROXY
-        # ==========================================
-        "prep_4g": "[NETWORK] [INFO] Preparando isolamento de rede (4G) para:",
-        "timeout_4g": "[NETWORK] [ERRO] Tempo limite excedido. Encerrando o farm para proteger o seu IP!",
-        "4g_ligando_aviao": "   [NETWORK] [4G] Ligando Modo Avião (Cortando sinal)...",
-        "4g_desligando_aviao": "   [NETWORK] [4G] Desligando Modo Avião (Buscando novo IP)...",
-        "4g_rotacao_concluida": "   [NETWORK] [4G] Rotação concluída! Novo IP atribuído pela torre.",
-        "proxy_ativado": "   [NETWORK] [PROXY] Túnel invisível ativado com sucesso ({}).",
-        "proxy_erro": "   [NETWORK] [ERRO] Falha ao iniciar proxy: {}",
+def gerar_banco_cognitivo():
+    import random
+    from datetime import datetime
+    import urllib.request
+    import xml.etree.ElementTree as ET
+    import json
+    
+    lang = carregar_config().get("language", "en")
+    hora = datetime.now().hour
+    banco = []
+    
+    # 1. Fetch RSS News
+    noticias_rss = []
+    try:
+        url_rss = "https://news.google.com/rss?hl=pt-BR&gl=BR&ceid=BR:pt-419" if lang == "pt" else "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en"
+        req = urllib.request.Request(url_rss, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            xml_data = response.read()
+            root = ET.fromstring(xml_data)
+            for item in root.findall('./channel/item'):
+                title = item.find('title').text
+                if title:
+                    clean_title = title.rsplit(' - ', 1)[0]
+                    noticias_rss.append(clean_title)
+    except Exception as e:
+        LOGGER(f"[SYSTEM] Erro ao buscar RSS: {e}", "warning")
 
-        # ==========================================
-        # [MOBILE] - ADB E AÇÕES NO CELULAR
-        # ==========================================
-        "cel_nao_det": "[MOBILE] [!] Celular não detectado. Aguardando conexão USB (Tentando por 1 min)...",
-        "sessao_mob_fim": "[MOBILE] -> Sessão Mobile finalizada. Mantendo aba aberta por um tempo residual...",
-        "erro_mob": "[MOBILE] [ERRO] Erro Crítico Mobile",
-        "adb_nao_encontrado": "\n[MOBILE] [!] ADB não encontrado para {}. Iniciando download...",
-        "adb_sucesso": "[MOBILE] [SUCESSO] Ferramentas ADB instaladas!",
-        "adb_erro": "[MOBILE] [ERRO] Falha ao instalar ADB automaticamente: {}",
+    # 2. Wikipedia Random API (High Entropy Organic Searches)
+    artigos_wiki = []
+    try:
+        wiki_lang = "pt" if lang == "pt" else "en"
+        wiki_url = f"https://{wiki_lang}.wikipedia.org/w/api.php?action=query&list=random&rnlimit=30&rnnamespace=0&format=json"
+        req = urllib.request.Request(wiki_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            for r in data.get('query', {}).get('random', []):
+                artigos_wiki.append(r['title'])
+    except Exception as e:
+        LOGGER(f"[SYSTEM] Erro ao buscar Wikipedia: {e}", "warning")
 
-        # ==========================================
-        # [CHROME] - NAVEGADOR PC E PESQUISAS
-        # ==========================================
-        "iniciando_conta": "[CHROME] >>> INICIANDO CONTA ISOLADA:",
-        "sessao_pc_fim": "[CHROME] -> Sessão PC finalizada. Mantendo aba aberta por um tempo residual...",
-        "erro_pc": "[CHROME] [ERRO] Erro Crítico PC",
-        "modo_config_titulo": "[CHROME] >>> MODO CONFIGURAÇÃO:",
-        "modo_config_nav_aberto": "[CHROME] -> O navegador foi aberto para você.",
-        "modo_config_login": "[CHROME] -> Por favor, faça o LOGIN manualmente na sua conta da Microsoft.",
-        "modo_config_tempo": "[CHROME] -> Você tem 10 MINUTOS de tela aberta. Quando terminar, FECHE O NAVEGADOR.",
-        "modo_config_nota": "[CHROME] -> Nota de configuração:",
-        "tentativa_chrome": "[CHROME] [!] Tentativa {} de abrir o Chrome falhou. Retentando...",
-        "analisando_tipo": "[CHROME] --- Analisando {} ---",
-        "tipo_concluido": "[CHROME] -> [OK] {} já está totalmente concluído. Pulando...",
-        "fator_preguica": "[CHROME] -> [STEALTH] Fator Preguiça: Decidido ignorar os últimos pontos de {} hoje.",
-        "erro_status": "[CHROME] -> [!] Não foi possível ler o status. Usando limite padrão de segurança: {}",
-        "humor_ativado": "[CHROME] -> [STEALTH] Humor ativado: O bot decidiu pular {} pesquisas neste ciclo.",
-        "ciclo_encerrado": "[CHROME] -> Ciclo de {} encerrado.",
-        "executando_pesquisas": "[CHROME] -> Executando {} pesquisas orgânicas...",
-        "aguardando_ponto": "[CHROME] [~] Aguardando o ponto contabilizar ({}s)...",
-        "interacao_extra": "[CHROME] [~] Interação extra detectada...",
-        "lendo_artigo": "[CHROME] [~] Lendo um artigo dos resultados...",
-        "erro_pesquisa": "[CHROME] [AVISO] Ocorreu um erro nesta pesquisa. Pulando...",
-        "verificando_paineis": "[CHROME] --- Verificando Painéis de Missões (Conjunto Diário e Extras) ---",
-        "analisando_pagina": "[CHROME] -> Analisando: {}",
-        "painel_limpo": "[CHROME] -> Painel limpo! Nenhuma missão pendente encontrada aqui.",
-        "clicando_missao": "[CHROME] -> Clicando na missão ({})...",
-        "erro_pagina": "[CHROME] -> Erro leve na página: {}",
-        "total_missoes": "[CHROME] --- Total de {} missões concluídas com sucesso! ---",
-        "verificando_prog": "[CHROME] [~] Verificando progresso em: {}",
-        "status_concluido": "[CHROME] [OK] {} já está totalmente concluído ({}/{}). Pulando...",
-        "status_real": "[CHROME] [INFO] Status Real: {}/{} pontos. Faltam {} pesquisas.",
-        "erro_contador": "[CHROME] [!] Não foi possível ler o contador real. Usando limite de segurança (20).",
-        "pausa_humana": "   [CHROME] [~] Pausa estendida humana de {}s (lendo a tela/descanso)...",
+    # Prefixos para misturar com a Wikipedia
+    prefixos_wiki_pt = ["quem foi ", "história de ", "o que é ", "onde fica ", "resumo sobre ", "significado de "]
+    prefixos_wiki_en = ["who was ", "history of ", "what is ", "where is ", "summary of ", "meaning of "]
 
-        # ==========================================
-        # [BING VISUAL] & [BING STAR ENGINE]
-        # ==========================================
-        "visual_init": "[BING] Iniciando tarefa de Pesquisa Visual (Streak)...",
-        "visual_img_ok": "[BING] Imagem enviada com sucesso: {0}",
-        "visual_ok": "[BING] Pesquisa Visual concluída e contabilizada!",
-        "visual_erro_campo": "[BING] Erro: Campo de colar URL não encontrado no popup da câmera.",
-        "visual_erro_fatal": "[BING] Erro fatal durante a Pesquisa Visual: {0}...",
+    # 2.5 Fetch Google Trends RSS
+    noticias_trends = []
+    try:
+        url_trends = "https://trends.google.com/trending/rss?geo=BR" if lang == "pt" else "https://trends.google.com/trending/rss?geo=US"
+        req = urllib.request.Request(url_trends, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            xml_data = response.read()
+            root = ET.fromstring(xml_data)
+            for item in root.findall('./channel/item'):
+                title = item.find('title').text
+                if title: noticias_trends.append(title)
+    except Exception as e:
+        LOGGER(f"[SYSTEM] Erro ao buscar Google Trends: {e}", "warning")
+
+    # Persona Templates (Fallback e base orgânica expandida)
+    templates = []
+    if lang == "pt":
+        if 6 <= hora <= 11:
+            templates = [
+                "como está o trânsito na minha região hoje", "previsão do tempo detalhada para hoje",
+                "cotação do dólar hoje", "fechamento do ibovespa", "resultados dos jogos de ontem",
+                "principais notícias do mercado financeiro hoje", "exercícios matinais para fazer em casa",
+                "como fazer café na prensa francesa", "receita de panqueca de aveia fit", "podcasts de notícias da manhã",
+                "principais manchetes dos jornais de hoje", "como organizar o dia de trabalho", "como acordar cedo sem cansaço"
+            ]
+        elif 12 <= hora <= 18:
+            templates = [
+                "como resolver erro de permissão na AWS IAM", "diferença entre instâncias EC2 e Fargate",
+                "melhores cursos para certificação CompTIA Security+", "configurar VPN no Windows 11",
+                "como usar o GitHub Copilot no VSCode", "diferença entre processadores AMD Ryzen e Intel Core",
+                "qual o melhor SSD NVMe M.2 1TB", "como testar se a memória RAM está com defeito",
+                "o que é arquitetura de microsserviços", "como otimizar consultas no banco de dados",
+                "onde almoçar perto de mim", "restaurantes com prato feito barato", "como combater o sono depois do almoço",
+                "melhores métodos de produtividade pomodoro", "como focar no trabalho", "playlist para trabalhar lofi"
+            ]
+        else:
+            templates = [
+                "dicas de builds para {jogo}", "melhores jogos em promoção na Steam",
+                "review do microfone condensador HyperX QuadCast", "qual a melhor interface de áudio custo benefício",
+                "diferença entre Smart TV OLED e QLED", "melhores aplicativos de delivery",
+                "como instalar câmera IP Wi-Fi em casa", "qual o melhor teclado mecânico sem fio",
+                "lançamentos netflix dessa semana", "resumo do filme a substância", "melhores animes da temporada",
+                "receitas de jantar rápido e fácil", "dicas para dormir melhor rápido", "livros de ficção científica mais vendidos"
+            ]
+            jogos = ["Deadlock", "Cyberpunk 2077", "Elden Ring", "Valorant", "CS2", "Baldur's Gate 3", "Minecraft", "GTA V", "The Sims 4"]
+            templates = [t.format(jogo=random.choice(jogos)) if "{jogo}" in t else t for t in templates]
+    else:
+        if 6 <= hora <= 11:
+            templates = [
+                "traffic conditions near me right now", "local weather forecast for today",
+                "stock market opening today", "usd exchange rate", "sports highlights from last night",
+                "top financial news of the day", "quick morning workout routines",
+                "how to make french press coffee", "healthy oatmeal pancake recipe", "morning news podcasts",
+                "today's top headlines", "how to organize workday", "how to wake up early without feeling tired"
+            ]
+        elif 12 <= hora <= 18:
+            templates = [
+                "how to fix AWS IAM permission denied", "difference between EC2 and Fargate",
+                "best study materials for CompTIA Security+", "how to setup VPN on Windows 11",
+                "how to use GitHub Copilot in VSCode", "AMD Ryzen vs Intel Core processors comparison",
+                "best 1TB NVMe M.2 SSD", "how to test RAM for errors",
+                "what is microservices architecture", "how to optimize database queries",
+                "lunch near me", "cheap fast food places", "how to fight post lunch sleepiness",
+                "best pomodoro productivity methods", "how to focus on work", "lofi beats to work to"
+            ]
+        else:
+            templates = [
+                "best builds for {jogo}", "top games on sale on Steam right now",
+                "HyperX QuadCast microphone review", "best budget audio interface",
+                "OLED vs QLED Smart TV difference", "best food delivery apps",
+                "how to install Wi-Fi IP camera at home", "best wireless mechanical keyboard",
+                "new releases on netflix this week", "the substance movie explained", "best anime of the season",
+                "quick and easy dinner recipes", "tips to fall asleep fast", "best selling sci-fi books"
+            ]
+            jogos = ["Deadlock", "Cyberpunk 2077", "Elden Ring", "Valorant", "CS2", "Baldur's Gate 3", "Minecraft", "GTA V", "The Sims 4"]
+            templates = [t.format(jogo=random.choice(jogos)) if "{jogo}" in t else t for t in templates]
+
+    # 3. Generate 50 searches (Hybrid mix)
+    for _ in range(50):
+        sorteio = random.random()
         
-        "star_init": "\n>>> [BING STAR ENGINE] INICIANDO: {0} <<<",
-        "star_etapa1": "\n[STAR ENGINE] ETAPA 1/4: Aquecimento PC & Verificação do Contador Unificado...",
-        "star_falha1": "[STAR ENGINE] [X] Falha no Bloco 1 (PC): {0}",
-        "star_etapa2": "\n[STAR ENGINE] ETAPA 2/4: Transição para o Smartphone... (Restam {0} no saldo unificado)",
-        "star_falha2": "[STAR ENGINE] [X] Falha no Bloco 2 (Mob): {0}",
-        "star_etapa3": "\n[STAR ENGINE] ETAPA 3/4: Ativando Ociosidade Humana ({0} min)...",
-        "star_etapa4": "\n[STAR ENGINE] ETAPA 4/4: Retorno ao PC. Lendo painel novamente e finalizando...",
-        "star_falha4": "[STAR ENGINE] [X] Falha no Bloco Final (PC): {0}",
-        "star_sucesso": "\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {0} blindada e farmada. ({1})",
-        "star_pesquisa": "   [STAR ENGINE] ({0}/{1}) [{2}] {3}",
+        # 25% RSS News, 25% Google Trends, 25% Wikipedia, 25% Templates
+        if sorteio < 0.25 and noticias_rss:
+            noticia = random.choice(noticias_rss)
+            if random.random() < 0.30:
+                prefixo = "notícias sobre: " if lang == "pt" else "news about: "
+                banco.append(f"{prefixo}{noticia}")
+            else:
+                banco.append(noticia)
+                
+        elif sorteio >= 0.25 and sorteio < 0.50 and noticias_trends:
+            trend = random.choice(noticias_trends)
+            banco.append(trend)
 
-        # ==========================================
-        # DIAGNÓSTICO
-        # ==========================================
-        "diag_titulo": ">>> DIAGNÓSTICO DO SISTEMA <<<",
-        "diag_chrome_ok": " [DIAG] \033[92m[OK]\033[0m Google Chrome detectado (v{})",
-        "diag_chrome_err": " [DIAG] \033[91m[ X]\033[0m Google Chrome não encontrado!",
-        "diag_adb_ok": " [DIAG] \033[92m[OK]\033[0m Ferramentas ADB prontas",
-        "diag_adb_err": " [DIAG] \033[93m[!]\033[0m Ferramentas ADB ausentes (Pulando mobile)",
-        "diag_cfg_ok": " [DIAG] \033[92m[OK]\033[0m Arquivo Config carregado",
-        "diag_cfg_err": " [DIAG] \033[93m[!]\033[0m Arquivo Config ausente (Usando padrão)",
-        "diag_prof_ok": " [DIAG] \033[92m[OK]\033[0m Pasta Profiles ({} contas encontradas)",
-        "diag_prof_err": " [DIAG] \033[91m[X]\033[0m Pasta Profiles vazia (Requer login)",
-        "diag_xbox": " [DIAG] \033[91m[X]\033[0m Token Xbox (coming soon)",
-        "diag_startup_ok": " [DIAG] \033[92m[OK]\033[0m Startup Automático Ativado",
-        "diag_startup_err": " [DIAG] \033[93m[!]\033[0m Startup Automático Desativado",
-    },
-    "en": {
-        # ==========================================
-        # INTERFACE / MENU
-        # ==========================================
-        "janela_titulo": "title FPGAMESBR Rewards",
-        "menu_titulo": "SELECT AN OPERATION",
-        "op_config": "Setup Mode (Login / Add Account)",
-        "op_manual": "Manual Mode (Start Farm with saved config)",
-        "op_startup": "Toggle Startup (Run invisibly with Windows)",
-        "op_avancado": "Advanced Settings (Webhook, Limits, Headless)",
-        "escolha": "> Choose an option (1 to 4): ",
-        "fechar": "Press ENTER to continue/close...",
-        "contas_disp": "AVAILABLE ACCOUNTS:",
-        "add_conta": "+ Add New Account",
-        "escolha_num": "Choose the account number (or the add option): ",
-        "digite_nome": "Enter the new account name: ",
-        "menu_avancado_titulo": "ADVANCED SETTINGS & WEBHOOK",
-        "dica_enter": "[Hint] Press ENTER without typing to keep the current value.",
-        "dica_webhook": "[Hint] Type '0' in Webhook to disable notifications.",
-        "conf_webhook": "[Discord] Current Webhook URL",
-        "conf_pc": "[Search] Current PC Limit",
-        "conf_mob": "[Search] Current Mobile Limit",
-        "conf_oculto": "[System] Run invisible browser (Headless)? (y/n)",
-        "conf_tarefas": "[System] Do dashboard tasks/cards? (y/n)",
-        "conf_os_titulo": "[System] Current Operating System:",
-        "conf_os_opcoes": "  [1] Windows  [2] Linux  [3] Mac",
-        "conf_os_escolha": "  > Type 1, 2 or 3 (or ENTER to keep): ",
-        "voltar_menu": "> Press ENTER to return to the menu...",
-        "discord_sucesso": "✅ **Rewards Bot**\nThe farm for account `{0}` was successfully completed at {1}!",
+        elif sorteio >= 0.50 and sorteio < 0.75 and artigos_wiki:
+            artigo = random.choice(artigos_wiki)
+            prefixos = prefixos_wiki_pt if lang == "pt" else prefixos_wiki_en
+            if random.random() < 0.60:
+                banco.append(f"{random.choice(prefixos)}{artigo}")
+            else:
+                banco.append(artigo)
+                
+        else:
+            banco.append(random.choice(templates))
+            
+    random.shuffle(banco)
+    return banco
 
-        # ==========================================
-        # [SYSTEM] - NÚCLEO, ARQUIVOS E OS
-        # ==========================================
-        "invalido": "[SYSTEM] [!] Invalid option! Closing bot...",
-        "nome_inv": "[SYSTEM] [!] Invalid name!",
-        "op_inv": "[SYSTEM] [!] Invalid option!",
-        "ent_inv": "[SYSTEM] [!] Invalid input!",
-        "carregando": "[SYSTEM] [INFO] Loading preferences from RewardsConfig.json...",
-        "sucesso": "[SYSTEM] [SUCCESS] Full cycle completed!",
-        "conf_salva": "[SYSTEM] [OK] Settings successfully saved to 'RewardsConfig.json'!",
-        "startup_desativado": "[SYSTEM] [!] Startup Disabled: The bot will no longer start with OS.",
-        "startup_erro_rem": "[SYSTEM] [X] Error removing startup:",
-        "startup_ativado": "[SYSTEM] [OK] Startup Enabled: The bot will start 100% invisibly with OS!",
-        "startup_erro_criar": "[SYSTEM] [X] Error creating startup:",
-        "modo_config_salvo": "[SYSTEM] -> Setup saved for",
-        "erro_notificacao": "[SYSTEM] [!] Warning: Failed to send notification: {}",
-        "otimizando_historico": "[SYSTEM] -> Optimizing history file on disk...",
-        "zumbi_clean": "\n[SYSTEM] Scanning and eliminating zombie processes (chromedriver)...",
-        "alerta_ban": "⛔ **CRITICAL ALERT** ⛔\nThe account `{0}` appears to be SUSPENDED by Microsoft! Bot aborted farming for this profile.",
-        "crash_log": "[SYSTEM] Fatal error detected! Crash log saved to: {0}",
-        "crash_sos": "🚨 **FATAL ERROR (Crash)** 🚨\nThe bot's main engine failed!\n**Log generated:** `{0}`\n**Detail:** `{1}`",
+_LOCALES_CACHE = None
 
-        # ==========================================
-        # [NETWORK] - REDE, 4G E PROXY
-        # ==========================================
-        "prep_4g": "[NETWORK] [INFO] Preparing network isolation (4G) for:",
-        "timeout_4g": "[NETWORK] [ERROR] Timeout. Stopping farm to protect your main IP!",
-        "4g_ligando_aviao": "   [NETWORK] [4G] Enabling Airplane Mode (Cutting signal)...",
-        "4g_desligando_aviao": "   [NETWORK] [4G] Disabling Airplane Mode (Searching for new IP)...",
-        "4g_rotacao_concluida": "   [NETWORK] [4G] Rotation complete! New IP assigned by the tower.",
-        "proxy_ativado": "   [NETWORK] [PROXY] Invisible tunnel successfully activated ({}).",
-        "proxy_erro": "   [NETWORK] [PROXY-ERROR] Failed to start proxy: {}",
+def t(chave):
+    global _LOCALES_CACHE
+    if _LOCALES_CACHE is None:
+        try:
+            with open(BASE_DIR / "locales.json", "r", encoding="utf-8") as f:
+                _LOCALES_CACHE = json.load(f)
+        except Exception:
+            _LOCALES_CACHE = {}
+            
+    lang = carregar_config().get("language", "en")
+    return _LOCALES_CACHE.get(lang, {}).get(chave, _LOCALES_CACHE.get("en", {}).get(chave, chave))
 
-        # ==========================================
-        # [MOBILE] - ADB E AÇÕES NO CELULAR
-        # ==========================================
-        "cel_nao_det": "[MOBILE] [!] Phone not detected. Waiting for USB connection (Trying for 1 minute)...",
-        "sessao_mob_fim": "[MOBILE] -> Mobile session finished. Keeping tab open for residual time...",
-        "erro_mob": "[MOBILE] [ERROR] Critical Mobile Error",
-        "adb_nao_encontrado": "\n[MOBILE] [!] ADB not found for {}. Starting download...",
-        "adb_sucesso": "[MOBILE] [SUCCESS] ADB tools installed!",
-        "adb_erro": "[MOBILE] [ERROR] Failed to install ADB automatically: {}",
-
-        # ==========================================
-        # [CHROME] - NAVEGADOR PC E PESQUISAS
-        # ==========================================
-        "iniciando_conta": "[CHROME] >>> STARTING ISOLATED ACCOUNT:",
-        "sessao_pc_fim": "[CHROME] -> PC session finished. Keeping tab open for residual time...",
-        "erro_pc": "[CHROME] [ERROR] Critical PC Error",
-        "modo_config_titulo": "[CHROME] >>> SETUP MODE:",
-        "modo_config_nav_aberto": "[CHROME] -> The browser has been opened for you.",
-        "modo_config_login": "[CHROME] -> Please manually LOGIN to your Microsoft account.",
-        "modo_config_tempo": "[CHROME] -> You have 10 MINUTES with the screen open. When done, CLOSE THE BROWSER.",
-        "modo_config_nota": "[CHROME] -> Setup note:",
-        "tentativa_chrome": "[CHROME] [!] Attempt {} to open Chrome failed. Retrying...",
-        "analisando_tipo": "[CHROME] --- Analyzing {} ---",
-        "tipo_concluido": "[CHROME] -> [OK] {} is already fully completed. Skipping...",
-        "fator_preguica": "[CHROME] -> [STEALTH] Laziness Factor: Decided to ignore the last points for {} today.",
-        "erro_status": "[CHROME] -> [!] Could not read status. Using default safety limit: {}",
-        "humor_ativado": "[CHROME] -> [STEALTH] Mood activated: Bot decided to skip {} searches this cycle.",
-        "ciclo_encerrado": "[CHROME] -> Cycle for {} ended.",
-        "executando_pesquisas": "[CHROME] -> Executing {} organic searches...",
-        "aguardando_ponto": "[CHROME] [~] Waiting for point to register ({}s)...",
-        "interacao_extra": "[CHROME] [~] Extra interaction detected...",
-        "lendo_artigo": "[CHROME] [~] Reading an article from the results...",
-        "erro_pesquisa": "[CHROME] [WARNING] An error occurred in this search. Skipping...",
-        "verificando_paineis": "[CHROME] --- Checking Mission Dashboards (Daily and Extras) ---",
-        "analisando_pagina": "[CHROME] -> Analyzing: {}",
-        "painel_limpo": "[CHROME] -> Dashboard clean! No pending missions found here.",
-        "clicando_missao": "[CHROME] -> Clicking on mission ({})...",
-        "erro_pagina": "[CHROME] -> Minor page error: {}",
-        "total_missoes": "[CHROME] --- Total of {} missions successfully completed! ---",
-        "verificando_prog": "[CHROME] [~] Checking progress on: {}",
-        "status_concluido": "[CHROME] [OK] {} is already fully completed ({}/{}). Skipping...",
-        "status_real": "[CHROME] [INFO] Real Status: {}/{} points. {} searches left.",
-        "erro_contador": "[CHROME] [!] Could not read the real counter. Using default safety limit (20).",
-        "pausa_humana": "   [CHROME] [~] Extended human pause of {}s (reading screen/resting)...",
-
-        # ==========================================
-        # [BING VISUAL] & [BING STAR ENGINE]
-        # ==========================================
-        "visual_init": "[BING] Starting Visual Search task (Streak)...",
-        "visual_img_ok": "[BING] Image successfully submitted: {0}",
-        "visual_ok": "[BING] Visual Search completed and accounted for!",
-        "visual_erro_campo": "[BING] Error: Paste URL field not found in camera popup.",
-        "visual_erro_fatal": "[BING] Fatal error during Visual Search: {0}...",
-        
-        "star_init": "\n>>> [BING STAR ENGINE] STARTING: {0} <<<",
-        "star_etapa1": "\n[STAR ENGINE] STEP 1/4: PC Warm-up & Unified Counter Verification...",
-        "star_falha1": "[STAR ENGINE] [X] Failure in Block 1 (PC): {0}",
-        "star_etapa2": "\n[STAR ENGINE] STEP 2/4: Transition to Smartphone... ({0} searches left in unified balance)",
-        "star_falha2": "[STAR ENGINE] [X] Failure in Block 2 (Mob): {0}",
-        "star_etapa3": "\n[STAR ENGINE] STEP 3/4: Activating Human Idleness ({0} min)...",
-        "star_etapa4": "\n[STAR ENGINE] STEP 4/4: Return to PC. Reading dashboard again and finishing...",
-        "star_falha4": "[STAR ENGINE] [X] Failure in Final Block (PC): {0}",
-        "star_sucesso": "\n[STAR ENGINE] >>> ABSOLUTE SUCCESS! Account {0} shielded and farmed. ({1})",
-        "star_pesquisa": "   [STAR ENGINE] ({0}/{1}) [{2}] {3}",
-
-        # ==========================================
-        # DIAGNÓSTICO
-        # ==========================================
-        "diag_titulo": ">>> SYSTEM DIAGNOSTICS <<<",
-        "diag_chrome_ok": " [DIAG] \033[92m[OK]\033[0m Google Chrome detected (v{})",
-        "diag_chrome_err": " [DIAG] \033[91m[X]\033[0m Google Chrome not found!",
-        "diag_adb_ok": " [DIAG] \033[92m[OK]\033[0m ADB Tools ready",
-        "diag_adb_err": " [DIAG] \033[93m[!]\033[0m ADB Tools missing (Skipping mobile)",
-        "diag_cfg_ok": " [DIAG] \033[92m[OK]\033[0m Config file loaded",
-        "diag_cfg_err": " [DIAG] \033[93m[!]\033[0m Config file missing (Using defaults)",
-        "diag_prof_ok": " [DIAG] \033[92m[OK]\033[0m Profiles folder ({} accounts found)",
-        "diag_prof_err": " [DIAG] \033[91m[X]\033[0m Profiles folder empty (Requires login)",
-        "diag_xbox": " [DIAG] \033[91m[ X]\033[0m Xbox Token (coming soon)",
-        "diag_startup_ok": " [DIAG] \033[92m[OK]\033[0m Automatic Startup Enabled",
-        "diag_startup_err": " [DIAG] \033[93m[!]\033[0m Automatic Startup Disabled",
-    }
-}
-
-t = TEXTOS[IDIOMA_GLOBAL]
 
 if getattr(sys, 'frozen', False):
     # Se estiver rodando como .exe (compilado), usa a pasta onde o .exe está
@@ -368,7 +264,7 @@ def preparar_ambiente_adb():
     
     if caminho_adb.exists(): return
     
-    LOGGER(t['adb_nao_encontrado'].format(sistema.upper()))
+    LOGGER(t('adb_nao_encontrado').format(sistema.upper()))
     urls = {
         "windows": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
         "linux": "https://dl.google.com/android/repository/platform-tools-latest-linux.zip",
@@ -385,9 +281,9 @@ def preparar_ambiente_adb():
             st = os.stat(caminho_adb)
             os.chmod(caminho_adb, st.st_mode | stat.S_IEXEC)
             
-        LOGGER(t['adb_sucesso'])
+        LOGGER(t('adb_sucesso'))
     except Exception as e:
-        LOGGER(t['adb_erro'].format(e))
+        LOGGER(t('adb_erro').format(e))
 
 def atualizar_lista_contas():
     cfg = carregar_config()
@@ -413,7 +309,8 @@ def carregar_config():
         "discord_cooldown": 5,
         "ms_new_tasks": "n",
         "discord_global_quests": "n",
-        "language": "pt"
+        "language": "pt",
+        "speed_mode": "normal"
     }
     
     if os.path.exists(ARQUIVO_CONFIG):
@@ -425,6 +322,11 @@ def carregar_config():
             pass
             
     return padrao
+
+try:
+    SPEED = carregar_config().get("speed_mode", "normal")
+except:
+    SPEED = "normal"
 
 def obter_fingerprint(nome_perfil, tipo):
     """Garante que a identidade de HW (User-Agent) não mude entre sessões"""
@@ -513,17 +415,17 @@ def rotacionar_ip_celular():
     ip_antigo = localizar_ip_celular() # Anota o IP atual
     
     for tentativa in range(3): # Tenta até 3 vezes
-        LOGGER(t['4g_ligando_aviao'])
+        LOGGER(t('4g_ligando_aviao'))
         subprocess.run([str(caminho_adb), "shell", "cmd", "connectivity", "airplane-mode", "enable"], ...)
         time.sleep(5) 
         
-        LOGGER(t['4g_desligando_aviao'])
+        LOGGER(t('4g_desligando_aviao'))
         subprocess.run([str(caminho_adb), "shell", "cmd", "connectivity", "airplane-mode", "disable"], ...)
         time.sleep(10) # Tempo um pouco maior para a operadora "esquecer" o aparelho
         
         ip_novo = localizar_ip_celular()
         if ip_novo and ip_novo != ip_antigo:
-            LOGGER(t['4g_rotacao_concluida'])
+            LOGGER(t('4g_rotacao_concluida'))
             return # Sucesso! Sai da função.
             
         LOGGER("   [!] A operadora devolveu o mesmo IP. Forçando nova rotação...")
@@ -579,9 +481,9 @@ def iniciar_proxy_background(ip_celular):
                 
         threading.Thread(target=aceitar_conexoes, daemon=True).start()
         PROXY_RODANDO = True
-        LOGGER(t['proxy_ativado'].format(ip_celular))
+        LOGGER(t('proxy_ativado').format(ip_celular))
     except Exception as e:
-        LOGGER(t['proxy_erro'].format(e))
+        LOGGER(t('proxy_erro').format(e))
 
 # =============================================================================
 # FUNÇÕES DE LÓGICA CORE & STEALTH
@@ -589,7 +491,7 @@ def iniciar_proxy_background(ip_celular):
 def wait_human(min_s=3.0, max_s=8.0, long_pause_chance=0.15):
     if random.random() < long_pause_chance:
         pausa = random.uniform(35.0, 90.0)
-        LOGGER(t['pausa_humana'].format(int(pausa)))
+        LOGGER(t('pausa_humana').format(int(pausa)))
         time.sleep(pausa)
     else:
         time.sleep(random.uniform(min_s, max_s))
@@ -621,7 +523,7 @@ def enviar_notificacao(mensagem):
         req = urllib.request.Request(URL_WEBHOOK_DISCORD, data=json.dumps(data).encode('utf-8'), headers={'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json'})
         urllib.request.urlopen(req, timeout=5)
     except Exception as e:
-        LOGGER(t['erro_notificacao'].format(e))
+        LOGGER(t('erro_notificacao').format(e))
         
 def carregar_historico():
     try:
@@ -641,7 +543,7 @@ def salvar_historico(termo):
         except Exception: pass
 
 def limpar_excesso_historico():
-    LOGGER(t['otimizando_historico'])
+    LOGGER(t('otimizando_historico'))
     try:
         if ARQUIVO_HISTORICO.exists():
             historico = list(carregar_historico())
@@ -650,140 +552,10 @@ def limpar_excesso_historico():
                     json.dump(historico[-300:], f, ensure_ascii=False, indent=4)
     except Exception: pass
 
-def carregar_termos_online():
-    if IDIOMA_GLOBAL == "pt":
-        LOGGER("-> Sincronizando banco de dados de pesquisas...")
-    else:
-        LOGGER("-> Synchronizing search database...")
-        
-    historico = carregar_historico()
-    termos = []
-    
-    if IDIOMA_GLOBAL == "pt":
-        feeds = [
-            "https://news.google.com/rss?hl=pt-BR&gl=BR&ceid=BR:pt-150",
-            "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=pt-BR&gl=BR&ceid=BR:pt-150",
-            "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=pt-BR&gl=BR&ceid=BR:pt-150",
-            "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=pt-BR&gl=BR&ceid=BR:pt-150",
-            "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=pt-BR&gl=BR&ceid=BR:pt-150",
-            "https://news.google.com/rss/headlines/section/topic/WORLD?hl=pt-BR&gl=BR&ceid=BR:pt-150"
-        ]
-    else:
-        feeds = [
-            "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en",
-            "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-US&gl=US&ceid=US:en",
-            "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en",
-            "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=en-US&gl=US&ceid=US:en",
-            "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=en-US&gl=US&ceid=US:en",
-            "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en"
-        ]
-
-    for url in feeds:
-        try:
-            with urllib.request.urlopen(url, timeout=5) as response:
-                root = ET.parse(response).getroot()
-                for item in root.findall('./channel/item/title')[:15]:
-                    txt = item.text.split(" - ")[0]
-                    if len(txt) > 4 and txt not in historico: termos.append(txt)
-        except Exception: pass
-
-    if IDIOMA_GLOBAL == "pt":
-        fallback = [
-            "Receitas fáceis para o jantar", "Resultados do futebol hoje", "Melhores filmes de ação",
-            "Dicas para economizar dinheiro", "Como perder peso rápido", "Exercícios para fazer em casa",
-            "Previsão do tempo fim de semana", "Notícias de tecnologia", "Smartphones mais vendidos",
-            "Como investir na bolsa", "Jogos de videogame lançamentos", "Séries mais assistidas",
-            "Dicas de viagens baratas", "Receita de bolo de chocolate", "Principais notícias do Brasil",
-            "Inteligência Artificial na medicina", "Carros elétricos", "Dicas de decoração para sala",
-            "Como aprender inglês sozinho", "Melhores restaurantes", "Benefícios do café",
-            "Como cuidar de plantas em casa", "Maquiagem passo a passo", "Moda outono inverno",
-            "Tabela do campeonato brasileiro", "Resumo de novelas", "Horóscopo do dia",
-            "Receitas de airfryer", "Dicas de produtividade", "Como meditar para iniciantes"
-        ]
-        termo_emergencia = "Dicas novidade"
-    else:
-        fallback = [
-            "Easy dinner recipes", "Live sports scores", "Best action movies",
-            "Money saving tips", "How to lose weight fast", "Home workout routines",
-            "Weekend weather forecast", "Latest technology news", "Best selling smartphones",
-            "How to invest in stocks", "New video game releases", "Most watched TV shows",
-            "Budget travel tips", "Chocolate cake recipe", "Top breaking news",
-            "Artificial Intelligence in medicine", "Electric cars", "Living room decor ideas",
-            "How to learn Spanish fast", "Best restaurants near me", "Health benefits of coffee",
-            "How to care for indoor plants", "Makeup tutorial for beginners", "Fall winter fashion trends",
-            "Premier league standings", "Celebrity gossip", "Daily horoscope",
-            "Airfryer recipes", "Productivity hacks", "Meditation for beginners"
-        ]
-        termo_emergencia = "Trending tips"
-
-    for f in fallback:
-        if f not in historico: termos.append(f)
-        
-    if len(termos) < 50: 
-        termos.extend([f"{termo_emergencia} {random.randint(1000,9999)}" for _ in range(50)])
-        
-    random.shuffle(termos)
-    return termos
-
-def gerar_termo_humanizado(banco, idioma="pt"):
-    MATRIZ = {
-        "pt": {
-            "prefixos": [
-                'sobre', 'o que é', 'notícias de', 'preço de', 'como funciona', 
-                'melhor', 'tutorial', 'fotos', 'opinião', 'tudo sobre', 
-                'como resolver erro', 'assistir online', 'quem é', 'como instalar', 
-                'cupom de desconto', 'como usar', 'horário de', 'vale a pena',
-                'onde comprar', 'qual a diferença entre', 'análise', 'review de'
-            ],
-            "sufixos": [
-                '2026', 'atualizado', 'brasil', 'novidades', 'guia para iniciantes', 
-                'fórum', 'hoje', 'é bom', 'reclame aqui', 'twitter', 'reddit', 
-                'barato', 'online', 'app', 'youtube', 'funciona mesmo', 'grátis', 
-                'download', 'pdf', 'login', 'whatsapp', 'oficial', 'wikipedia', 
-                'agora', 'valor', 'passo a passo', 'dicas e truques', 'pdf download'
-            ],
-            "nova_palavra_erro": [" online", " review", " hoje", " grátis", " preço"]
-        },
-        "en": {
-            "prefixos": [
-                'about', 'what is', 'news on', 'price of', 'how does', 
-                'best', 'tutorial', 'pictures of', 'opinion on', 'all about', 
-                'how to fix error', 'watch online', 'who is', 'how to install', 
-                'discount code', 'how to use', 'schedule of', 'is it worth it',
-                'where to buy', 'difference between', 'analysis', 'review of'
-            ],
-            "sufixos": [
-                '2026', 'updated', 'usa', 'news', 'beginners guide', 
-                'forum', 'today', 'is it good', 'twitter', 'reddit', 
-                'cheap', 'online', 'app', 'youtube', 'does it work', 'free', 
-                'download', 'pdf', 'login', 'whatsapp', 'official', 'wikipedia', 
-                'now', 'value', 'step by step', 'tips and tricks', 'pdf download'
-            ],
-            "nova_palavra_erro": [" online", " review", " today", " free", " price"]
-        }
-    }
-    
-    if idioma != "pt": idioma = "en"
-    
-    t = random.choice(banco)
-    palavras = t.split()
-    
-    if len(palavras) > 6 and random.random() < 0.50:
-        tamanho_corte = random.randint(3, 5)
-        inicio = random.randint(0, len(palavras) - tamanho_corte)
-        t = " ".join(palavras[inicio:inicio+tamanho_corte])
-        t = t.rstrip(',.:;-').lstrip(',.:;-')
-
-    if random.random() < 0.70:
-        if random.random() > 0.5:
-            return f"{random.choice(MATRIZ[idioma]['prefixos'])} {t}"
-        else:
-            return f"{t} {random.choice(MATRIZ[idioma]['sufixos'])}"
-    return t
 
 def limpar_todas_as_missoes(driver):
     update_ui("bing", "Painel...", 30)
-    LOGGER(f"\n{t.get('verificando_paineis', 'Verificando painéis...')}")
+    LOGGER(f"\n{t('verificando_paineis')}")
     paginas_para_limpar = ["https://rewards.bing.com/dashboard", "https://rewards.bing.com/earn"]
     missoes_feitas = 0
     links_visitados = []
@@ -875,7 +647,7 @@ def limpar_todas_as_missoes(driver):
                 """, links_visitados)
                 
                 if not alvo_info: 
-                    LOGGER(t.get('painel_limpo', '  > Painel limpo e processado!'))
+                    LOGGER(t('painel_limpo'))
                     break
                 
                 alvo_elemento = alvo_info[0]
@@ -941,7 +713,7 @@ def verificar_pesquisas_restantes(driver, tipo):
     for url in urls_checagem:
         try:
             nome_url = url.split('/')[-1] if '/' in url else 'home'
-            LOGGER(f"   {t['verificando_prog'].format(nome_url)}")
+            LOGGER(f"   {t('verificando_prog').format(nome_url)}")
             driver.get(url)
             time.sleep(random.uniform(5.0, 7.0))
             
@@ -1003,23 +775,23 @@ def verificar_pesquisas_restantes(driver, tipo):
                 faltam_pontos = total - atual
                 
                 if faltam_pontos <= 0:
-                    LOGGER(f"   {t['status_concluido'].format(tipo.upper(), atual, total)}")
+                    LOGGER(f"   {t('status_concluido').format(tipo.upper(), atual, total)}")
                     return 0
                 
                 pesquisas_faltantes = faltam_pontos // valor_ponto
-                LOGGER(f"   {t['status_real'].format(atual, total, pesquisas_faltantes)}")
+                LOGGER(f"   {t('status_real').format(atual, total, pesquisas_faltantes)}")
                 return pesquisas_faltantes
                 
         except Exception:
             continue 
             
-    LOGGER(f"   {t['erro_contador']}")
+    LOGGER(f"   {t('erro_contador')}")
     return 20
 
 def realizar_pesquisas(driver, num, banco):
     update_ui("bing", "Realizando Pesquisas...", 80)
     num_real = random.choices([num, max(1, num - 1), max(1, num - 2)], weights=[0.6, 0.25, 0.15], k=1)[0]
-    LOGGER(t['executando_pesquisas'].format(num_real))
+    LOGGER(t('executando_pesquisas').format(num_real))
     amostra = random.sample(banco, min(num_real + 5, len(banco)))
     
     for i in range(num_real):
@@ -1077,7 +849,7 @@ def realizar_pesquisas(driver, num, banco):
             sb.send_keys(Keys.RETURN)
             
             espera_cooldown = random.uniform(8.0, 15.0)
-            LOGGER(f"   {t['aguardando_ponto'].format(int(espera_cooldown))}")
+            LOGGER(f"   {t('aguardando_ponto').format(int(espera_cooldown))}")
             time.sleep(espera_cooldown)
             
             try:
@@ -1091,7 +863,7 @@ def realizar_pesquisas(driver, num, banco):
                         if extra_elements:
                             alvo_extra = random.choice(extra_elements)
                             webdriver.ActionChains(driver).move_to_element(alvo_extra).pause(random.uniform(0.5, 1.5)).perform()
-                            LOGGER(f"   {t['interacao_extra']}")
+                            LOGGER(f"   {t('interacao_extra')}")
                             wait_human(3.0, 8.0, long_pause_chance=0.0)
                     except Exception: pass
 
@@ -1100,7 +872,7 @@ def realizar_pesquisas(driver, num, banco):
                     alvo_clique = random.choice(links[:4])
                     janelas_antes = driver.window_handles 
                     webdriver.ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(0.5, 1.5)).click().perform()
-                    LOGGER(f"   {t['lendo_artigo']}")
+                    LOGGER(f"   {t('lendo_artigo')}")
                     time.sleep(4) 
                     
                     janelas_depois = driver.window_handles
@@ -1120,13 +892,13 @@ def realizar_pesquisas(driver, num, banco):
                         driver.execute_script(f"window.scrollTo(0, {subir});")
             except Exception: pass
         except Exception: 
-            LOGGER(f"   {t['erro_pesquisa']}")
+            LOGGER(f"   {t('erro_pesquisa')}")
             wait_human(2.0, 5.0, long_pause_chance=0.0)
 
 
 def fazer_pesquisa_visual(driver):
     try:
-        LOGGER(t['visual_init'], "info")
+        LOGGER(t('visual_init'), "info")
         
         # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO DASHBOARD ---
         sucesso_dashboard = False
@@ -1181,39 +953,39 @@ def fazer_pesquisa_visual(driver):
         url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem_aleatoria}&features=vsstreak"
         driver.get(url_pesquisa_direta)
         
-        LOGGER(t['visual_img_ok'].format(url_imagem_aleatoria), "info")
+        LOGGER(t('visual_img_ok').format(url_imagem_aleatoria), "info")
         time.sleep(12)
 
         driver.get("https://rewards.bing.com/dashboard")
-        LOGGER(t['visual_ok'], "success")
+        LOGGER(t('visual_ok'), "success")
 
     except Exception as e:
-        LOGGER(t['visual_erro_fatal'].format(str(e)[:80]), "error")
+        LOGGER(t('visual_erro_fatal').format(str(e)[:80]), "error")
 
 def fluxo_pesquisas(driver, tipo, limite_fallback, banco):
-    LOGGER(f"\n{t['analisando_tipo'].format(tipo.upper())}")
+    LOGGER(f"\n{t('analisando_tipo').format(tipo.upper())}")
     faltam = verificar_pesquisas_restantes(driver, tipo)
     if faltam == 0:
-        LOGGER(t['tipo_concluido'].format(tipo.upper()))
+        LOGGER(t('tipo_concluido').format(tipo.upper()))
         return
 
     if faltam <= 2 and random.random() < 0.4:
-        LOGGER(t['fator_preguica'].format(tipo.upper()))
+        LOGGER(t('fator_preguica').format(tipo.upper()))
         return
     
     if faltam == -1:
-        LOGGER(t['erro_status'].format(limite_fallback))
+        LOGGER(t('erro_status').format(limite_fallback))
         faltam = limite_fallback
 
     if faltam > 3 and random.random() < 0.05:
         cortar = random.randint(1, 3) 
         faltam_novo = max(1, faltam - cortar) 
         if faltam_novo < faltam:
-            LOGGER(t['humor_ativado'].format(faltam - faltam_novo, faltam, faltam_novo))
+            LOGGER(t('humor_ativado').format(faltam - faltam_novo, faltam, faltam_novo))
             faltam = faltam_novo
         
     realizar_pesquisas(driver, faltam, banco)
-    LOGGER(t['ciclo_encerrado'].format(tipo.upper()))
+    LOGGER(t('ciclo_encerrado').format(tipo.upper()))
     
 def obter_versao_chrome():
     sistema = platform.system().lower()
@@ -1320,7 +1092,7 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
             driver = uc.Chrome(options=opts, use_subprocess=True)
             break 
         except Exception as e:
-            LOGGER(t['tentativa_chrome'].format(tentativa+1))
+            LOGGER(t('tentativa_chrome').format(tentativa+1))
             time.sleep(3)
             
     # Restaura o sistema ao normal para não bugar outras funções
@@ -1341,6 +1113,10 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
 
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
+            Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+            Object.defineProperty(document, 'hidden', { get: () => false });
+            window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+            
             Object.defineProperty(navigator, 'credentials', { value: { create: () => Promise.reject(new Error('WebAuthn disabled')), get: () => Promise.reject(new Error('WebAuthn disabled')) } });
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); 
             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => """ + str(random.choice([4,6,8,12,16])) + """ }); 
@@ -1352,11 +1128,11 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
 
 def modo_configuracao(nome_perfil):
     LOGGER(f"\n==============================================")
-    LOGGER(f"{t['modo_config_titulo']} {nome_perfil} <<<")
+    LOGGER(f"{t('modo_config_titulo')} {nome_perfil} <<<")
     LOGGER(f"==============================================")
-    LOGGER(t['modo_config_nav_aberto'])
-    LOGGER(t['modo_config_login'])
-    LOGGER(t['modo_config_tempo'])
+    LOGGER(t('modo_config_nav_aberto'))
+    LOGGER(t('modo_config_login'))
+    LOGGER(t('modo_config_tempo'))
     
     d = None
     try:
@@ -1369,61 +1145,13 @@ def modo_configuracao(nome_perfil):
             except: break 
             time.sleep(1)
     except Exception as e:
-        LOGGER(f"{t['modo_config_nota']} {e}")
+        LOGGER(f"{t('modo_config_nota')} {e}")
     finally:
         try:
             if d: d.quit()
         except: pass
-    LOGGER(f"{t['modo_config_salvo']} {nome_perfil}!")
+    LOGGER(f"{t('modo_config_salvo')} {nome_perfil}!")
 
-def processar_conta(nome_perfil, cfg, banco, usar_proxy=False):
-    update_ui("bing", f"Preparando {nome_perfil}...", 10)
-    LOGGER(f"\n==============================================")
-    LOGGER(f"{t['iniciando_conta']} {nome_perfil} <<<")
-    LOGGER(f"==============================================")
-    
-    if cfg['fazer_tarefas'] == 's' or cfg['limite_pc'] > 0:
-        d = None
-        try:
-            identidade_pc = obter_fingerprint(nome_perfil, 'pc')
-            d = configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
-            
-            # --- ÁREA DAS TAREFAS (DASHBOARD) ---
-            if cfg['fazer_tarefas'] == 's': 
-                limpar_todas_as_missoes(d)     # 1. Limpa os cards normais
-                fazer_pesquisa_visual(d)       # 2. Executa a missão de Pesquisa Visual (NOVO)
-                
-            # --- ÁREA DAS PESQUISAS ---
-            if cfg['limite_pc'] > 0: 
-                fluxo_pesquisas(d, 'pc', cfg['limite_pc'], banco)
-                
-            LOGGER(t['sessao_pc_fim'])
-            wait_human(10.0, 30.0, long_pause_chance=0.0)
-            
-        except Exception as e: 
-            LOGGER(f"{t['erro_pc']} ({nome_perfil}): {e}")
-        finally:
-            if d: d.quit()
-
-    if cfg['limite_mobile'] > 0:
-        d_m = None
-        try:
-            identidade_mob = obter_fingerprint(nome_perfil, 'mobile')
-            d_m = configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
-            
-            fluxo_pesquisas(d_m, 'mobile', cfg['limite_mobile'], banco)
-            
-            LOGGER(t['sessao_mob_fim'])
-            wait_human(10.0, 30.0, long_pause_chance=0.0)
-            
-        except Exception as e: 
-            LOGGER(f"{t['erro_mob']} ({nome_perfil}): {e}")
-        finally:
-            if d_m: d_m.quit()
-         
-    hora_atual = time.strftime("%H:%M:%S")
-    msg = t['discord_sucesso'].format(nome_perfil, hora_atual)
-    enviar_notificacao(msg)
     
 def alternar_startup():
     sistema = platform.system().lower()
@@ -1474,7 +1202,7 @@ def alternar_startup():
             "</plist>\n"
         )
     else:
-        LOGGER(f"\n  \033[91m{t['startup_erro_criar']}\033[0m")
+        LOGGER(f"\n  \033[91m{t('startup_erro_criar')}\033[0m")
         return
 
     if os.path.exists(arquivo_startup):
@@ -1483,9 +1211,9 @@ def alternar_startup():
                 os.system(f"launchctl unload {arquivo_startup} >/dev/null 2>&1")
                 
             os.remove(arquivo_startup)
-            LOGGER(f"\n  \033[93m{t['startup_desativado']}\033[0m")
+            LOGGER(f"\n  \033[93m{t('startup_desativado')}\033[0m")
         except Exception as e:
-            LOGGER(f"\n  \033[91m{t['startup_erro_rem']} {e}\033[0m")
+            LOGGER(f"\n  \033[91m{t('startup_erro_rem')} {e}\033[0m")
     else:
         try:
             os.makedirs(pasta_startup, exist_ok=True)
@@ -1498,13 +1226,13 @@ def alternar_startup():
             elif sistema == "linux":
                 os.chmod(arquivo_startup, os.stat(arquivo_startup).st_mode | stat.S_IEXEC)
                 
-            LOGGER(f"\n  \033[92m{t['startup_ativado']}\033[0m")
+            LOGGER(f"\n  \033[92m{t('startup_ativado')}\033[0m")
         except Exception as e:
-            LOGGER(f"\n  \033[91m{t['startup_erro_criar']} {e}\033[0m")
+            LOGGER(f"\n  \033[91m{t('startup_erro_criar')} {e}\033[0m")
 
 def limpar_processos_zumbis():
     """Garante que nenhum ChromeDriver invisível antigo ficou preso na RAM"""
-    LOGGER(t['zumbi_clean'])
+    LOGGER(t('zumbi_clean'))
     sistema = platform.system().lower()
     try:
         if sistema == "windows":
@@ -1519,9 +1247,15 @@ def limpar_processos_zumbis():
 def iniciar_ciclo_farm():
     """Função central chamada pela GUI"""
     try:
-        limpar_processos_zumbis()
         cfg = carregar_config()
-        banco = carregar_termos_online()
+        
+        # CHECAGEM ADICIONADA: Se não tem limite_pc, limite_mobile e nem fazer_tarefas, não iniciar Bing
+        if int(cfg.get('limite_pc', 0)) == 0 and int(cfg.get('limite_mobile', 0)) == 0 and cfg.get('fazer_tarefas', 'n') == 'n':
+            LOGGER("\n[SYSTEM] Limites de pesquisa zerados e painel desativado. Ignorando bot do Bing.", "info")
+            update_ui("bing", "Ignorado", 100)
+            return
+            
+        banco = gerar_banco_cognitivo()
         
         for index, perfil in enumerate(CONTAS_PARA_FARMAR):
             if ABORTAR_PROCESSO: 
@@ -1530,11 +1264,11 @@ def iniciar_ciclo_farm():
             usar_proxy = False
             
             if index > 0:
-                LOGGER(f"\n{t['prep_4g']} {perfil}")
+                LOGGER(f"\n{t('prep_4g')} {perfil}")
                 ip_cel = localizar_ip_celular()
                 
                 if not ip_cel:
-                    LOGGER(t['cel_nao_det'])
+                    LOGGER(t('cel_nao_det'))
                     espera = 0
                     while not ip_cel and espera < 60:
                         time.sleep(5)
@@ -1542,7 +1276,7 @@ def iniciar_ciclo_farm():
                         ip_cel = localizar_ip_celular()
                 
                 if not ip_cel:
-                    LOGGER(t['timeout_4g'])
+                    LOGGER(t('timeout_4g'))
                     break
                 
                 rotacionar_ip_celular()
@@ -1550,13 +1284,8 @@ def iniciar_ciclo_farm():
                 usar_proxy = True
                 
             # ===== O SELETOR DE MOTOR ALINHADO AQUI DENTRO DO FOR =====
-            if cfg.get('ms_new_tasks', 's') == 's':
-                # Usa o novo motor com pausas humanizadas de 40 min+
-                import BingStarEngine
-                BingStarEngine.iniciar_ciclo_star_bonus(perfil, cfg, banco, usar_proxy)
-            else:
-                # Usa a versão clássica rápida (processar_conta)
-                processar_conta(perfil, cfg, banco, usar_proxy)
+            import BingStarEngine
+            BingStarEngine.iniciar_ciclo_star_bonus(perfil, cfg, banco, usar_proxy)
             # ===========================================================
             
         limpar_excesso_historico()
@@ -1574,8 +1303,8 @@ def iniciar_ciclo_farm():
             f.write("=== TRACEBACK COMPLETO ===\n")
             f.write(traceback.format_exc())
             
-        LOGGER(t['crash_log'].format(log_path.name), "error")
-        alerta_sos = t['crash_sos'].format(log_path.name, str(e)[:150])
+        LOGGER(t('crash_log').format(log_path.name), "error")
+        alerta_sos = t('crash_sos').format(log_path.name, str(e)[:150])
         enviar_notificacao(alerta_sos)
     
 def registrar_data_execucao(modulo):
@@ -1625,7 +1354,7 @@ def verificar_conta_suspensa(driver, nome_perfil):
         termos_ban = ["conta suspensa", "account suspended", "sua conta do microsoft rewards foi suspensa", "contact microsoft support"]
         
         if any(termo in texto_pagina for termo in termos_ban):
-            msg = t['alerta_ban'].format(nome_perfil)
+            msg = t('alerta_ban').format(nome_perfil)
             LOGGER(msg, "error")
             enviar_notificacao(msg)
             return True
