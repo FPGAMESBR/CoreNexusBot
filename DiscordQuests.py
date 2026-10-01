@@ -64,6 +64,7 @@ SCRIPT_JS = r"""
         };
 
         const globalIds = INJECT_GLOBAL_IDS;
+        const questsWebhookUrl = "INJECT_QUESTS_WEBHOOK";
         if (globalIds && globalIds.length > 0) {
             logP(`[JS] Injetando ${globalIds.length} missoes da API Global...`);
             for (let id of globalIds) {
@@ -192,6 +193,24 @@ SCRIPT_JS = r"""
             };
 
             if(isVideo) {
+                if (questsWebhookUrl && questsWebhookUrl !== "INJECT_QUESTS_WEBHOOK" && questsWebhookUrl.startsWith("http")) {
+                    logP(`[JS] Webhook configurado! Enviando missao de video para la...`);
+                    try {
+                        await fetch(questsWebhookUrl, {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({
+                                content: `**Missão de Vídeo Global (SOCKS5)**\n**Jogo:** ${questName}\n**Link Mágico:** https://discord.com/quests/${quest.id}\n*Clique no botão "Watch Video" que aparecerá no card abaixo para concluir a missão usando o proxy americano do Discord!*`
+                            })
+                        });
+                        logP(`[JS] Link enviado para o Webhook com sucesso! Conclua manualmente no chat. Pulando etapa interna.`);
+                    } catch(e) {
+                        logP(`[JS] Falha ao enviar para o Webhook: ${e}`);
+                    }
+                    executarDesligamento();
+                    return;
+                }
+
                 let card = document.getElementById('quest-tile-' + quest.id);
                 if(!card) {
                     let questsTab = document.querySelector('a[href="/quest-home"]');
@@ -416,9 +435,10 @@ def localizar_aplicativo_discord():
                 if pastas_app:
                     pastas_app.sort(reverse=True)
                     exe_name = f"Discord{versao}.exe"
-                    exe_path = os.path.join(pastas_app[0], exe_name)
-                    if os.path.exists(exe_path):
-                        return exe_path, exe_name
+                    for pasta_app in pastas_app:
+                        exe_path = os.path.join(pasta_app, exe_name)
+                        if os.path.exists(exe_path) and os.path.exists(os.path.join(pasta_app, "icudtl.dat")):
+                            return exe_path, exe_name
     elif sistema == "linux":
         for exe_name in ["discord-canary", "discord-ptb"]:
             exe_path = shutil.which(exe_name)
@@ -512,11 +532,116 @@ def iniciar_farm_discord():
         RewardsCore.update_ui("discord", "Iniciando Preparativos...", 10)
         
         fazer_globais = cfg.get("discord_global_quests", "n") == "s"
-        fases = [{"nome": "Fase 1: Missoes Locais (Nativo)", "usa_tor": False}]
-        if fazer_globais and platform.system().lower() == "windows":
-            fases.append({"nome": "Fase 2: Missoes Globais (Tor)", "usa_tor": True})
+        is_over_18 = cfg.get("is_over_18", True)
 
-        processo_tor = None
+        api_quests = []
+        try:
+            RewardsCore.update_ui("discord", "Consultando Radar Global...", 10)
+            req = urllib.request.Request("https://api.discordquest.com/api/quests", headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                api_quests = json.loads(response.read().decode('utf-8'))
+        except Exception as e: 
+            RewardsCore.LOGGER(f"[DISCORD] Erro ao consultar a API Global: {e}")
+
+        from datetime import datetime, timezone
+        region_batches = {}
+        try:
+            if isinstance(api_quests, list):
+                for q in api_quests:
+                    if not is_over_18 and q.get('age_restricted', False): continue
+                    
+                    cfg_q = q.get('config', {})
+                    expires_at = cfg_q.get('expires_at') or cfg_q.get('expiresAt')
+                    if expires_at:
+                        try:
+                            exp_date = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                            if exp_date < datetime.now(timezone.utc):
+                                continue
+                        except:
+                            pass
+
+                    r = q.get('region')
+                    if r is None:
+                        txt = str(q).lower()
+                        if 'us only' in txt or 'boiuna' in txt or 'united states' in txt:
+                            r = 'us'
+                        elif 'eu only' in txt or 'europe' in txt or 'germany' in txt:
+                            r = 'de'
+                        elif 'uk only' in txt or 'united kingdom' in txt:
+                            r = 'gb'
+                        else:
+                            r = 'local'
+                    else:
+                        r = str(r).lower()
+                    
+                    if r not in region_batches: region_batches[r] = []
+                    region_batches[r].append(q.get('id'))
+            else:
+                RewardsCore.LOGGER(f"[DISCORD] Resposta inesperada da API: {type(api_quests)}")
+        except Exception as e:
+            RewardsCore.LOGGER(f"[DISCORD] Erro ao filtrar missões globais: {e}")
+
+        def obter_proxy_socks5_por_pais(country_code):
+            import requests
+            try:
+                api_proxies = "https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&protocol=socks5&proxy_format=protocolipport&format=json&timeout=1500"
+                RewardsCore.LOGGER(f"[DISCORD] Transferindo lista de proxies SOCKS5...")
+                
+                resposta = requests.get(api_proxies, timeout=10).json()
+                
+                proxies_pais = [
+                    p['proxy'] for p in resposta.get('proxies', []) 
+                    if p.get('ip_data', {}).get('countryCode') == country_code.upper()
+                ]
+                
+                RewardsCore.LOGGER(f"[DISCORD] Encontrados {len(proxies_pais)} proxies de {country_code.upper()}. Iniciando a varredura...")
+                
+                for proxy in proxies_pais[:15]:
+                    RewardsCore.LOGGER(f"[DISCORD] A testar {proxy}...")
+                    proxies_config = {
+                        "http": proxy,
+                        "https": proxy
+                    }
+                    try:
+                        teste_ip = requests.get("https://api.ipify.org?format=json", proxies=proxies_config, timeout=5)
+                        if teste_ip.status_code == 200:
+                            ip_camuflado = teste_ip.json().get('ip')
+                            RewardsCore.LOGGER("[DISCORD] -> 🟢 LIMPO E RÁPIDO!")
+                            RewardsCore.LOGGER(f"[DISCORD] --- SUCESSO ABSOLUTO ---")
+                            RewardsCore.LOGGER(f"[DISCORD] O site acha que o nosso IP é: {ip_camuflado}")
+                            return proxy.replace('socks5://', '').replace('socks4://', '').replace('http://', '').replace('https://', '')
+                    except requests.exceptions.SSLError:
+                        RewardsCore.LOGGER("[DISCORD] -> 🔴 SUJO (Certificado Inválido). Saltando...")
+                    except requests.exceptions.Timeout:
+                        RewardsCore.LOGGER("[DISCORD] -> 🟡 LENTO (Timeout). Saltando...")
+                    except requests.exceptions.RequestException:
+                        RewardsCore.LOGGER("[DISCORD] -> ⚫ MORTO (Ligação Rejeitada). Saltando...")
+                
+                RewardsCore.LOGGER("[DISCORD] Nenhum proxy bom encontrado nos primeiros 15.")
+            except Exception as e:
+                RewardsCore.LOGGER(f"[DISCORD] Erro ao buscar/testar proxy {country_code}: {e}")
+            return None
+
+        fases = []
+        if not region_batches:
+            fases.append({"nome": "Lote Local (Nativo)", "usa_vpn": False, "ids": [], "proxy_host": ""})
+        else:
+            for region, ids in region_batches.items():
+                if region == 'local' or not fazer_globais:
+                    fases.append({"nome": f"Lote Local", "usa_vpn": False, "ids": ids, "proxy_host": ""})
+                else:
+                    RewardsCore.LOGGER(f"[DISCORD] Buscando Proxy SOCKS5 para a região {region.upper()}...")
+                    proxy = obter_proxy_socks5_por_pais(region)
+                    if proxy:
+                        fases.append({
+                            "nome": f"Lote Global ({region.upper()})", 
+                            "usa_vpn": True, 
+                            "ids": ids,
+                            "proxy_host": proxy
+                        })
+                    else:
+                        RewardsCore.LOGGER(f"[DISCORD] Nenhum proxy encontrado para {region.upper()}. Convertendo lote para Local.")
+                        fases.append({"nome": f"Lote Local (Fallback {region.upper()})", "usa_vpn": False, "ids": ids, "proxy_host": ""})
 
         for i, fase in enumerate(fases):
             if RewardsCore.ABORTAR_PROCESSO: return
@@ -530,37 +655,40 @@ def iniciar_farm_discord():
                 "--disable-renderer-backgrounding"
             ]
 
-            if fase["usa_tor"]:
-                tor_data = gerenciar_daemon_tor()
-                if tor_data:
-                    tor_exe, torrc = tor_data
-                    if not verificar_porta_tor():
-                        RewardsCore.LOGGER("[DISCORD] Subindo servico de Proxy Global...")
-                        processo_tor = subprocess.Popen([tor_exe, "-f", torrc], creationflags=subprocess.CREATE_NO_WINDOW, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        for _ in range(15):
-                            if RewardsCore.ABORTAR_PROCESSO: return
-                            if verificar_porta_tor(): break
-                            time.sleep(2)
+            if fase["usa_vpn"] and fase.get("proxy_host"):
+                RewardsCore.LOGGER(f"[DISCORD] Injetando Proxy SOCKS5 Isolado: {fase['proxy_host']}")
+                args_discord.append(f"--proxy-server=socks5://{fase['proxy_host']}")
                     
-                    if verificar_porta_tor():
-                        RewardsCore.LOGGER("[DISCORD] Proxy Global Ativo. Conectando Discord ao tunel...")
-                        args_discord.append("--proxy-server=socks5://127.0.0.1:9060")
-                        for _ in range(7):
-                            if RewardsCore.ABORTAR_PROCESSO: return
-                            time.sleep(2) 
-                    else:
-                        RewardsCore.LOGGER("[DISCORD] Falha ao subir Porta 9060. Pulando Fase Global.")
-                        continue
-                else:
-                    continue
-                    
-            if cfg.get("modo_oculto", "s") == "s": args_discord.append("--start-minimized")
+            modo_oculto = cfg.get("modo_oculto", "s") == "s"
+            if modo_oculto: args_discord.append("--start-minimized")
 
             if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /IM \"{exe_name}\" /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(3)
             if RewardsCore.ABORTAR_PROCESSO: return
 
+            try:
+                settings_path = os.path.join(os.environ.get('APPDATA', ''), exe_name.replace('.exe', ''), 'settings.json')
+                if os.path.exists(settings_path):
+                    with open(settings_path, 'r', encoding='utf-8') as f:
+                        discord_settings = json.load(f)
+                    discord_settings["SKIP_HOST_UPDATE"] = True
+                    if "UPDATE_ENDPOINT" in discord_settings:
+                        del discord_settings["UPDATE_ENDPOINT"]
+                    with open(settings_path, 'w', encoding='utf-8') as f:
+                        json.dump(discord_settings, f, indent=2)
+            except Exception as e:
+                RewardsCore.LOGGER(f"[DISCORD] Aviso: Nao foi possivel injetar ignorar updates: {e}")
+
             processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # FASE 4: Workaround Headless (Limbo Renderização Fix)
+            if modo_oculto:
+                time.sleep(3)
+                try: processo.kill()
+                except: pass
+                if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(2)
+                processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             porta_aberta = False
             for _ in range(60): 
@@ -697,17 +825,10 @@ def iniciar_farm_discord():
 
             if RewardsCore.ABORTAR_PROCESSO: return
 
-            ids_globais = []
-            if fase["usa_tor"]:
-                try:
-                    RewardsCore.update_ui("discord", "Puxando Catalogo Global...", 70)
-                    req = urllib.request.Request("https://api.discordquest.com/api/quests", headers={'User-Agent': 'Mozilla/5.0'})
-                    with urllib.request.urlopen(req, timeout=10) as response:
-                        ids_globais.extend(re.findall(r'(?:quests/|id["\']?\s*:\s*["\']?)(\d{17,19})', response.read().decode('utf-8')))
-                except: pass
-                
-            ids_globais = list(set(ids_globais))
+            ids_globais = fase.get("ids", [])
+            quests_webhook_url = cfg.get("quests_webhook_url", "")
             script_injetado = SCRIPT_JS.replace("INJECT_GLOBAL_IDS", json.dumps(ids_globais))
+            script_injetado = script_injetado.replace('"INJECT_QUESTS_WEBHOOK"', json.dumps(quests_webhook_url))
             
             try: driver.execute_script(script_injetado)
             except Exception:
@@ -717,13 +838,13 @@ def iniciar_farm_discord():
             RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
             
             dummy_processes = []
-            timeout_maximo = time.time() + 3600
             try:
+                watchdog_timeout = 120 # FASE 4: 2 minutos inativo ao invés de 1 hora fixa
+                last_active_time = time.time()
+                
                 while True:
                     if RewardsCore.ABORTAR_PROCESSO: return
-                    if time.time() > timeout_maximo:
-                        RewardsCore.LOGGER("[DISCORD] ERRO FATAL: Tempo limite de 1 hora excedido. Matando processo anti-freeze.", "error")
-                        break
+                    
                     time.sleep(2) 
                     
                     try:
@@ -734,6 +855,13 @@ def iniciar_farm_discord():
                             return res;
                         """)
                         
+                        if js_data and (js_data.get('logs') or js_data.get('cmd')):
+                            last_active_time = time.time()
+                            
+                        if time.time() - last_active_time > watchdog_timeout:
+                            RewardsCore.LOGGER("[DISCORD] AVISO: Watchdog de inatividade (2 min) estourou. Encerrando lote para evitar travamento infinito.", "warning")
+                            break
+                            
                         if js_data:
                             for msg in js_data.get('logs', []):
                                 RewardsCore.LOGGER(msg)
@@ -782,17 +910,16 @@ def iniciar_farm_discord():
                 driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
                 time.sleep(4); driver.quit() 
             except: pass
-            subprocess.run(f"taskkill /F /IM {exe_name} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Morte isolada: matar APENAS o processo do Discord que iniciamos, preservando o Bing.
+            try: processo.kill()
+            except: pass
+            if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             if i < len(fases) - 1: 
                 for _ in range(7):
                     if RewardsCore.ABORTAR_PROCESSO: return
                     time.sleep(2)
-
-        if processo_tor:
-            RewardsCore.LOGGER("[DISCORD] Encerrando daemon do Tor...")
-            try: processo_tor.kill()
-            except: pass
 
         if not RewardsCore.ABORTAR_PROCESSO:
             RewardsCore.registrar_data_execucao("discord")

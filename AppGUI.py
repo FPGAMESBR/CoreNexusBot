@@ -17,7 +17,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.0"
+APP_VERSION = "v3.2.1"
 APP_CODENAME = "Intelligent Bypass"
 
 HTML_INTERFACE = """
@@ -411,7 +411,7 @@ HTML_INTERFACE = """
                                 <label class="switch"><input type="checkbox" id="cfg-multi"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group">
-                                <label id="label-global-quests" style="color: var(--accent-red);">Enable Global Quests (VPN/Tor)</label>
+                                <label id="label-global-quests">Enable Global Quests (Auto SOCKS5 Proxy)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-global-quests"><span class="slider"></span></label>
                             </div>
                             
@@ -437,6 +437,10 @@ HTML_INTERFACE = """
                             <div class="form-group" style="margin-bottom: 25px;">
                                 <label>Discord Webhook URL (Leave empty to disable)</label>
                                 <input type="text" id="cfg-webhook" placeholder="https://discord.com/api/webhooks/...">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 25px;">
+                                <label id="label-quests-webhook">Quests Webhook URL (Para enviar missões de Vídeo)</label>
+                                <input type="text" id="cfg-quests-webhook" placeholder="https://discord.com/api/webhooks/...">
                             </div>
                             
                             <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;">Engine Speed Mode</h3>
@@ -549,7 +553,7 @@ HTML_INTERFACE = """
             if (nome) { abrirConta(nome); document.getElementById('new-account-name').value = ''; }
         }
 
-        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, lang, star_bonus, global_quests, extended_days, speed_mode) {
+        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, quests_webhook, lang, star_bonus, global_quests, extended_days, speed_mode) {
             document.getElementById('cfg-pc').value = pc;
             document.getElementById('cfg-mob').value = mob;
             document.getElementById('cfg-headless').checked = (headless === 's');
@@ -559,6 +563,7 @@ HTML_INTERFACE = """
             document.getElementById('cfg-global-quests').checked = (global_quests === 's');
             document.getElementById('cfg-discord-cooldown').value = cooldown;
             document.getElementById('cfg-webhook').value = webhook;
+            document.getElementById('cfg-quests-webhook').value = quests_webhook;
             document.getElementById('cfg-lang').value = lang || 'pt';
             document.getElementById('cfg-extended-days').value = extended_days || 'n';
             document.getElementById('cfg-speed-mode').value = speed_mode || 'normal';
@@ -615,10 +620,12 @@ HTML_INTERFACE = """
                 discord_global_quests: document.getElementById('cfg-global-quests').checked,
                 discord_cooldown: document.getElementById('cfg-discord-cooldown').value,
                 webhook: document.getElementById('cfg-webhook').value,
+                quests_webhook: document.getElementById('cfg-quests-webhook').value,
                 lang: document.getElementById('cfg-lang').value,
                 extended_days: document.getElementById('cfg-extended-days').value,
                 speed_mode: document.getElementById('cfg-speed-mode').value
             };
+
             pywebview.api.salvar_configuracoes_ui(config);
         }
         
@@ -812,10 +819,11 @@ class BotAPI:
     def carregar_configuracoes_ui(self):
         cfg = RewardsCore.carregar_config()
         webhook_seguro = json.dumps(cfg.get('webhook_url', ''))
+        quests_webhook_seguro = json.dumps(cfg.get('quests_webhook_url', ''))
         lang = cfg.get("language", "pt")
         
         # Injeta o novo parâmetro cfg.get('discord_global_quests') no final da função JS
-        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
+        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
         
         webview.windows[0].evaluate_js(js_cmd)
         estado_startup = self.obter_status_startup()
@@ -837,9 +845,14 @@ class BotAPI:
         
         cfg_atual['discord_cooldown'] = int(dados_html['discord_cooldown'])
         cfg_atual['webhook_url'] = dados_html['webhook']
+        cfg_atual['quests_webhook_url'] = dados_html.get('quests_webhook', '')
         
         cfg_atual['speed_mode'] = dados_html.get('speed_mode', 'normal')
         cfg_atual['language'] = dados_html.get('lang', 'pt')
+        if 'vpn_user' in cfg_atual: del cfg_atual['vpn_user']
+        if 'vpn_pass' in cfg_atual: del cfg_atual['vpn_pass']
+        if 'vpn_host' in cfg_atual: del cfg_atual['vpn_host']
+        if 'vpn_port' in cfg_atual: del cfg_atual['vpn_port']
         RewardsCore.SPEED = cfg_atual['speed_mode']
         
         RewardsCore.salvar_config(cfg_atual)
@@ -1007,6 +1020,10 @@ if __name__ == '__main__':
     
     # === NOVO: COORDENADOR DE AUTO-CLOSE (FILA SEQUENCIAL BLINDADA) ===
     def coordenador_auto_close():
+        if modo_startup:
+            api.log_ui("[SISTEMA] Modo Startup: Aplicando delay de segurança (15s)...", "info")
+            time.sleep(15)
+            
         cfg = RewardsCore.carregar_config()
         
         # 1. O Fim do Fogo Amigo: Limpa processos ANTES de iniciar os bots em paralelo
