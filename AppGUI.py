@@ -442,6 +442,10 @@ HTML_INTERFACE = """
                                 <label id="label-quests-webhook">Quests Webhook URL (Para enviar missões de Vídeo)</label>
                                 <input type="text" id="cfg-quests-webhook" placeholder="https://discord.com/api/webhooks/...">
                             </div>
+                            <div class="form-group" style="margin-bottom: 25px;">
+                                <label id="label-trash-channel">Canal Lixo (Link direto do canal para renderizar os cards)</label>
+                                <input type="text" id="cfg-trash-channel" placeholder="https://discord.com/channels/1234/5678">
+                            </div>
                             
                             <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;">Engine Speed Mode</h3>
                             <div class="form-group" style="margin-bottom: 5px;">
@@ -553,7 +557,7 @@ HTML_INTERFACE = """
             if (nome) { abrirConta(nome); document.getElementById('new-account-name').value = ''; }
         }
 
-        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, quests_webhook, lang, star_bonus, global_quests, extended_days, speed_mode) {
+        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, quests_webhook, canal_lixo_url, lang, star_bonus, global_quests, extended_days, speed_mode) {
             document.getElementById('cfg-pc').value = pc;
             document.getElementById('cfg-mob').value = mob;
             document.getElementById('cfg-headless').checked = (headless === 's');
@@ -564,6 +568,7 @@ HTML_INTERFACE = """
             document.getElementById('cfg-discord-cooldown').value = cooldown;
             document.getElementById('cfg-webhook').value = webhook;
             document.getElementById('cfg-quests-webhook').value = quests_webhook;
+            document.getElementById('cfg-trash-channel').value = canal_lixo_url;
             document.getElementById('cfg-lang').value = lang || 'pt';
             document.getElementById('cfg-extended-days').value = extended_days || 'n';
             document.getElementById('cfg-speed-mode').value = speed_mode || 'normal';
@@ -621,10 +626,18 @@ HTML_INTERFACE = """
                 discord_cooldown: document.getElementById('cfg-discord-cooldown').value,
                 webhook: document.getElementById('cfg-webhook').value,
                 quests_webhook: document.getElementById('cfg-quests-webhook').value,
+                canal_lixo_url: document.getElementById('cfg-trash-channel').value,
                 lang: document.getElementById('cfg-lang').value,
                 extended_days: document.getElementById('cfg-extended-days').value,
                 speed_mode: document.getElementById('cfg-speed-mode').value
             };
+
+            if (config.discord && config.discord_global_quests) {
+                if (!config.quests_webhook || !config.canal_lixo_url) {
+                    alert(currentLang === 'en' ? "Error: You MUST provide the Quests Webhook URL and the Trash Channel URL to enable Global Video Quests!" : "Erro: Você DEVE fornecer a URL do Quests Webhook e do Canal Lixo para habilitar as Missões de Vídeo Globais (SOCKS5)!");
+                    return;
+                }
+            }
 
             pywebview.api.salvar_configuracoes_ui(config);
         }
@@ -820,10 +833,11 @@ class BotAPI:
         cfg = RewardsCore.carregar_config()
         webhook_seguro = json.dumps(cfg.get('webhook_url', ''))
         quests_webhook_seguro = json.dumps(cfg.get('quests_webhook_url', ''))
+        canal_lixo_seguro = json.dumps(cfg.get('discord_trash_channel', ''))
         lang = cfg.get("language", "pt")
         
         # Injeta o novo parâmetro cfg.get('discord_global_quests') no final da função JS
-        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
+        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, {canal_lixo_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
         
         webview.windows[0].evaluate_js(js_cmd)
         estado_startup = self.obter_status_startup()
@@ -846,6 +860,7 @@ class BotAPI:
         cfg_atual['discord_cooldown'] = int(dados_html['discord_cooldown'])
         cfg_atual['webhook_url'] = dados_html['webhook']
         cfg_atual['quests_webhook_url'] = dados_html.get('quests_webhook', '')
+        cfg_atual['discord_trash_channel'] = dados_html.get('canal_lixo_url', '')
         
         cfg_atual['speed_mode'] = dados_html.get('speed_mode', 'normal')
         cfg_atual['language'] = dados_html.get('lang', 'pt')

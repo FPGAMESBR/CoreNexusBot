@@ -332,20 +332,73 @@ HTML_POPUP = """
             }
         });
         
-        function atualizarPainel(modulo, status, porcentagem) {
-        let elStatus = document.getElementById(modulo + '-status');
-        let elBarra = document.getElementById(modulo + '-bar');
-        
-        if (elStatus) elStatus.innerText = status;
-        
-        if (elBarra) {
-            elBarra.style.width = porcentagem + '%';
+        let optimists = {};
+
+        function atualizarPainel(modulo, status, porcentagem, total_segundos = 0) {
+            let elStatus = document.getElementById(modulo + '-status');
+            let elBarra = document.getElementById(modulo + '-bar');
             
-            // Mantém a cor original ou muda para verde (sucesso) no final
+            if (elStatus) elStatus.innerText = status;
+            
+            if (!elBarra) return;
+
             let corBase = modulo === 'bing' ? '#3b82f6' : '#8b5cf6';
-            elBarra.style.background = porcentagem === 100 ? '#10b981' : corBase; 
+            
+            // 3. Trava de Conclusão: Se chegou no 100% real (ou 0%), para o ticker
+            if (porcentagem >= 100 || porcentagem === 0) {
+                if (optimists[modulo]) {
+                    clearInterval(optimists[modulo].timer);
+                    delete optimists[modulo];
+                }
+                elBarra.style.width = porcentagem + '%';
+                elBarra.style.background = porcentagem === 100 ? '#10b981' : corBase;
+                return;
+            }
+
+            elBarra.style.background = corBase;
+
+            // 1. Desacoplamento da UI: Inicia o ticker se tiver tempo total e não existir
+            if (!optimists[modulo] && total_segundos > 0) {
+                optimists[modulo] = {
+                    currentVisual: porcentagem,
+                    realPercent: porcentagem,
+                    incrementPerSec: 100.0 / total_segundos,
+                    timer: setInterval(() => tickOptimistic(modulo), 1000)
+                };
+            } 
+            // 2. Sincronização em Background: atualiza o alvo real quando chega info da API
+            else if (optimists[modulo]) {
+                optimists[modulo].realPercent = Math.max(porcentagem, optimists[modulo].realPercent);
+            } else {
+                // Se não tem tempo total ainda, apenas atualiza visualmente
+                elBarra.style.width = porcentagem + '%';
+            }
         }
-    }
+
+        function tickOptimistic(modulo) {
+            let opt = optimists[modulo];
+            if (!opt) return;
+
+            let elBarra = document.getElementById(modulo + '-bar');
+            if (!elBarra) return;
+            
+            // Lógica de Ajuste Suave:
+            // Acelera se estiver mais de 5% atrasado do real, diminui se passar do real.
+            let diff = opt.realPercent - opt.currentVisual;
+            let step = opt.incrementPerSec;
+            
+            if (diff > 5) step *= 2.0; 
+            else if (diff < 0) step *= 0.1; // Desacelera para esperar o real alcançar
+            
+            opt.currentVisual += step;
+            
+            // Trava do 99% - Nunca conclui visualmente sem o OK do servidor
+            if (opt.currentVisual >= 99.0) {
+                opt.currentVisual = 99.0;
+            }
+            
+            elBarra.style.width = opt.currentVisual + '%';
+        }
     </script>
 </body>
 </html>

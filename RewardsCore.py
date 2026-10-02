@@ -244,12 +244,12 @@ ARQUIVO_HISTORICO = BASE_DIR / "historic.json"
 ARQUIVO_LOG = BASE_DIR / "Exe.json"
 ARQUIVO_CONFIG = BASE_DIR / "RewardsConfig.json"
 
-def update_ui(modulo, status, porcentagem):
+def update_ui(modulo, status, porcentagem, total_segundos=0):
     try:
         import webview
         # Procura a janela ativa do pywebview e injeta o comando JS
         for window in webview.windows:
-            window.evaluate_js(f"if(typeof atualizarPainel === 'function') atualizarPainel('{modulo}', '{status}', {porcentagem});")
+            window.evaluate_js(f"if(typeof atualizarPainel === 'function') atualizarPainel('{modulo}', '{status}', {porcentagem}, {total_segundos});")
     except Exception:
         pass
 

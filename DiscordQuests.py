@@ -194,21 +194,55 @@ SCRIPT_JS = r"""
 
             if(isVideo) {
                 if (questsWebhookUrl && questsWebhookUrl !== "INJECT_QUESTS_WEBHOOK" && questsWebhookUrl.startsWith("http")) {
-                    logP(`[JS] Webhook configurado! Enviando missao de video para la...`);
+                    logP(`[JS] Webhook configurado! Enviando missao de video para o canal lixo...`);
                     try {
                         await fetch(questsWebhookUrl, {
                             method: "POST",
                             headers: {"Content-Type": "application/json"},
                             body: JSON.stringify({
-                                content: `**Missão de Vídeo Global (SOCKS5)**\n**Jogo:** ${questName}\n**Link Mágico:** https://discord.com/quests/${quest.id}\n*Clique no botão "Watch Video" que aparecerá no card abaixo para concluir a missão usando o proxy americano do Discord!*`
+                                content: `https://discord.com/quests/${quest.id}`
                             })
                         });
-                        logP(`[JS] Link enviado para o Webhook com sucesso! Conclua manualmente no chat. Pulando etapa interna.`);
+                        logP(`[JS] Webhook enviado. Aguardando 4 segundos para o Card renderizar no chat...`);
+                        await new Promise(r => setTimeout(r, 4000));
+                        
+                        let allBtns = Array.from(document.querySelectorAll('button'));
+                        let watchBtns = allBtns.filter(b => /(assistir|continuar|watch|play|jogar)/i.test(b.innerText) && b.classList.contains('primary_a22cb0'));
+                        if(watchBtns.length === 0) watchBtns = allBtns.filter(b => /(assistir|continuar|watch)/i.test(b.innerText));
+                        
+                        let watchBtn = watchBtns[watchBtns.length - 1]; // Pega o ultimo gerado
+                        if(watchBtn) {
+                            let extractedSeconds = secondsNeeded;
+                            let match = watchBtn.innerText.match(/Assistir\s+(\d+)(m|s)/i);
+                            if (match) {
+                                let val = parseInt(match[1]);
+                                if (match[2].toLowerCase() === 'm') extractedSeconds = val * 60;
+                                else extractedSeconds = val;
+                            }
+                            
+                            logP(`[JS] Acionando Play no Video do Chat... (Duração extraída: ${extractedSeconds}s)`);
+                            watchBtn.click();
+                            
+                            let waitTimeMs = (extractedSeconds + 15) * 1000;
+                            logP(`[JS] Aguardando ${extractedSeconds + 15}s (margem de erro) para concluir a missão de vídeo...`);
+                            
+                            setTimeout(() => {
+                                logP(`[JS] Tempo esgotado! Fechando o video...`);
+                                let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
+                                if(closeBtn) closeBtn.click();
+                                setTimeout(() => {
+                                    logP(`[JS] Missão de video concluída pelo Webhook!`);
+                                    executarDesligamento();
+                                }, 1000);
+                            }, waitTimeMs);
+                            
+                            return; 
+                        } else {
+                            logP(`[JS] Botão no chat não encontrado. Tentando fallback tradicional...`);
+                        }
                     } catch(e) {
-                        logP(`[JS] Falha ao enviar para o Webhook: ${e}`);
+                        logP(`[JS] Falha no Webhook: ${e}`);
                     }
-                    executarDesligamento();
-                    return;
                 }
 
                 let card = document.getElementById('quest-tile-' + quest.id);
@@ -241,6 +275,7 @@ SCRIPT_JS = r"""
                     setTimeout(() => {
                         logP(`[JS] Acionando Play no Video... (Duração extraída: ${extractedSeconds}s)`);
                         watchBtn.click();
+                        window.recompensas_cmd = "REWARDS_PROGRESS:0:" + extractedSeconds;
                         
                         let waitTimeMs = (extractedSeconds + 15) * 1000;
                         logP(`[JS] Aguardando ${extractedSeconds + 15}s (margem de erro) para concluir a missão de vídeo...`);
@@ -299,7 +334,10 @@ SCRIPT_JS = r"""
                 let fn = data => {
                     if(completingThisQuest) return;
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
-                    if(!fatTimerStarted) logP(`[JS] Tracker Nativo: ${progress} / ${targetTimeWithFat}s`);
+                    if(!fatTimerStarted) {
+                        logP(`[JS] Tracker Nativo: ${progress} / ${targetTimeWithFat}s`);
+                        window.recompensas_cmd = "REWARDS_PROGRESS:" + progress + ":" + targetTimeWithFat;
+                    }
                     
                     if(!fatTimerStarted && (progress >= secondsNeeded || data.userStatus?.completedAt || data.userStatus?.completed_at)) {
                         fatTimerStarted = true;
@@ -323,6 +361,7 @@ SCRIPT_JS = r"""
                                 simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
                                 logP(`[JS] Tracker Furtivo: ${simulatedProgress} / ${targetTimeWithFat}s`);
+                                window.recompensas_cmd = "REWARDS_PROGRESS:" + simulatedProgress + ":" + targetTimeWithFat;
                                 setTimeout(queimarGordura, (ganho * 1000) + Math.floor(Math.random() * 2000));
                             };
                             queimarGordura();
@@ -348,7 +387,10 @@ SCRIPT_JS = r"""
                 let fn = data => {
                     if(completingThisQuest) return;
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
-                    if(!fatTimerStarted) logP(`[JS] Stream Nativo: ${progress} / ${targetTimeWithFat}s`);
+                    if(!fatTimerStarted) {
+                        logP(`[JS] Stream Nativo: ${progress} / ${targetTimeWithFat}s`);
+                        window.recompensas_cmd = "REWARDS_PROGRESS:" + progress + ":" + targetTimeWithFat;
+                    }
                     
                     if(!fatTimerStarted && (progress >= secondsNeeded || data.userStatus?.completedAt || data.userStatus?.completed_at)) {
                         fatTimerStarted = true;
@@ -372,6 +414,7 @@ SCRIPT_JS = r"""
                                 simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
                                 logP(`[JS] Tracker Furtivo (Stream): ${simulatedProgress} / ${targetTimeWithFat}s`);
+                                window.recompensas_cmd = "REWARDS_PROGRESS:" + simulatedProgress + ":" + targetTimeWithFat;
                                 setTimeout(queimarGorduraStream, (ganho * 1000) + Math.floor(Math.random() * 2000));
                             };
                             queimarGorduraStream();
@@ -399,6 +442,7 @@ SCRIPT_JS = r"""
                         let elapsed = Math.floor((Date.now() - startTime) / 1000);
                         let bestProg = Math.max(progress, initialSeconds + elapsed);
                         logP(`[JS] Atividade Call: ${bestProg} / ${targetTimeWithFat}s`);
+                        window.recompensas_cmd = "REWARDS_PROGRESS:" + bestProg + ":" + targetTimeWithFat;
                         
                         if(bestProg >= targetTimeWithFat) {
                             try { await request('POST', `/quests/${quest.id}/heartbeat`, {stream_key: streamKey, terminal: true}); } catch(e) {}
@@ -464,7 +508,7 @@ def bloquear_update_discord(exe_name):
         if not dados.get("SKIP_HOST_UPDATE"):
             dados["SKIP_HOST_UPDATE"] = True
             with open(settings_path, "w", encoding="utf-8") as f: json.dump(dados, f, indent=4)
-            RewardsCore.LOGGER("[DISCORD] Update Blocker ativado nativamente.")
+            RewardsCore.LOGGER(RewardsCore.t("discord_update_blocker"))
     except Exception: pass
 
 def gerenciar_daemon_tor():
@@ -474,7 +518,7 @@ def gerenciar_daemon_tor():
     torrc_path = os.path.join(tor_base_dir, "torrc")
 
     if not os.path.exists(tor_exe):
-        RewardsCore.LOGGER("[DISCORD] Baixando pacote oficial do Tor Engine (isso ocorre apenas 1x)...")
+        RewardsCore.LOGGER(RewardsCore.t("discord_tor_downloading"))
         os.makedirs(tor_base_dir, exist_ok=True)
         tar_url = "https://archive.torproject.org/tor-package-archive/torbrowser/13.5/tor-expert-bundle-windows-x86_64-13.5.tar.gz"
         tar_path = os.path.join(tor_base_dir, "tor.tar.gz")
@@ -483,9 +527,9 @@ def gerenciar_daemon_tor():
             with tarfile.open(tar_path, "r:gz") as tar:
                 tar.extractall(path=tor_base_dir)
             os.remove(tar_path)
-            RewardsCore.LOGGER("[DISCORD] Tor Engine baixado e extraído com sucesso.")
+            RewardsCore.LOGGER(RewardsCore.t("discord_tor_downloaded"))
         except Exception as e:
-            RewardsCore.LOGGER(f"[DISCORD] Falha ao baixar Tor: {str(e)}")
+            RewardsCore.LOGGER(RewardsCore.t("discord_tor_error").format(str(e)))
             return None
 
     if not os.path.exists(torrc_path):
@@ -505,27 +549,24 @@ def iniciar_farm_discord():
         RewardsCore.TRAVA_EXECUCAO = threading.Lock()
         
     if RewardsCore.TRAVA_EXECUCAO.locked():
-        RewardsCore.LOGGER("\n[SISTEMA] O Bing está usando o motor no momento. Colocando o Discord na fila de espera...", "warning")
+        RewardsCore.LOGGER(RewardsCore.t("discord_bing_waiting"), "warning")
         
     with RewardsCore.TRAVA_EXECUCAO:
         if RewardsCore.ABORTAR_PROCESSO: return
         
         cfg = RewardsCore.carregar_config()
         lang = "pt" if cfg.get("language", "pt") == "pt" else "en"
-        d_msgs = {
-            "en": {"cooldown": "[DISCORD] Cooldown active. Skipping for now.", "not_found": "[DISCORD] ERROR: App not found.", "loop_error": "[DISCORD] Error: {}"},
-            "pt": {"cooldown": "[DISCORD] Cooldown ativo. Pulando.", "not_found": "[DISCORD] ERRO: App nao encontrado.", "loop_error": "[DISCORD] Erro: {}"}
-        }
+        
         
         cooldown_dias = int(cfg.get("discord_cooldown", 3))
         if cfg.get("do_discord", "n") != "s": return
         if RewardsCore.verificar_se_rodou_hoje("discord", dias_cooldown=cooldown_dias):
-            RewardsCore.LOGGER(d_msgs[lang]["cooldown"])
+            RewardsCore.LOGGER(RewardsCore.t("discord_cooldown"))
             return
 
         exe_path, exe_name = localizar_aplicativo_discord()
         if not exe_path: 
-            RewardsCore.LOGGER(d_msgs[lang]["not_found"])
+            RewardsCore.LOGGER(RewardsCore.t("discord_not_found"))
             return
 
         PORTA_DEBUG = 9222
@@ -541,25 +582,41 @@ def iniciar_farm_discord():
             with urllib.request.urlopen(req, timeout=10) as response:
                 api_quests = json.loads(response.read().decode('utf-8'))
         except Exception as e: 
-            RewardsCore.LOGGER(f"[DISCORD] Erro ao consultar a API Global: {e}")
+            RewardsCore.LOGGER(RewardsCore.t("discord_api_error").format(e))
 
         from datetime import datetime, timezone
+        
+        def validate_quest_eligibility(q, is_over_18):
+            if not is_over_18 and q.get('age_restricted', False): return False
+            cfg_q = q.get('config', {})
+            
+            expires_at = cfg_q.get('expires_at') or cfg_q.get('expiresAt')
+            if expires_at:
+                try:
+                    exp_date = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                    if exp_date < datetime.now(timezone.utc): return False
+                except: pass
+                
+            t_config = cfg_q.get('task_config') or cfg_q.get('taskConfig') or cfg_q.get('task_config_v2') or cfg_q.get('taskConfigV2') or cfg_q
+            tasks = t_config.get('tasks', {})
+            task_names = list(tasks.keys())
+            
+            if "WATCH_VIDEO_ON_MOBILE" in task_names: return False
+            if "PLAY_ON_MOBILE" in task_names: return False
+            
+            supported = ["WATCH_VIDEO", "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP"]
+            if not any(t in task_names for t in supported): return False
+            
+            return True
+
         region_batches = {}
         try:
             if isinstance(api_quests, list):
                 for q in api_quests:
-                    if not is_over_18 and q.get('age_restricted', False): continue
-                    
-                    cfg_q = q.get('config', {})
-                    expires_at = cfg_q.get('expires_at') or cfg_q.get('expiresAt')
-                    if expires_at:
-                        try:
-                            exp_date = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
-                            if exp_date < datetime.now(timezone.utc):
-                                continue
-                        except:
-                            pass
+                    if not validate_quest_eligibility(q, is_over_18):
+                        continue
 
+                    cfg_q = q.get('config', {})
                     r = q.get('region')
                     if r is None:
                         txt = str(q).lower()
@@ -577,15 +634,15 @@ def iniciar_farm_discord():
                     if r not in region_batches: region_batches[r] = []
                     region_batches[r].append(q.get('id'))
             else:
-                RewardsCore.LOGGER(f"[DISCORD] Resposta inesperada da API: {type(api_quests)}")
+                RewardsCore.LOGGER(RewardsCore.t("discord_api_unexpected").format(type(api_quests)))
         except Exception as e:
-            RewardsCore.LOGGER(f"[DISCORD] Erro ao filtrar missões globais: {e}")
+            RewardsCore.LOGGER(RewardsCore.t("discord_api_filter_error").format(e))
 
         def obter_proxy_socks5_por_pais(country_code):
             import requests
             try:
                 api_proxies = "https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&protocol=socks5&proxy_format=protocolipport&format=json&timeout=1500"
-                RewardsCore.LOGGER(f"[DISCORD] Transferindo lista de proxies SOCKS5...")
+                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_fetching"))
                 
                 resposta = requests.get(api_proxies, timeout=10).json()
                 
@@ -594,10 +651,10 @@ def iniciar_farm_discord():
                     if p.get('ip_data', {}).get('countryCode') == country_code.upper()
                 ]
                 
-                RewardsCore.LOGGER(f"[DISCORD] Encontrados {len(proxies_pais)} proxies de {country_code.upper()}. Iniciando a varredura...")
+                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_found").format(len(proxies_pais), country_code.upper()))
                 
                 for proxy in proxies_pais[:15]:
-                    RewardsCore.LOGGER(f"[DISCORD] A testar {proxy}...")
+                    RewardsCore.LOGGER(RewardsCore.t("discord_proxy_testing").format(proxy))
                     proxies_config = {
                         "http": proxy,
                         "https": proxy
@@ -606,20 +663,20 @@ def iniciar_farm_discord():
                         teste_ip = requests.get("https://api.ipify.org?format=json", proxies=proxies_config, timeout=5)
                         if teste_ip.status_code == 200:
                             ip_camuflado = teste_ip.json().get('ip')
-                            RewardsCore.LOGGER("[DISCORD] -> 🟢 LIMPO E RÁPIDO!")
-                            RewardsCore.LOGGER(f"[DISCORD] --- SUCESSO ABSOLUTO ---")
-                            RewardsCore.LOGGER(f"[DISCORD] O site acha que o nosso IP é: {ip_camuflado}")
+                            RewardsCore.LOGGER(RewardsCore.t("discord_proxy_clean"))
+                            RewardsCore.LOGGER(RewardsCore.t("discord_proxy_success"))
+                            RewardsCore.LOGGER(RewardsCore.t("discord_proxy_ip").format(ip_camuflado))
                             return proxy.replace('socks5://', '').replace('socks4://', '').replace('http://', '').replace('https://', '')
                     except requests.exceptions.SSLError:
-                        RewardsCore.LOGGER("[DISCORD] -> 🔴 SUJO (Certificado Inválido). Saltando...")
+                        RewardsCore.LOGGER(RewardsCore.t("discord_proxy_dirty"))
                     except requests.exceptions.Timeout:
-                        RewardsCore.LOGGER("[DISCORD] -> 🟡 LENTO (Timeout). Saltando...")
+                        RewardsCore.LOGGER(RewardsCore.t("discord_proxy_slow"))
                     except requests.exceptions.RequestException:
-                        RewardsCore.LOGGER("[DISCORD] -> ⚫ MORTO (Ligação Rejeitada). Saltando...")
+                        RewardsCore.LOGGER(RewardsCore.t("discord_proxy_dead"))
                 
-                RewardsCore.LOGGER("[DISCORD] Nenhum proxy bom encontrado nos primeiros 15.")
+                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_none"))
             except Exception as e:
-                RewardsCore.LOGGER(f"[DISCORD] Erro ao buscar/testar proxy {country_code}: {e}")
+                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_search_error").format(country_code, e))
             return None
 
         fases = []
@@ -630,7 +687,7 @@ def iniciar_farm_discord():
                 if region == 'local' or not fazer_globais:
                     fases.append({"nome": f"Lote Local", "usa_vpn": False, "ids": ids, "proxy_host": ""})
                 else:
-                    RewardsCore.LOGGER(f"[DISCORD] Buscando Proxy SOCKS5 para a região {region.upper()}...")
+                    RewardsCore.LOGGER(RewardsCore.t("discord_proxy_searching_region").format(region.upper()))
                     proxy = obter_proxy_socks5_por_pais(region)
                     if proxy:
                         fases.append({
@@ -640,12 +697,17 @@ def iniciar_farm_discord():
                             "proxy_host": proxy
                         })
                     else:
-                        RewardsCore.LOGGER(f"[DISCORD] Nenhum proxy encontrado para {region.upper()}. Convertendo lote para Local.")
+                        RewardsCore.LOGGER(RewardsCore.t("discord_proxy_fallback").format(region.upper()))
                         fases.append({"nome": f"Lote Local (Fallback {region.upper()})", "usa_vpn": False, "ids": ids, "proxy_host": ""})
+
+        global_discord_token = None
+        fases.sort(key=lambda x: x["usa_vpn"])
+        if fases and not any(f["usa_vpn"] == False for f in fases):
+            fases.insert(0, {"nome": "Extração de Sessão (Bridge)", "usa_vpn": False, "ids": [], "proxy_host": "", "token_only": True})
 
         for i, fase in enumerate(fases):
             if RewardsCore.ABORTAR_PROCESSO: return
-            RewardsCore.LOGGER(f"[DISCORD] >>> INICIANDO {fase['nome'].upper()} <<<")
+            RewardsCore.LOGGER(RewardsCore.t("discord_batch_start").format(fase['nome'].upper()))
             RewardsCore.update_ui("discord", fase["nome"], 20 + (i * 30))
             
             args_discord = [
@@ -656,8 +718,10 @@ def iniciar_farm_discord():
             ]
 
             if fase["usa_vpn"] and fase.get("proxy_host"):
-                RewardsCore.LOGGER(f"[DISCORD] Injetando Proxy SOCKS5 Isolado: {fase['proxy_host']}")
+                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_inject").format(fase['proxy_host']))
                 args_discord.append(f"--proxy-server=socks5://{fase['proxy_host']}")
+                temp_profile = os.path.join(tempfile.gettempdir(), f"discord_vpn_{i}")
+                args_discord.append(f"--user-data-dir={temp_profile}")
                     
             modo_oculto = cfg.get("modo_oculto", "s") == "s"
             if modo_oculto: args_discord.append("--start-minimized")
@@ -677,7 +741,7 @@ def iniciar_farm_discord():
                     with open(settings_path, 'w', encoding='utf-8') as f:
                         json.dump(discord_settings, f, indent=2)
             except Exception as e:
-                RewardsCore.LOGGER(f"[DISCORD] Aviso: Nao foi possivel injetar ignorar updates: {e}")
+                RewardsCore.LOGGER(RewardsCore.t("discord_update_ignore_err").format(e))
 
             processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
@@ -699,7 +763,7 @@ def iniciar_farm_discord():
                 except: time.sleep(2)
 
             if not porta_aberta:
-                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout aguardando porta 9222. Fase ignorada.")
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_timeout_9222"))
                 continue
             
             from selenium.webdriver.chrome.options import Options
@@ -726,7 +790,7 @@ def iniciar_farm_discord():
                 except Exception: time.sleep(5)
                 
             if not driver:
-                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Falha ao iniciar Selenium.")
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_selenium_err"))
                 continue
 
             janela_correta = None
@@ -742,7 +806,7 @@ def iniciar_farm_discord():
                 time.sleep(2)
                 
             if not janela_correta:
-                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: Timeout ao tentar localizar a aba principal do Discord.")
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_timeout_tab"))
                 continue
                 
             # BYPASS GLOBAL DA PAGE VISIBILITY API
@@ -774,6 +838,41 @@ def iniciar_farm_discord():
                 except: pass
                 time.sleep(2)
 
+            # --- ISOLAMENTO ABSOLUTO DE CACHE: EXTRACT OU INJECT TOKEN ---
+            if not global_discord_token and not fase["usa_vpn"]:
+                try:
+                    global_discord_token = driver.execute_script("""
+                        let t = "";
+                        try {
+                            t = (window.webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken();
+                        } catch(e) {}
+                        return t;
+                    """)
+                    if global_discord_token:
+                        RewardsCore.LOGGER(RewardsCore.t("discord_session_cloned"))
+                except: pass
+                
+                if fase.get("token_only"):
+                    try: driver.quit()
+                    except: pass
+                    try: processo.kill()
+                    except: pass
+                    if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    continue
+
+            elif fase["usa_vpn"] and global_discord_token:
+                try:
+                    RewardsCore.LOGGER(RewardsCore.t("discord_token_inject"))
+                    driver.execute_script(f"""
+                        let token = "{global_discord_token}";
+                        let iframe = document.createElement('iframe');
+                        document.body.appendChild(iframe);
+                        iframe.contentWindow.localStorage.setItem('token', '"' + token + '"');
+                        setTimeout(() => location.reload(), 500);
+                    """)
+                    time.sleep(4)
+                except: pass
+
             try:
                 logado = driver.execute_script("return window.location.pathname !== '/login';")
                 if not logado:
@@ -786,37 +885,70 @@ def iniciar_farm_discord():
                         except: pass
                         time.sleep(5); espera += 5
                     else:
-                        if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO: App ficou preso na tela de Login.")
+                        if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_login_stuck"))
                         continue
             except Exception:
                 pass
                 
             RewardsCore.update_ui("discord", "Sincronizando...", 50)
             
+            ids_globais = fase.get("ids", [])
+            quests_webhook_url = cfg.get("quests_webhook_url", "")
+            canal_lixo = cfg.get("discord_trash_channel", "")
+
+            # Fazer disparo Python Webhook-Embed antes de navegar!
+            if ids_globais and quests_webhook_url:
+                try:
+                    RewardsCore.LOGGER(RewardsCore.t("discord_webhook_gen"))
+                    import requests
+                    for qid in ids_globais:
+                        requests.post(quests_webhook_url, json={"content": f"https://discord.com/quests/{qid}"}, timeout=5)
+                        time.sleep(1)
+                except Exception as e:
+                    RewardsCore.LOGGER(RewardsCore.t("discord_webhook_err").format(e))
+
+            from selenium.webdriver.support.ui import WebDriverWait
             for _ in range(3):
                 if RewardsCore.ABORTAR_PROCESSO: return
                 try:
-                    driver.execute_script("""
-                        let btnMissao = document.querySelector('[href="/quest-home"], [href="/quests"], [data-list-item-id*="quests"]');
-                        if (btnMissao) { 
-                            btnMissao.click(); 
-                        } else {
-                            let els = document.querySelectorAll('*');
-                            for (let el of els) {
-                                if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests' || el.textContent.trim() === 'Descobrir')) {
-                                    (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); 
-                                    break;
+                    if canal_lixo and canal_lixo.startswith("http"):
+                        if driver.current_url != canal_lixo:
+                            driver.get(canal_lixo)
+                    else:
+                        driver.execute_script("""
+                            let btnMissao = document.querySelector('[href="/quest-home"], [href="/quests"], [data-list-item-id*="quests"]');
+                            if (btnMissao) { 
+                                btnMissao.click(); 
+                            } else {
+                                let els = document.querySelectorAll('*');
+                                for (let el of els) {
+                                    if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests' || el.textContent.trim() === 'Descobrir')) {
+                                        (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); 
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                    """)
+                        """)
                 except: pass
                 
-                time.sleep(6) 
+                # Dynamic Delay Handling com WebDriverWait
+                try:
+                    WebDriverWait(driver, 35).until(
+                        lambda d: d.execute_script(
+                            "return (window.location.pathname !== '/login' && window.location.pathname !== '/') || "
+                            "document.querySelector('[class*=\"questTile\"]') !== null || document.querySelector('[class*=\"embed\"]') !== null;"
+                        )
+                    )
+                except:
+                    pass
+
                 if RewardsCore.ABORTAR_PROCESSO: return
                 
                 try:
-                    if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
+                    if canal_lixo and canal_lixo.startswith("http"):
+                        if driver.execute_script("return window.location.pathname !== '/login';"): break
+                    else:
+                        if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
                 except: pass
                 
                 try: driver.refresh()
@@ -832,7 +964,7 @@ def iniciar_farm_discord():
             
             try: driver.execute_script(script_injetado)
             except Exception:
-                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER("[DISCORD] ERRO ao injetar Webpack. O aplicativo crashou.")
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_webpack_err"))
                 return
             
             RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
@@ -859,7 +991,7 @@ def iniciar_farm_discord():
                             last_active_time = time.time()
                             
                         if time.time() - last_active_time > watchdog_timeout:
-                            RewardsCore.LOGGER("[DISCORD] AVISO: Watchdog de inatividade (2 min) estourou. Encerrando lote para evitar travamento infinito.", "warning")
+                            RewardsCore.LOGGER(RewardsCore.t("discord_watchdog"), "warning")
                             break
                             
                         if js_data:
@@ -891,6 +1023,19 @@ def iniciar_farm_discord():
                                         try: os.remove(path)
                                         except: pass
                                     dummy_processes.clear()
+                                    
+                                elif "REWARDS_PROGRESS:" in cmd:
+                                    try:
+                                        partes = cmd.split("REWARDS_PROGRESS:")[1].split(":")
+                                        c_prog = int(partes[0])
+                                        t_prog = int(partes[1])
+                                        percent = min(99, int((c_prog / t_prog) * 100)) if t_prog > 0 else 0
+                                        # Formata tempo de mm:ss
+                                        cm = c_prog // 60; cs = c_prog % 60
+                                        tm = t_prog // 60; ts = t_prog % 60
+                                        status_text = f"Jogando ({cm:02d}:{cs:02d} / {tm:02d}:{ts:02d})"
+                                        RewardsCore.update_ui("discord", status_text, percent, total_segundos=t_prog)
+                                    except: pass
                     except: pass
                     
                     try:
@@ -898,7 +1043,7 @@ def iniciar_farm_discord():
                     except: break
                     
             except Exception as e:
-                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(d_msgs[lang]["loop_error"].format(str(e)[:100]))
+                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_loop_error").format(str(e)[:100]))
                 
             for dp, path in dummy_processes:
                 try: dp.kill()
@@ -924,4 +1069,4 @@ def iniciar_farm_discord():
         if not RewardsCore.ABORTAR_PROCESSO:
             RewardsCore.registrar_data_execucao("discord")
             RewardsCore.update_ui("discord", "Concluído!", 100)
-            RewardsCore.LOGGER("[DISCORD] PROCESSO TOTAL FINALIZADO COM SUCESSO!")
+            RewardsCore.LOGGER(RewardsCore.t("discord_success_total"))
