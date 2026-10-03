@@ -764,6 +764,8 @@ def iniciar_farm_discord():
 
             if not porta_aberta:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_timeout_9222"))
+                try: processo.kill()
+                except: pass
                 continue
             
             from selenium.webdriver.chrome.options import Options
@@ -791,6 +793,8 @@ def iniciar_farm_discord():
                 
             if not driver:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_selenium_err"))
+                try: processo.kill()
+                except: pass
                 continue
 
             janela_correta = None
@@ -807,6 +811,12 @@ def iniciar_farm_discord():
                 
             if not janela_correta:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_timeout_tab"))
+                try:
+                    driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
+                    time.sleep(4); driver.quit() 
+                except: pass
+                try: processo.kill()
+                except: pass
                 continue
                 
             # BYPASS GLOBAL DA PAGE VISIBILITY API
@@ -894,7 +904,7 @@ def iniciar_farm_discord():
             
             ids_globais = fase.get("ids", [])
             quests_webhook_url = cfg.get("quests_webhook_url", "")
-            canal_lixo = cfg.get("discord_trash_channel", "")
+            canal_lixo = cfg.get("canal_lixo_url", "")
 
             # Fazer disparo Python Webhook-Embed antes de navegar!
             if ids_globais and quests_webhook_url:
@@ -1059,7 +1069,6 @@ def iniciar_farm_discord():
             # Morte isolada: matar APENAS o processo do Discord que iniciamos, preservando o Bing.
             try: processo.kill()
             except: pass
-            if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             if i < len(fases) - 1: 
                 for _ in range(7):

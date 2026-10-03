@@ -941,10 +941,10 @@ def aguardar_internet(timeout_horas=1):
     
     while (time.time() - inicio) < limite_segundos:
         try:
-            # Tenta conectar no DNS do Google
-            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            import urllib.request
+            urllib.request.urlopen("https://www.google.com", timeout=5)
             return True
-        except OSError:
+        except Exception:
             time.sleep(30)
     return False
 

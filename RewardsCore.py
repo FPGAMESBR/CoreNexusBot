@@ -223,7 +223,10 @@ def t(chave):
     global _LOCALES_CACHE
     if _LOCALES_CACHE is None:
         try:
-            with open(BASE_DIR / "locales.json", "r", encoding="utf-8") as f:
+            locales_path = Path(getattr(sys, '_MEIPASS', BASE_DIR)) / "locales.json"
+            if not locales_path.exists():
+                locales_path = BASE_DIR / "locales.json"
+            with open(locales_path, "r", encoding="utf-8") as f:
                 _LOCALES_CACHE = json.load(f)
         except Exception:
             _LOCALES_CACHE = {}
@@ -300,6 +303,8 @@ def carregar_config():
     """Carrega as configurações salvas ou cria um padrão de fábrica"""
     padrao = {
         "webhook_url": "",
+        "quests_webhook_url": "",
+        "canal_lixo_url": "",
         "limite_pc": 20,
         "limite_mobile": 0,
         "modo_oculto": "s",   
@@ -388,7 +393,21 @@ def atualizar_lista_contas():
 
 CONTAS_PARA_FARMAR = atualizar_lista_contas()
 URL_WEBHOOK_DISCORD = ""
-LOGGER = print
+def LOGGER(*args, **kwargs):
+    texto = " ".join(map(str, args))
+    print(*args, **kwargs)
+    try:
+        from datetime import datetime
+        import re
+        texto_limpo = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', texto)
+        hj = datetime.now().strftime("%Y-%m-%d")
+        log_dir = BASE_DIR / "Logs"
+        log_dir.mkdir(exist_ok=True)
+        log_path = log_dir / f"session_{hj}.log"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {texto_limpo}\n")
+    except Exception:
+        pass
 
 # =============================================================================
 # MOTOR V15: PROXY FANTASMA E ADB ROTAÇÃO
@@ -899,65 +918,88 @@ def realizar_pesquisas(driver, num, banco):
 def fazer_pesquisa_visual(driver):
     try:
         LOGGER(t('visual_init'), "info")
+        from selenium.webdriver.support.ui import WebDriverWait
         
-        # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO DASHBOARD ---
-        sucesso_dashboard = False
-        for tentativa in range(3):
-            driver.get("https://rewards.bing.com/dashboard")
-            from selenium.webdriver.support.ui import WebDriverWait
+        for tentativa_principal in range(3):
+            # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO DASHBOARD ---
+            sucesso_dashboard = False
+            for tentativa in range(3):
+                driver.get("https://rewards.bing.com/dashboard")
+                try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+                except: pass
+                time.sleep(6)
+                
+                estado = driver.execute_script("""
+                    let text = document.body.innerText.toLowerCase();
+                    if (!text.includes('pesquisa visual') && !text.includes('visual search')) {
+                        return 'NAO_EXISTE';
+                    }
+                    let checkmarks = document.querySelectorAll('.mee-icon-Check, .mee-icon-SkypeCircleCheck');
+                    for (let c of checkmarks) {
+                        let card = c.closest('.ds-card-sec, .mee-reward-card');
+                        if (card && (card.innerText.toLowerCase().includes('pesquisa visual') || card.innerText.toLowerCase().includes('visual search'))) {
+                            return 'CONCLUIDA';
+                        }
+                    }
+                    return 'PENDENTE';
+                """)
+                
+                if estado == 'PENDENTE':
+                    sucesso_dashboard = True
+                    break
+                elif estado == 'CONCLUIDA':
+                    LOGGER(t('visual_ok'), "success")
+                    return
+                elif estado == 'NAO_EXISTE':
+                    if tentativa_principal > 0:
+                        LOGGER(t('visual_ok'), "success")
+                        return
+                    else:
+                        pass # Continua para a próxima tentativa se na primeira não achou de cara
+                        
+                LOGGER(f"[BING] Interface Visual nao validada no painel. Retentando (Tentativa {tentativa+1}/3)...", "warning")
+                
+            if not sucesso_dashboard:
+                LOGGER("[BING] Missao de pesquisa visual ja concluida ou ausente.", "info")
+                return
+            
+            # 1. Abre o Flyout lateral clicando no card principal (Novo padrão da Microsoft)
+            driver.execute_script("""
+                let cards = document.querySelectorAll('div, a, span, button, p');
+                for (let el of cards) {
+                    let texto = el.innerText ? el.innerText.toLowerCase() : '';
+                    if (texto === 'pesquisa visual' || texto === 'visual search') {
+                        let clicavel = el.closest('button, a, [role="button"]') || el;
+                        clicavel.click();
+                        break;
+                    }
+                }
+            """)
+            time.sleep(4) 
+    
+            # 2. Captura o link de tracking da missão dentro do painel lateral (Flyout) e acessa
+            driver.execute_script("""
+                let link = document.querySelector('a[href*="vsstreak"]');
+                if (link) { window.location.href = link.href; } 
+                else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
+            """)
+            
             try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
             except: pass
-            time.sleep(6)
+            time.sleep(6) 
+    
+            # 3. GERA A IMAGEM E FAZ A PESQUISA DIRETAMENTE PELA URL (Bypassa o bloqueio do Enter)
+            semente = random.randint(1, 100000)
+            url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
             
-            if driver.execute_script("""
-                let text = document.body.innerText.toLowerCase();
-                return text.includes('pesquisa visual') || text.includes('visual search');
-            """):
-                sucesso_dashboard = True
-                break
-            LOGGER(f"[BING] Interface Visual nao validada. Retentando (Tentativa {tentativa+1}/3)...", "warning")
+            url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem_aleatoria}&features=vsstreak"
+            driver.get(url_pesquisa_direta)
             
-        if not sucesso_dashboard:
-            LOGGER("[BING] Erro Critico: Dashboard nao carregou para acionar a Pesquisa Visual.", "error")
-            return
-        
-        # 1. Abre o Flyout lateral clicando no card principal (Novo padrão da Microsoft)
-        driver.execute_script("""
-            let cards = document.querySelectorAll('div, a, span, button, p');
-            for (let el of cards) {
-                let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                if (texto === 'pesquisa visual' || texto === 'visual search') {
-                    let clicavel = el.closest('button, a, [role="button"]') || el;
-                    clicavel.click();
-                    break;
-                }
-            }
-        """)
-        time.sleep(4) 
-
-        # 2. Captura o link de tracking da missão dentro do painel lateral (Flyout) e acessa
-        driver.execute_script("""
-            let link = document.querySelector('a[href*="vsstreak"]');
-            if (link) { window.location.href = link.href; } 
-            else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
-        """)
-        
-        try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-        except: pass
-        time.sleep(6) 
-
-        # 3. GERA A IMAGEM E FAZ A PESQUISA DIRETAMENTE PELA URL (Bypassa o bloqueio do Enter)
-        semente = random.randint(1, 100000)
-        url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
-        
-        url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem_aleatoria}&features=vsstreak"
-        driver.get(url_pesquisa_direta)
-        
-        LOGGER(t('visual_img_ok').format(url_imagem_aleatoria), "info")
-        time.sleep(12)
-
-        driver.get("https://rewards.bing.com/dashboard")
-        LOGGER(t('visual_ok'), "success")
+            LOGGER(t('visual_img_ok').format(url_imagem_aleatoria), "info")
+            time.sleep(12)
+            LOGGER("[BING] Retornando ao dashboard para verificar se a missao visual completou...", "info")
+            
+        LOGGER("[BING] Missao visual tentada 3 vezes sem exito de marcacao, seguindo em frente.", "warning")
 
     except Exception as e:
         LOGGER(t('visual_erro_fatal').format(str(e)[:80]), "error")
