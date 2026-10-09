@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}     CORE NEXUS v3.2.1 - AUTO BUILD SCRIPT (LINUX / MACOS)${NC}"
+echo -e "${GREEN}     CORE NEXUS - AUTO BUILD SCRIPT (LINUX / MACOS)${NC}"
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -47,7 +47,7 @@ echo "This may take a few minutes depending on your system."
 echo ""
 
 # Nota: no Linux/Mac usa-se : em vez de ; no add-data
-python3 -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus v3.2.1" --icon="rewards.ico" --add-data "rewards.ico:." --add-data "locales.json:." AppGUI.py
+python3 -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico:." --add-data "locales.json:." AppGUI.py
 
 if [ $? -ne 0 ]; then
     echo ""
@@ -62,8 +62,8 @@ echo -e "${GREEN}    BUILD COMPLETE!${NC}"
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
 echo ""
 
-if [ -f "dist/Core Nexus v3.2.1" ] || [ -d "dist/Core Nexus v3.2.1.app" ]; then
+if [ -f "dist/Core Nexus" ] || [ -d "dist/Core Nexus.app" ]; then
     echo -e "${GREEN}[SUCCESS]${NC} The application executable is located at:"
-    echo "dist/Core Nexus v3.2.1"
+    echo "dist/Core Nexus"
     echo ""
 fi

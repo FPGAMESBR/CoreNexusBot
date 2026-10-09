@@ -17,7 +17,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.1"
+APP_VERSION = "v3.2.2"
 APP_CODENAME = "Intelligent Bypass"
 
 HTML_INTERFACE = """
@@ -251,6 +251,34 @@ HTML_INTERFACE = """
             70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
+
+        /* CUSTOM MODAL ALERT */
+        .custom-alert-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
+            display: none; justify-content: center; align-items: center; z-index: 9999;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .custom-alert-box {
+            background: rgba(17, 24, 39, 0.95); border: 1px solid var(--accent-red);
+            border-radius: 12px; padding: 25px; width: 480px; text-align: center;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); transform: translateY(-20px);
+            transition: transform 0.3s;
+        }
+        .custom-alert-box h4 {
+            color: var(--accent-red); margin-top: 0; margin-bottom: 15px; font-size: 1.1em;
+        }
+        .custom-alert-box p {
+            color: var(--text-main); font-size: 0.9em; line-height: 1.5; margin-bottom: 20px;
+        }
+        .custom-alert-box button {
+            background: var(--accent-red); color: white; border: none; padding: 10px 20px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s;
+        }
+        .custom-alert-box button:hover {
+            background: #dc2626; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+
         .pulse-update {
             animation: pulseUpdate 2s infinite;
             background: var(--accent-green) !important;
@@ -471,13 +499,43 @@ HTML_INTERFACE = """
         </div>
     </div>
 
+    <!-- CUSTOM ALERT MODAL -->
+    <div id="custom-alert" class="custom-alert-overlay">
+        <div class="custom-alert-box">
+            <h4 id="custom-alert-title">Requerimento / Requirement</h4>
+            <p id="custom-alert-msg"></p>
+            <button onclick="closeCustomAlert()">OK</button>
+        </div>
+    </div>
+
     <script>
+        function showCustomAlert(msg, isEn, isHtml = false) {
+            document.getElementById('custom-alert-title').innerText = isEn ? "Requirement Missing" : "Requerimento Ausente";
+            if (isHtml) {
+                document.getElementById('custom-alert-msg').innerHTML = msg;
+            } else {
+                document.getElementById('custom-alert-msg').innerText = msg;
+            }
+            let overlay = document.getElementById('custom-alert');
+            overlay.style.display = 'flex';
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                overlay.querySelector('.custom-alert-box').style.transform = 'translateY(0)';
+            }, 10);
+        }
+
+        function closeCustomAlert() {
+            let overlay = document.getElementById('custom-alert');
+            overlay.style.opacity = '0';
+            overlay.querySelector('.custom-alert-box').style.transform = 'translateY(-20px)';
+            setTimeout(() => { overlay.style.display = 'none'; }, 300);
+        }
         const TRANSLATIONS = {
             "en": {
                 title: "What's new in [APP_VERSION]",
-                item1: "🚀 Parallel Execution: Bing and Discord now run simultaneously!",
-                item2: "🧠 Organic Searches: New smart DB with Google Trends and Wikipedia.",
-                item3: "⚡ Smart Start & Stealth: Skips unnecessary waits and runs 100% invisible.",
+                item1: "🛡️ Hardened Stability: Safe OS shutdown interceptor & bug fixes.",
+                item2: "🌐 Chrome Sync: Live API checks against Google's stable releases.",
+                item3: "⚙️ Discord Engine: Boot workaround rewritten for reliable execution.",
                 btnGit: "View on GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
@@ -486,9 +544,9 @@ HTML_INTERFACE = """
             },
             "pt": {
                 title: "O que há de novo na [APP_VERSION]",
-                item1: "🚀 Execução Paralela: Bing e Discord agora rodam simultaneamente!",
-                item2: "🧠 Pesquisas Orgânicas: Nova base inteligente com Google Trends e Wikipedia.",
-                item3: "⚡ Smart Start & Stealth: Pula esperas desnecessárias e roda 100% invisível.",
+                item1: "🛡️ Estabilidade: Interceptador de SO seguro e correção de bugs.",
+                item2: "🌐 Chrome Sync: Verificador ao vivo com a API oficial do Google.",
+                item3: "⚙️ Motor Discord: Solução de arranque reescrita para evitar loops.",
                 btnGit: "Ver no GitHub",
                 on: "OS STARTUP (ON)",
                 off: "OS STARTUP (OFF)",
@@ -503,6 +561,16 @@ HTML_INTERFACE = """
             const loader = document.getElementById('loader-wrapper');
             if(loader) { loader.style.display = 'none'; loader.remove(); }
         }, 7000);
+
+        function skipAnimation() {
+            const loader = document.getElementById('loader-wrapper');
+            if(loader) { loader.style.display = 'none'; loader.remove(); }
+            const app = document.getElementById('app-content');
+            if(app) {
+                app.style.animation = 'none';
+                app.style.opacity = '1';
+            }
+        }
 
         function log(texto, tipo='info') {
             let logDiv = document.getElementById('terminal-log');
@@ -634,12 +702,32 @@ HTML_INTERFACE = """
 
             if (config.discord && config.discord_global_quests) {
                 if (!config.quests_webhook || !config.canal_lixo_url) {
-                    alert(currentLang === 'en' ? "Error: You MUST provide the Quests Webhook URL and the Trash Channel URL to enable Global Video Quests!" : "Erro: Você DEVE fornecer a URL do Quests Webhook e do Canal Lixo para habilitar as Missões de Vídeo Globais (SOCKS5)!");
+                    showCustomAlert(currentLang === 'en' ? "Error: You MUST provide the Quests Webhook URL and the Trash Channel URL to enable Global Video Quests!" : "Erro: Você DEVE fornecer a URL do Quests Webhook e do Canal Lixo para habilitar as Missões de Vídeo Globais (SOCKS5)!", currentLang === 'en', false);
                     return;
                 }
             }
 
-            pywebview.api.salvar_configuracoes_ui(config);
+            if (config.discord) {
+                pywebview.api.verificar_discord().then(function(temDiscord) {
+                    if (!temDiscord) {
+                        let isEn = currentLang === 'en';
+                        let btnsHtml = `
+                            <div style='display:flex; justify-content:center; gap:10px; margin-top:20px; margin-bottom: 20px;'>
+                                <a href='https://canary.discord.com/' target='_blank' style='background:#eab308; color:#000; padding:10px 15px; border-radius:6px; font-weight:bold; text-decoration:none; font-size:0.85em; flex:1; box-shadow: 0 4px 10px rgba(234, 179, 8, 0.3);'>Canary</a>
+                                <a href='https://ptb.discord.com/' target='_blank' style='background:#ec4899; color:#fff; padding:10px 15px; border-radius:6px; font-weight:bold; text-decoration:none; font-size:0.85em; flex:1; box-shadow: 0 4px 10px rgba(236, 72, 153, 0.3);'>PTB</a>
+                            </div>`;
+                        let msg = isEn 
+                            ? "Discord is missing! Please install one of the supported versions:" + btnsHtml
+                            : "Discord não encontrado! Instale uma das versões suportadas:" + btnsHtml;
+                        showCustomAlert(msg, isEn, true);
+                        document.getElementById('cfg-discord').checked = false;
+                        return;
+                    }
+                    pywebview.api.salvar_configuracoes_ui(config);
+                });
+            } else {
+                pywebview.api.salvar_configuracoes_ui(config);
+            }
         }
         
         function updateSpeedDesc() {
@@ -688,6 +776,10 @@ class BotAPI:
         self.rodando = False
         RewardsCore.LOGGER = self.log_ui
         
+    def verificar_discord(self):
+        exe_path, _ = DiscordQuests.localizar_aplicativo_discord()
+        return bool(exe_path)
+        
     def log_ui(self, texto, tipo='info'):
         try:
             # Blinda quebras de linha e aspas para não quebrar a injeção do JavaScript
@@ -697,10 +789,11 @@ class BotAPI:
             try:
                 # Se tudo falhar, printa no console nativo ignorando emojis que o Windows não suporta
                 print(str(texto).encode('utf-8').decode('cp1252', 'ignore'))
-            except: pass
+            except Exception: pass
 
     def fechar_janela(self):
         self.parar()
+        GerenciadorBandeja.parar_tray()
         webview.windows[0].destroy()
         os._exit(0)
         
@@ -883,9 +976,45 @@ class BotAPI:
             resultados_html += f"<div class='mini-diag-item'><span style='color: var(--text-muted);'>{nome}</span><span style='color: {cor}; font-weight: bold;'>● {status}</span></div>"
 
         v_chrome = RewardsCore.obter_versao_chrome()
-        add_item("Chrome", f"v{v_chrome}" if v_chrome else "Error", 'green' if v_chrome else 'red')
+        
+        if not hasattr(self, 'chrome_stable_version'):
+            self.chrome_stable_version = None
+            self.chrome_version_checking = False
+
+        if self.chrome_stable_version is None and not self.chrome_version_checking:
+            self.chrome_version_checking = True
+            def bg_check():
+                try:
+                    import urllib.request, json
+                    req = urllib.request.Request("https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json", headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        data = json.loads(response.read().decode())
+                        self.chrome_stable_version = int(data['channels']['Stable']['version'].split('.')[0])
+                except Exception:
+                    self.chrome_stable_version = 0
+                self.rodar_diagnostico_ui()
+
+            import threading
+            threading.Thread(target=bg_check, daemon=True).start()
 
         cfg = RewardsCore.carregar_config()
+        ui_lang = cfg.get("language", "en")
+        
+        if v_chrome:
+            if self.chrome_stable_version is None:
+                txt_check = "Verificando..." if ui_lang == "pt" else "Checking..."
+                add_item("Chrome", f"v{v_chrome} ({txt_check})", 'yellow')
+            elif self.chrome_stable_version > 0:
+                if v_chrome < self.chrome_stable_version:
+                    txt_outdated = "Desatualizado" if ui_lang == "pt" else "Outdated"
+                    add_item("Chrome", f"v{v_chrome} ({txt_outdated})", 'red')
+                else:
+                    txt_updated = "Atualizado" if ui_lang == "pt" else "Updated"
+                    add_item("Chrome", f"v{v_chrome} ({txt_updated})", 'green')
+            else:
+                add_item("Chrome", f"v{v_chrome}", 'green')
+        else:
+            add_item("Chrome", "Error", 'red')
         
         if cfg.get("multi_account", "n") == "s":
             ext = ".exe" if platform.system().lower() == "windows" else ""
@@ -928,7 +1057,7 @@ class BotAPI:
                                     add_item("Discord Bot", f"Wait {cooldown_dias - dias_passados}d", 'yellow')
                                 else:
                                     add_item("Discord Bot", "Ready", 'green')
-                    except:
+                    except Exception:
                         add_item("Discord Bot", "Ready", 'green')
 
         html_seguro = json.dumps(resultados_html)
@@ -956,6 +1085,9 @@ def registrar_interceptador_os(api_instance):
         RewardsCore.ABORTAR_PROCESSO = True
         api_instance.rodando = False
         
+        # 2. Desmonta a bandeja para evitar ícones duplicados
+        try: GerenciadorBandeja.parar_tray()
+        except Exception: pass
         
         time.sleep(4)
         
@@ -975,13 +1107,13 @@ def registrar_interceptador_os(api_instance):
             global _hook_desligamento 
             _hook_desligamento = handler_desligamento
             ctypes.windll.kernel32.SetConsoleCtrlHandler(_hook_desligamento, True)
-        except: pass
+        except Exception: pass
     else:
         # Sinais nativos POSIX (Garante a compatibilidade com Linux e macOS)
         try:
             signal.signal(signal.SIGINT, encerramento_seguro)
             signal.signal(signal.SIGTERM, encerramento_seguro)
-        except: pass
+        except Exception: pass
 
 if __name__ == '__main__':
     import sys
@@ -1012,12 +1144,12 @@ if __name__ == '__main__':
 
     def interceptar_fechamento_principal():
         try: janela_principal.hide()
-        except: pass
+        except Exception: pass
         return False  
 
     def interceptar_fechamento_popup():
         try: GerenciadorBandeja.fechar_popup_sistema()
-        except: pass
+        except Exception: pass
         return False  
 
     janela_principal.events.closing += interceptar_fechamento_principal
@@ -1026,7 +1158,7 @@ if __name__ == '__main__':
     api_popup = MiniPanelAPI(janela_principal, janela_popup)
     # INCLUSÃO DO EXPOSE PARA O BOTÃO DE MARCHA (VELOCIDADE) FUNCIONAR
     try: janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch, api_popup.set_marcha)
-    except: janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch)
+    except Exception: janela_popup.expose(api_popup.fechar_popup, api_popup.kill_switch)
 
     GerenciadorBandeja.janela_principal = janela_principal
     GerenciadorBandeja.janela_popup = janela_popup
@@ -1070,7 +1202,7 @@ if __name__ == '__main__':
             
             # Desmonta o ícone da bandeja graciosamente
             try: GerenciadorBandeja.parar_tray()
-            except: pass
+            except Exception: pass
             
             # Força o sistema operacional a matar a raiz do programa
             import os
@@ -1085,11 +1217,13 @@ if __name__ == '__main__':
                 janela_popup.hide()
                 if modo_startup:
                     janela_principal.hide()
-            except: pass
+            except Exception: pass
 
         threading.Thread(target=ocultar_telas_seguro, daemon=True).start()
         
         if modo_startup:
+            try: janela_principal.evaluate_js("skipAnimation();")
+            except Exception: pass
             api.rodando = True
             GerenciadorBandeja.iniciar_cronometro()
             # Chama o coordenador em vez de lançar as threads soltas

@@ -151,7 +151,18 @@
         "discord_success_total": "[DISCORD] PROCESSO TOTAL FINALIZADO COM SUCESSO!",
         "discord_cooldown": "[DISCORD] Cooldown ativo. Pulando.",
         "discord_not_found": "[DISCORD] ERRO: App nao encontrado.",
-        "discord_loop_error": "[DISCORD] Erro: {0}"
+        "discord_loop_error": "[DISCORD] Erro: {0}",
+        "4g_mesmo_ip": "   [!] A operadora devolveu o mesmo IP. Forçando nova rotação...",
+        "bing_visual_concluida": "[BING] Missão de pesquisa visual já concluída ou ausente.",
+        "bing_visual_verificando": "[BING] Retornando ao dashboard para verificar se a missão visual completou...",
+        "bing_visual_tentativas_esgotadas": "[BING] Missão visual tentada 3 vezes sem êxito de marcação, seguindo em frente.",
+        "bing_ignorado_limites_zerados": "\n[SYSTEM] Limites de pesquisa zerados e painel desativado. Ignorando bot do Bing.",
+        "discord_abortado_salvo": "[INFO] Bot pausado manualmente pelo Kill Switch. O progresso foi salvo.",
+        "star_modo_cafe": "\n[STAR ENGINE] ☕ INICIANDO O MODO CAFÉ (Navegação Orgânica Ociosa)...",
+        "star_turbo_ativado": "[STAR ENGINE] Marcha Turbo ativada. Pulando o Modo Café.",
+        "star_chrono_gating": "[STAR ENGINE] Chrono-Gating: Iniciando hibernação massiva entre blocos.",
+        "star_meta_pc_atingida": "   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.",
+        "star_meta_mob_atingida": "   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco."
     },
     "en": {
         "janela_titulo": "title FPGAMESBR Rewards",
@@ -305,6 +316,17 @@
         "discord_success_total": "[DISCORD] TOTAL PROCESS FINISHED SUCCESSFULLY!",
         "discord_cooldown": "[DISCORD] Cooldown active. Skipping for now.",
         "discord_not_found": "[DISCORD] ERROR: App not found.",
-        "discord_loop_error": "[DISCORD] Error: {0}"
+        "discord_loop_error": "[DISCORD] Error: {0}",
+        "4g_mesmo_ip": "   [!] The carrier returned the same IP. Forcing new rotation...",
+        "bing_visual_concluida": "[BING] Visual search mission already completed or missing.",
+        "bing_visual_verificando": "[BING] Returning to dashboard to check if the visual mission completed...",
+        "bing_visual_tentativas_esgotadas": "[BING] Visual mission attempted 3 times without successful marking, moving on.",
+        "bing_ignorado_limites_zerados": "\n[SYSTEM] Search limits are zero and dashboard is disabled. Ignoring Bing bot.",
+        "discord_abortado_salvo": "[INFO] Bot manually paused by Kill Switch. Progress has been saved.",
+        "star_modo_cafe": "\n[STAR ENGINE] ☕ STARTING COFFEE MODE (Idle Organic Browsing)...",
+        "star_turbo_ativado": "[STAR ENGINE] Turbo Gear activated. Skipping Coffee Mode.",
+        "star_chrono_gating": "[STAR ENGINE] Chrono-Gating: Starting massive hibernation between blocks.",
+        "star_meta_pc_atingida": "   [STAR ENGINE] PC Goal already reached. Skipping block.",
+        "star_meta_mob_atingida": "   [STAR ENGINE] Mobile Goal already reached. Skipping block."
     }
 }

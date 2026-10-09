@@ -138,7 +138,7 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
     Abre sites populares para gerar tráfego orgânico e cookies não relacionados à Microsoft,
     mantendo a janela ativa por muito tempo
     """
-    LOGGER("\n[STAR ENGINE] ☕ INICIANDO O MODO CAFÉ (Navegação Orgânica Ociosa)...", "warning")
+    LOGGER(t("star_modo_cafe"), "warning")
     d_cafe = None
     try:
         identidade_pc = RewardsCore.obter_fingerprint(nome_perfil, 'pc')
@@ -187,7 +187,7 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
                 if RewardsCore.ABORTAR_PROCESSO: break
                 try:
                     d_cafe.execute_script("window.scrollBy(0, Math.random() * 800 + 200);")
-                except: pass
+                except Exception: pass
                 RewardsCore.smart_sleep(60.0, 60.0) # Dorme 1 minuto monitorando a flag de aborto
                 minutos_gastos += 1
                 
@@ -196,7 +196,7 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
     finally:
         if d_cafe: 
             try: d_cafe.quit()
-            except: pass
+            except Exception: pass
         time.sleep(4) # FOLGA PARA O WINDOWS LIMPAR A RAM ANTES DO PRÓXIMO CHUNK
 
 
@@ -254,11 +254,11 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
         LOGGER(f"\n[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
         
         if acao == "MODO_CAFE" and RewardsCore.SPEED == "turbo":
-            LOGGER("[STAR ENGINE] Marcha Turbo ativada. Pulando o Modo Café.", "warning")
+            LOGGER(t("star_turbo_ativado"), "warning")
             continue
             
         if check_extended_days(cfg) and i < len(acoes) - 1 and RewardsCore.SPEED != "turbo":
-            LOGGER("[STAR ENGINE] Chrono-Gating: Iniciando hibernação massiva entre blocos.", "info")
+            LOGGER(t("star_chrono_gating"), "info")
             RewardsCore.smart_sleep(3600.0, 10800.0, cancelavel_por_turbo=True)
         
         if acao == "TAREFAS_DASHBOARD":
@@ -274,13 +274,13 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil): return 
                 RewardsCore.limpar_todas_as_missoes(d_task)
                 try: RewardsCore.fazer_pesquisa_visual(d_task)
-                except: pass
+                except Exception: pass
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
             finally:
                 if d_task: 
                     try: d_task.quit()
-                    except: pass
+                    except Exception: pass
                 time.sleep(5) # APENAS FOLGA, SEM TASKKILL
                 
         elif acao == "PC_CHUNK":
@@ -296,14 +296,14 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 if faltam > 0:
                     qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6)) if pc_chunks_restantes > 1 else faltam
                     if qtd > 0: _fazer_lote_pesquisas(d_pc, qtd, banco, "pc")
-                else: LOGGER("   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.", "success")
+                else: LOGGER(t("star_meta_pc_atingida"), "success")
                 pc_chunks_restantes -= 1
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha no Bloco PC: {e}", "error")
             finally:
                 if d_pc: 
                     try: d_pc.quit()
-                    except: pass
+                    except Exception: pass
                 time.sleep(5)
                 
         elif acao == "MOB_CHUNK":
@@ -320,14 +320,14 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 if faltam > 0:
                     qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6)) if mob_chunks_restantes > 1 else faltam
                     if qtd > 0: _fazer_lote_pesquisas(d_mob, qtd, banco, "mobile")
-                else: LOGGER("   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco.", "success")
+                else: LOGGER(t("star_meta_mob_atingida"), "success")
                 mob_chunks_restantes -= 1
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha no Bloco Mobile: {e}", "error")
             finally:
                 if d_mob: 
                     try: d_mob.quit()
-                    except: pass
+                    except Exception: pass
                 time.sleep(5)
                 
         elif acao == "MODO_CAFE":

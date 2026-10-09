@@ -35,9 +35,9 @@ class MiniPanelAPI:
         
         # 3. Destrói as janelas e corta o processo na raiz
         try: self.janela_popup.destroy()
-        except: pass
+        except Exception: pass
         try: self.janela_principal.destroy()
-        except: pass
+        except Exception: pass
         os._exit(0)
 
     def mudar_marcha(self, nova_marcha):
@@ -85,12 +85,12 @@ class SysTrayApp:
                     x = tela.width - 340 
                     y = tela.height - 380 
                     self.janela_popup.move(x, y)
-            except: pass
+            except Exception: pass
             
             # Avisa o JS para desarmar o blur ANTES de mostrar a janela
             try:
                 self.janela_popup.evaluate_js("reiniciarFoco();")
-            except: pass
+            except Exception: pass
 
             self.janela_popup.show()
             self.janela_popup.restore()
@@ -99,17 +99,17 @@ class SysTrayApp:
             # Rearma a carência de foco
             try:
                 self.janela_popup.evaluate_js("armarAutoClose();")
-            except: pass
+            except Exception: pass
 
     def fechar_popup_sistema(self):
         if self.janela_popup and self.popup_aberto:
             # Desarma o blur no JS imediatamente para evitar conflitos de fechamento
             try:
                 self.janela_popup.evaluate_js("reiniciarFoco();")
-            except: pass
+            except Exception: pass
 
             try: self.janela_popup.move(-2000, -2000)
-            except: pass
+            except Exception: pass
             self.janela_popup.hide()
             self.popup_aberto = False
             self.ultimo_toggle = time.time()
@@ -129,10 +129,10 @@ class SysTrayApp:
         self.parar_tray()
         if self.janela_popup:
             try: self.janela_popup.destroy()
-            except: pass
+            except Exception: pass
         if self.janela_principal:
             try: self.janela_principal.destroy()
-            except: pass
+            except Exception: pass
         os._exit(0)
 
     def iniciar_tray_em_background(self):
@@ -146,13 +146,13 @@ class SysTrayApp:
                 imagem = Image.open(caminho_icone)
             else:
                 imagem = self.gerar_icone_emergencia()
-        except:
+        except Exception:
             imagem = self.gerar_icone_emergencia()
 
         try:
             cfg = RewardsCore.carregar_config()
             lang = cfg.get("language", "pt")
-        except:
+        except Exception:
             lang = "pt"
             
         lbl_main = "Open Main Bot" if lang == "en" else "Abrir Bot Principal"

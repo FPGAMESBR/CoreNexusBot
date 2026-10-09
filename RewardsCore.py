@@ -1,6 +1,5 @@
 import re
 import time
-import datetime
 import random
 import winreg
 import locale
@@ -13,7 +12,7 @@ import stat
 import shutil
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -29,7 +28,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
 
 def detectar_idioma():
     """Descobre o idioma do Windows. Retorna 'pt' para português, senão 'en'."""
@@ -37,7 +35,7 @@ def detectar_idioma():
         idioma_so, _ = locale.getdefaultlocale()
         if idioma_so and idioma_so.lower().startswith('pt'):
             return "pt"
-    except:
+    except Exception:
         pass
     return "en"
 
@@ -247,6 +245,11 @@ ARQUIVO_HISTORICO = BASE_DIR / "historic.json"
 ARQUIVO_LOG = BASE_DIR / "Exe.json"
 ARQUIVO_CONFIG = BASE_DIR / "RewardsConfig.json"
 
+logs = BASE_DIR / "logs"
+logs.mkdir(exist_ok=True)
+START_TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+RUN_LOG_PATH = logs / f"run_{START_TIME_STR}.txt"
+RUN_LOG_PATH.touch(exist_ok=True)
 def update_ui(modulo, status, porcentagem, total_segundos=0):
     try:
         import webview
@@ -330,7 +333,7 @@ def carregar_config():
 
 try:
     SPEED = carregar_config().get("speed_mode", "normal")
-except:
+except Exception:
     SPEED = "normal"
 
 def obter_fingerprint(nome_perfil, tipo):
@@ -400,11 +403,7 @@ def LOGGER(*args, **kwargs):
         from datetime import datetime
         import re
         texto_limpo = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', texto)
-        hj = datetime.now().strftime("%Y-%m-%d")
-        log_dir = BASE_DIR / "Logs"
-        log_dir.mkdir(exist_ok=True)
-        log_path = log_dir / f"session_{hj}.log"
-        with open(log_path, "a", encoding="utf-8") as f:
+        with open(RUN_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {texto_limpo}\n")
     except Exception:
         pass
@@ -424,7 +423,7 @@ def localizar_ip_celular():
                 match_ip = re.search(r"IPv4.+?: (\d+\.\d+\.\d+\.\d+)", bloco)
                 if match_ip:
                     return match_ip.group(1)
-    except: pass
+    except Exception: pass
     return None
 
 def rotacionar_ip_celular():
@@ -447,7 +446,7 @@ def rotacionar_ip_celular():
             LOGGER(t('4g_rotacao_concluida'))
             return # Sucesso! Sai da função.
             
-        LOGGER("   [!] A operadora devolveu o mesmo IP. Forçando nova rotação...")
+        LOGGER(t("4g_mesmo_ip"))
 
 def transferir_dados(origem, destino):
     try:
@@ -455,7 +454,7 @@ def transferir_dados(origem, destino):
             dados = origem.recv(8192)
             if not dados: break
             destino.sendall(dados)
-    except: pass
+    except Exception: pass
     finally:
         origem.close()
         destino.close()
@@ -479,7 +478,7 @@ def tratar_cliente(cliente_socket, ip_celular):
             threading.Thread(target=transferir_dados, args=(servidor_remoto, cliente_socket), daemon=True).start()
         else:
             cliente_socket.close()
-    except:
+    except Exception:
         cliente_socket.close()
 
 def iniciar_proxy_background(ip_celular):
@@ -496,7 +495,7 @@ def iniciar_proxy_background(ip_celular):
                 try:
                     cliente, _ = servidor.accept()
                     threading.Thread(target=tratar_cliente, args=(cliente, ip_celular), daemon=True).start()
-                except: break
+                except Exception: break
                 
         threading.Thread(target=aceitar_conexoes, daemon=True).start()
         PROXY_RODANDO = True
@@ -589,7 +588,7 @@ def limpar_todas_as_missoes(driver):
                     driver.get(pagina)
                     from selenium.webdriver.support.ui import WebDriverWait
                     try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-                    except: pass
+                    except Exception: pass
                     time.sleep(random.uniform(5.0, 8.0)) 
                     
                     painel_carregou = driver.execute_script("""
@@ -699,7 +698,7 @@ def limpar_todas_as_missoes(driver):
                             btn_start = espera_quiz.until(EC.element_to_be_clickable((By.ID, "rqStartQuiz")))
                             btn_start.click()
                             time.sleep(3)
-                        except: pass
+                        except Exception: pass
                         
                         for _ in range(12):
                             if ABORTAR_PROCESSO: break
@@ -707,8 +706,8 @@ def limpar_todas_as_missoes(driver):
                                 opt = driver.find_element(By.CSS_SELECTOR, ".rqOption, .btOption, .b_cards")
                                 opt.click()
                                 time.sleep(random.uniform(1.5, 3.0))
-                            except: break
-                    except: pass
+                            except Exception: break
+                    except Exception: pass
                     
                     driver.close()
                     driver.switch_to.window(principal)
@@ -926,7 +925,7 @@ def fazer_pesquisa_visual(driver):
             for tentativa in range(3):
                 driver.get("https://rewards.bing.com/dashboard")
                 try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-                except: pass
+                except Exception: pass
                 time.sleep(6)
                 
                 estado = driver.execute_script("""
@@ -939,6 +938,21 @@ def fazer_pesquisa_visual(driver):
                         let card = c.closest('.ds-card-sec, .mee-reward-card');
                         if (card && (card.innerText.toLowerCase().includes('pesquisa visual') || card.innerText.toLowerCase().includes('visual search'))) {
                             return 'CONCLUIDA';
+                        }
+                    }
+                    let pTags = document.querySelectorAll('p, h3, div');
+                    for (let p of pTags) {
+                        let t = (p.innerText || '').toLowerCase().trim();
+                        if (t === 'pesquisa visual' || t === 'visual search') {
+                            let btn = p.closest('button, a, [role="button"]');
+                            if (btn) {
+                                let btnText = btn.innerText.toLowerCase();
+                                if (btnText.includes('1/1') || btnText.includes('concluída') || btnText.includes('completed')) {
+                                    return 'CONCLUIDA';
+                                } else if (btnText.includes('0/1')) {
+                                    return 'PENDENTE';
+                                }
+                            }
                         }
                     }
                     return 'PENDENTE';
@@ -960,7 +974,7 @@ def fazer_pesquisa_visual(driver):
                 LOGGER(f"[BING] Interface Visual nao validada no painel. Retentando (Tentativa {tentativa+1}/3)...", "warning")
                 
             if not sucesso_dashboard:
-                LOGGER("[BING] Missao de pesquisa visual ja concluida ou ausente.", "info")
+                LOGGER(t("bing_visual_concluida"), "info")
                 return
             
             # 1. Abre o Flyout lateral clicando no card principal (Novo padrão da Microsoft)
@@ -985,7 +999,7 @@ def fazer_pesquisa_visual(driver):
             """)
             
             try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-            except: pass
+            except Exception: pass
             time.sleep(6) 
     
             # 3. GERA A IMAGEM E FAZ A PESQUISA DIRETAMENTE PELA URL (Bypassa o bloqueio do Enter)
@@ -997,9 +1011,9 @@ def fazer_pesquisa_visual(driver):
             
             LOGGER(t('visual_img_ok').format(url_imagem_aleatoria), "info")
             time.sleep(12)
-            LOGGER("[BING] Retornando ao dashboard para verificar se a missao visual completou...", "info")
+            LOGGER(t("bing_visual_verificando"), "info")
             
-        LOGGER("[BING] Missao visual tentada 3 vezes sem exito de marcacao, seguindo em frente.", "warning")
+        LOGGER(t("bing_visual_tentativas_esgotadas"), "warning")
 
     except Exception as e:
         LOGGER(t('visual_erro_fatal').format(str(e)[:80]), "error")
@@ -1074,7 +1088,7 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
     try:
         lock_file = caminho_perfil / "SingletonLock"
         if lock_file.exists(): lock_file.unlink()
-    except: pass
+    except Exception: pass
     
     opts = uc.ChromeOptions()
     opts.add_argument(f"--user-data-dir={caminho_perfil}")
@@ -1090,6 +1104,7 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
     opts.add_argument("--disable-blink-features=Attestation,AutomationControlled")
     opts.add_argument("--no-first-run")
     opts.add_argument("--no-default-browser-check")
+    opts.add_argument("--simulate-outdated-no-au='Tue, 31 Dec 2099 23:59:59 GMT'")
     
     modo_invisivel = (oculto == 's') and (not forcar_visivel)
     
@@ -1131,9 +1146,17 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
 
     for tentativa in range(3):
         try:
-            driver = uc.Chrome(options=opts, use_subprocess=True)
+            v_atual = obter_versao_chrome()
+            driver = uc.Chrome(options=opts, use_subprocess=True, version_main=v_atual)
             break 
         except Exception as e:
+            if "SessionNotCreated" in str(type(e).__name__) or "session not created" in str(e).lower():
+                try:
+                    import shutil
+                    appdata = os.environ.get('APPDATA', '')
+                    if appdata:
+                        shutil.rmtree(os.path.join(appdata, 'undetected_chromedriver'), ignore_errors=True)
+                except Exception: pass
             LOGGER(t('tentativa_chrome').format(tentativa+1))
             time.sleep(3)
             
@@ -1145,7 +1168,7 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
     # Força a janela a saltar para frente do monitor
     if not modo_invisivel:
         try: driver.maximize_window()
-        except: pass
+        except Exception: pass
 
     if tipo == 'mobile' and identidade_ua != "default_pc":
         driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": identidade_ua, "platform": "MacIntel" if "iPhone" in identidade_ua else "Linux"})
@@ -1184,14 +1207,14 @@ def modo_configuracao(nome_perfil):
         for i in range(600):
             try:
                 if not d.window_handles: break
-            except: break 
+            except Exception: break 
             time.sleep(1)
     except Exception as e:
         LOGGER(f"{t('modo_config_nota')} {e}")
     finally:
         try:
             if d: d.quit()
-        except: pass
+        except Exception: pass
     LOGGER(f"{t('modo_config_salvo')} {nome_perfil}!")
 
     
@@ -1282,7 +1305,7 @@ def limpar_processos_zumbis():
         else:
             subprocess.run("pkill -9 -f chromedriver", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(1)
-    except: 
+    except Exception: 
         pass
 
 
@@ -1293,7 +1316,7 @@ def iniciar_ciclo_farm():
         
         # CHECAGEM ADICIONADA: Se não tem limite_pc, limite_mobile e nem fazer_tarefas, não iniciar Bing
         if int(cfg.get('limite_pc', 0)) == 0 and int(cfg.get('limite_mobile', 0)) == 0 and cfg.get('fazer_tarefas', 'n') == 'n':
-            LOGGER("\n[SYSTEM] Limites de pesquisa zerados e painel desativado. Ignorando bot do Bing.", "info")
+            LOGGER(t("bing_ignorado_limites_zerados"), "info")
             update_ui("bing", "Ignorado", 100)
             return
             
@@ -1336,7 +1359,7 @@ def iniciar_ciclo_farm():
     except Exception as e:
         # GERADOR DE CRASH LOG (A "Caixa Preta")
         data_hora = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log_path = BASE_DIR / f"CRASH_LOG_{data_hora}.txt"
+        log_path = logs / f"crash_{data_hora}.txt"
         
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"=== REWARD BOT CRASH REPORT ===\n")
@@ -1356,7 +1379,7 @@ def registrar_data_execucao(modulo):
     if arquivo.exists():
         with open(arquivo, 'r', encoding='utf-8') as f:
             try: dados = json.load(f)
-            except: pass
+            except Exception: pass
     
     # Salva apenas a string da data mais recente, apagando a anterior
     dados[modulo] = hoje
@@ -1370,7 +1393,7 @@ def verificar_se_rodou_hoje(modulo, dias_cooldown=0):
     
     with open(arquivo, 'r', encoding='utf-8') as f:
         try: dados = json.load(f)
-        except: return False
+        except Exception: return False
         
     ultimo_uso = dados.get(modulo, "")
     
@@ -1384,7 +1407,7 @@ def verificar_se_rodou_hoje(modulo, dias_cooldown=0):
         if (hoje - data_salva).days >= dias_cooldown:
             return False # Já passou o tempo, pode rodar
         return True # Ainda está no cooldown, não roda
-    except:
+    except Exception:
         return False
         
 
@@ -1400,6 +1423,6 @@ def verificar_conta_suspensa(driver, nome_perfil):
             LOGGER(msg, "error")
             enviar_notificacao(msg)
             return True
-    except:
+    except Exception:
         pass
     return False

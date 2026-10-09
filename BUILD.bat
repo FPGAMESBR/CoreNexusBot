@@ -3,7 +3,7 @@ chcp 65001 >nul
 color 0a
 echo.
 echo    ═══════════════════════════════════════════════════════════════════
-echo     CORE NEXUS v3.2.1 - AUTO BUILD SCRIPT
+echo     CORE NEXUS - AUTO BUILD SCRIPT
 echo    ═══════════════════════════════════════════════════════════════════
 
 echo.
@@ -45,7 +45,7 @@ echo    [INFO] Starting build process...
 echo    This may take a few minutes depending on your system.
 echo.
 
-python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus v3.2.1" --icon="rewards.ico" --add-data "rewards.ico;." --add-data "locales.json;." --version-file="version.txt" AppGUI.py
+python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico;." --add-data "locales.json;." --version-file="version.txt" AppGUI.py
 
 if errorlevel 1 (
     echo.
@@ -59,9 +59,9 @@ echo    BUILD COMPLETE!
 echo    ═══════════════════════════════════════════════════════════════════
 echo.
 
-if exist "dist\Core Nexus v3.2.1.exe" (
+if exist "dist\Core Nexus.exe" (
     echo    [SUCCESS] The application executable is located at:
-    echo    dist\Core Nexus v3.2.1.exe
+    echo    dist\Core Nexus.exe
     echo.
 )
 

@@ -595,7 +595,7 @@ def iniciar_farm_discord():
                 try:
                     exp_date = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
                     if exp_date < datetime.now(timezone.utc): return False
-                except: pass
+                except Exception: pass
                 
             t_config = cfg_q.get('task_config') or cfg_q.get('taskConfig') or cfg_q.get('task_config_v2') or cfg_q.get('taskConfigV2') or cfg_q
             tasks = t_config.get('tasks', {})
@@ -745,14 +745,15 @@ def iniciar_farm_discord():
 
             processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
-            # FASE 4: Workaround Headless (Limbo Renderização Fix)
-            if modo_oculto:
-                time.sleep(3)
-                try: processo.kill()
-                except: pass
-                if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                time.sleep(2)
-                processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # FASE 4: Workaround JS Boot/Headless (Limbo Renderização Fix)
+            # Ao iniciar o PC, o Discord pode ficar num estado zombie. Fechamos forçosamente a janela recém-aberta e reabrimos.
+            time.sleep(4)
+            try: processo.kill()
+            except Exception: pass
+            if platform.system().lower() == "windows": 
+                subprocess.run(f"taskkill /F /IM \"{exe_name}\" /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(3)
+            processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             porta_aberta = False
             for _ in range(60): 
@@ -760,12 +761,12 @@ def iniciar_farm_discord():
                 try:
                     urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2)
                     porta_aberta = True; break
-                except: time.sleep(2)
+                except Exception: time.sleep(2)
 
             if not porta_aberta:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_timeout_9222"))
                 try: processo.kill()
-                except: pass
+                except Exception: pass
                 continue
             
             from selenium.webdriver.chrome.options import Options
@@ -794,7 +795,7 @@ def iniciar_farm_discord():
             if not driver:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_selenium_err"))
                 try: processo.kill()
-                except: pass
+                except Exception: pass
                 continue
 
             janela_correta = None
@@ -806,7 +807,7 @@ def iniciar_farm_discord():
                         if any(x in driver.current_url.lower() for x in ["discord.com/app", "discord.com/channels", "discord.com/login"]):
                             janela_correta = handle; break
                     if janela_correta: break
-                except: pass
+                except Exception: pass
                 time.sleep(2)
                 
             if not janela_correta:
@@ -814,9 +815,9 @@ def iniciar_farm_discord():
                 try:
                     driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
                     time.sleep(4); driver.quit() 
-                except: pass
+                except Exception: pass
                 try: processo.kill()
-                except: pass
+                except Exception: pass
                 continue
                 
             # BYPASS GLOBAL DA PAGE VISIBILITY API
@@ -839,13 +840,13 @@ def iniciar_farm_discord():
                         document.addEventListener('blur', e => e.stopImmediatePropagation(), true);
                     """
                 })
-            except: pass
+            except Exception: pass
                 
             for _ in range(15):
                 if RewardsCore.ABORTAR_PROCESSO: return
                 try:
                     if driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';"): break
-                except: pass
+                except Exception: pass
                 time.sleep(2)
 
             # --- ISOLAMENTO ABSOLUTO DE CACHE: EXTRACT OU INJECT TOKEN ---
@@ -860,13 +861,13 @@ def iniciar_farm_discord():
                     """)
                     if global_discord_token:
                         RewardsCore.LOGGER(RewardsCore.t("discord_session_cloned"))
-                except: pass
+                except Exception: pass
                 
                 if fase.get("token_only"):
                     try: driver.quit()
-                    except: pass
+                    except Exception: pass
                     try: processo.kill()
-                    except: pass
+                    except Exception: pass
                     if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     continue
 
@@ -881,7 +882,7 @@ def iniciar_farm_discord():
                         setTimeout(() => location.reload(), 500);
                     """)
                     time.sleep(4)
-                except: pass
+                except Exception: pass
 
             try:
                 logado = driver.execute_script("return window.location.pathname !== '/login';")
@@ -892,7 +893,7 @@ def iniciar_farm_discord():
                         try:
                             if driver.execute_script("return window.location.pathname !== '/login';"):
                                 time.sleep(10); break
-                        except: pass
+                        except Exception: pass
                         time.sleep(5); espera += 5
                     else:
                         if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_login_stuck"))
@@ -939,7 +940,7 @@ def iniciar_farm_discord():
                                 }
                             }
                         """)
-                except: pass
+                except Exception: pass
                 
                 # Dynamic Delay Handling com WebDriverWait
                 try:
@@ -949,23 +950,23 @@ def iniciar_farm_discord():
                             "document.querySelector('[class*=\"questTile\"]') !== null || document.querySelector('[class*=\"embed\"]') !== null;"
                         )
                     )
-                except:
+                except Exception:
                     pass
 
-                if RewardsCore.ABORTAR_PROCESSO: return
+                if RewardsCore.ABORTAR_PROCESSO: break
                 
                 try:
                     if canal_lixo and canal_lixo.startswith("http"):
                         if driver.execute_script("return window.location.pathname !== '/login';"): break
                     else:
                         if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
-                except: pass
+                except Exception: pass
                 
                 try: driver.refresh()
-                except: break
+                except Exception: break
                 time.sleep(5)
 
-            if RewardsCore.ABORTAR_PROCESSO: return
+            if RewardsCore.ABORTAR_PROCESSO: break
 
             ids_globais = fase.get("ids", [])
             quests_webhook_url = cfg.get("quests_webhook_url", "")
@@ -975,7 +976,7 @@ def iniciar_farm_discord():
             try: driver.execute_script(script_injetado)
             except Exception:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_webpack_err"))
-                return
+                break
             
             RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
             
@@ -985,7 +986,7 @@ def iniciar_farm_discord():
                 last_active_time = time.time()
                 
                 while True:
-                    if RewardsCore.ABORTAR_PROCESSO: return
+                    if RewardsCore.ABORTAR_PROCESSO: break
                     
                     time.sleep(2) 
                     
@@ -1029,9 +1030,9 @@ def iniciar_farm_discord():
                                 elif "REWARDS_KILL:ALL" in cmd:
                                     for dp, path in dummy_processes:
                                         try: dp.kill()
-                                        except: pass
+                                        except Exception: pass
                                         try: os.remove(path)
-                                        except: pass
+                                        except Exception: pass
                                     dummy_processes.clear()
                                     
                                 elif "REWARDS_PROGRESS:" in cmd:
@@ -1045,37 +1046,41 @@ def iniciar_farm_discord():
                                         tm = t_prog // 60; ts = t_prog % 60
                                         status_text = f"Jogando ({cm:02d}:{cs:02d} / {tm:02d}:{ts:02d})"
                                         RewardsCore.update_ui("discord", status_text, percent, total_segundos=t_prog)
-                                    except: pass
-                    except: pass
+                                    except Exception: pass
+                    except Exception: pass
                     
                     try:
                         if driver.execute_script("return window.discordQuestsDone === true;"): break
-                    except: break
+                    except Exception: break
                     
             except Exception as e:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_loop_error").format(str(e)[:100]))
                 
             for dp, path in dummy_processes:
                 try: dp.kill()
-                except: pass
+                except Exception: pass
                 try: os.remove(path)
-                except: pass
+                except Exception: pass
                 
             try:
                 driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
                 time.sleep(4); driver.quit() 
-            except: pass
+            except Exception: pass
             
             # Morte isolada: matar APENAS o processo do Discord que iniciamos, preservando o Bing.
             try: processo.kill()
-            except: pass
+            except Exception: pass
             
             if i < len(fases) - 1: 
                 for _ in range(7):
-                    if RewardsCore.ABORTAR_PROCESSO: return
+                    if RewardsCore.ABORTAR_PROCESSO: break
                     time.sleep(2)
+                if RewardsCore.ABORTAR_PROCESSO: break
 
+        RewardsCore.registrar_data_execucao("discord")
         if not RewardsCore.ABORTAR_PROCESSO:
-            RewardsCore.registrar_data_execucao("discord")
             RewardsCore.update_ui("discord", "Concluído!", 100)
             RewardsCore.LOGGER(RewardsCore.t("discord_success_total"))
+        else:
+            RewardsCore.update_ui("discord", "Abortado/Pausado (Progresso Salvo)", 100)
+            RewardsCore.LOGGER(RewardsCore.t("discord_abortado_salvo"))
