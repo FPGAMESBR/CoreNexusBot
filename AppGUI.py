@@ -1,4 +1,4 @@
-import webview
+import webview  # pyrefly: ignore [missing-import]
 import threading
 import socket
 import os
