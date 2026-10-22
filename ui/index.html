@@ -135,7 +135,7 @@
         
         .header-controls { display: flex; gap: 15px; margin-bottom: 20px; flex-shrink: 0; }
         
-        /* BOTOESÓ STYLISH CUSTOMIZADOSÓ */
+        /* BOTOES STYLISH CUSTOMIZADOS */
         .btn-stylish {
             padding: 1em 2em; border: none; border-radius: 5px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; color: var(--accent-blue); transition: all 500ms; font-size: 14px; position: relative; overflow: hidden; outline: 2px solid var(--accent-blue); background: rgba(14, 165, 233, 0.05); flex-grow: 1;
         }
@@ -168,7 +168,7 @@
         }
         .github-btn:hover { background: #e2e8f0; transform: scale(1.05); }
 
-        /* TERMINAL DE LOGSÓ */
+        /* TERMINAL DE LOGS */
         #terminal-log { 
             background: rgba(3, 7, 18, 0.9); padding: 20px; flex-grow: 1; border-radius: 12px; height: 100%;
             overflow-y: auto; border: 1px solid var(--border-color); font-family: 'Consolas', monospace;
@@ -179,7 +179,7 @@
         .log-warning { color: var(--accent-yellow); }
         .log-error { color: var(--accent-red); }
 
-        /* SETTINGSÓ GRID E COMPONENTESÓ */
+        /* SETTINGS GRID E COMPONENTES */
         .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-bottom: 30px; }
         .card { background-color: rgba(17, 24, 39, 0.95); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; }
         .card h3 { margin-top: 0; margin-bottom: 20px; font-size: 1.05em; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;}
@@ -208,7 +208,7 @@
         .btn-save { background: var(--accent-blue); color: #000; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 15px;}
         .btn-save:hover { background: var(--accent-hover); box-shadow: 0 0 12px rgba(14, 165, 233, 0.4); color: #fff;}
         
-        /* BOTAO STARTUP SEPARADO COM CLASSESÓ CLEAN */
+        /* BOTAO STARTUP SEPARADO COM CLASSES CLEAN */
         .btn-startup { padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid transparent; transition: 0.2s; }
         .btn-startup.startup-on { color: var(--accent-green); background: rgba(16, 185, 129, 0.1); border-color: var(--accent-green); }
         .btn-startup.startup-on:hover { background: rgba(16, 185, 129, 0.2); }
@@ -351,7 +351,7 @@
                     </div>
                 </div>
 
-                <!-- ABA CONTASÓ -->
+                <!-- ABA CONTAS -->
                 <div id="accounts" class="tab-content">
                     <div class="card" style="margin-bottom: 20px;">
                         <h3>Active Profiles</h3>
@@ -364,7 +364,7 @@
                     </div>
                 </div>
 
-                <!-- ABA SETTINGSÓ -->
+                <!-- ABA SETTINGS -->
                 <div id="settings" class="tab-content">
                     <div class="settings-grid">
                         <div class="card">
@@ -403,7 +403,7 @@
                                 <label class="switch"><input type="checkbox" id="cfg-headless"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group">
-                                <label>Do Dashboard Tasks (MSÓ Rewards)</label>
+                                <label>Do Dashboard Tasks (MS Rewards)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-tasks"><span class="slider"></span></label>
                             </div>
 
@@ -466,7 +466,7 @@
                             <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Toggle invisible boot with OS.</p>
                             
                             <!-- Botao Startup com Classes Limpas -->
-                            <button id="btn-startup" class="btn-startup startup-off" onclick="pywebview.api.toggle_startup()">OSÓ STARTUP: CHECKING...</button>
+                            <button id="btn-startup" class="btn-startup startup-off" onclick="pywebview.api.toggle_startup()">INICIAR COM O WINDOWS (VERIFICANDO...)</button>
                             
                             <button class="btn-save" style="margin-top: 30px;" onclick="salvarConfigUI()">Save All Settings</button>
                         </div>
@@ -507,15 +507,15 @@
             overlay.querySelector('.custom-alert-box').style.transform = 'translateY(-20px)';
             setTimeout(() => { overlay.style.display = 'none'; }, 300);
         }
-        const TRANSLATIONSÓ = {
+        const TRANSLATIONS = {
             "en": {
                 title: "What's new in [APP_VERSION]",
-                item1: "🛡️ Hardened Stability: Safe OSÓ shutdown interceptor & bug fixes.",
+                item1: "🛡️ Hardened Stability: Safe OS shutdown interceptor & bug fixes.",
                 item2: "🌐 Chrome Sync: Live API checks against Google's stable releases.",
                 item3: "⚙️ Discord Engine: Boot workaround rewritten for reliable execution.",
                 btnGit: "View on GitHub",
-                on: "OSÓ STARTUP (ON)",
-                off: "OSÓ STARTUP (OFF)",
+                on: "WINDOWS STARTUP: ON",
+                off: "WINDOWS STARTUP: OFF",
                 cooldownLabel: "Discord Quests Cooldown (Hours):",
                 globalQuestsLabel: "Force Global Quests (If region is unsupported)"
             },
@@ -525,8 +525,8 @@
                 item2: "🌐 Chrome Sync: Verificador ao vivo com a API oficial do Google.",
                 item3: "⚙️ Motor Discord: Solução de arranque reescrita para evitar loops.",
                 btnGit: "Ver no GitHub",
-                on: "OSÓ STARTUP (ON)",
-                off: "OSÓ STARTUP (OFF)",
+                on: "WINDOWS STARTUP: ON",
+                off: "WINDOWS STARTUP: OFF",
                 cooldownLabel: "Pausa entre Quests do Discord (Horas):",
                 globalQuestsLabel: "Forçar Quests Globais (Se sua região não suporta)"
             }
@@ -625,34 +625,50 @@
 
         function mudarIdiomaUI(forceLang) {
             if (forceLang) currentLang = forceLang;
-            else currentLang = document.getElementById('cfg-lang').value;
-            
-            document.getElementById('update-title').innerText = TRANSLATIONS[currentLang].title;
-            document.getElementById('update-1').innerText = TRANSLATIONS[currentLang].item1;
-            document.getElementById('update-2').innerText = TRANSLATIONS[currentLang].item2;
-            document.getElementById('update-3').innerText = TRANSLATIONS[currentLang].item3;
-            if (updatePendente) {
-                document.getElementById('btn-github-text').innerText = currentLang === 'en' ? `Download ${updatePendente}` : `Baixar ${updatePendente}`;
-            } else {
-                document.getElementById('btn-github-text').innerText = TRANSLATIONS[currentLang].btnGit;
+            else {
+                let elLang = document.getElementById('cfg-lang');
+                if (elLang) currentLang = elLang.value;
             }
-            document.getElementById('label-cooldown').innerText = TRANSLATIONS[currentLang].cooldownLabel;
-            document.getElementById('label-global-quests').innerText = TRANSLATIONS[currentLang].globalQuestsLabel;
+            const dict = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang]) ? TRANSLATIONS[currentLang] : (TRANSLATIONS['pt'] || {});
+            
+            let elUpTitle = document.getElementById('update-title');
+            if (elUpTitle && dict.title) elUpTitle.innerText = dict.title;
+            let elUp1 = document.getElementById('update-1');
+            if (elUp1 && dict.item1) elUp1.innerText = dict.item1;
+            let elUp2 = document.getElementById('update-2');
+            if (elUp2 && dict.item2) elUp2.innerText = dict.item2;
+            let elUp3 = document.getElementById('update-3');
+            if (elUp3 && dict.item3) elUp3.innerText = dict.item3;
+
+            let elBtnGit = document.getElementById('btn-github-text');
+            if (elBtnGit) {
+                if (updatePendente) {
+                    elBtnGit.innerText = currentLang === 'en' ? `Download ${updatePendente}` : `Baixar ${updatePendente}`;
+                } else if (dict.btnGit) {
+                    elBtnGit.innerText = dict.btnGit;
+                }
+            }
+            let elCooldown = document.getElementById('label-cooldown');
+            if (elCooldown && dict.cooldownLabel) elCooldown.innerText = dict.cooldownLabel;
+            let elGlobalQuests = document.getElementById('label-global-quests');
+            if (elGlobalQuests && dict.globalQuestsLabel) elGlobalQuests.innerText = dict.globalQuestsLabel;
             
             let btnStartup = document.getElementById('btn-startup');
-            if (btnStartup.innerText !== "OSÓ STARTUP: CHECKING...") {
+            if (btnStartup) {
                 atualizarBotaoStartup(btnStartup.classList.contains('startup-on'));
             }
         }
 
         function atualizarBotaoStartup(isAtivo) {
             let btn = document.getElementById('btn-startup');
+            if (!btn) return;
+            const dict = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang]) ? TRANSLATIONS[currentLang] : (TRANSLATIONS['pt'] || {});
             if (isAtivo) {
                 btn.className = 'btn-startup startup-on';
-                btn.innerText = TRANSLATIONS[currentLang].on;
+                btn.innerText = dict.on || (currentLang === 'en' ? 'WINDOWS STARTUP: ON' : 'INICIAR COM O WINDOWS (LIGADO)');
             } else {
                 btn.className = 'btn-startup startup-off';
-                btn.innerText = TRANSLATIONS[currentLang].off;
+                btn.innerText = dict.off || (currentLang === 'en' ? 'WINDOWS STARTUP: OFF' : 'INICIAR COM O WINDOWS (DESLIGADO)');
             }
         }
 
@@ -733,11 +749,24 @@
             }
         }
         
+        function inicializarAplicacaoUI() {
+            try {
+                if (window.pywebview && window.pywebview.api) {
+                    pywebview.api.carregar_configuracoes_ui();
+                    pywebview.api.rodar_diagnostico_ui(); 
+                    pywebview.api.checar_atualizacao(); 
+                }
+            } catch(e) {
+                console.error("Erro na inicialização da UI:", e);
+            }
+        }
+
+        window.addEventListener('pywebviewready', () => {
+            setTimeout(inicializarAplicacaoUI, 150);
+        });
+
         window.addEventListener('DOMContentLoaded', () => { 
-            setTimeout(() => { 
-                pywebview.api.rodar_diagnostico_ui(); 
-                pywebview.api.checar_atualizacao(); 
-            }, 500); 
+            setTimeout(inicializarAplicacaoUI, 500); 
         });
     </script>
 </body>

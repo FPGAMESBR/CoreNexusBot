@@ -180,18 +180,21 @@ class BotAPI:
         self.rodar_diagnostico_ui()
 
     def carregar_configuracoes_ui(self):
-        cfg = RewardsCore.carregar_config()
-        webhook_seguro = json.dumps(cfg.get('webhook_url', ''))
-        quests_webhook_seguro = json.dumps(cfg.get('quests_webhook_url', ''))
-        canal_lixo_seguro = json.dumps(cfg.get('discord_trash_channel', ''))
-        lang = cfg.get("language", "pt")
-        
-        # Injeta o novo parâmetro cfg.get('discord_global_quests') no final da função JS
-        js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, {canal_lixo_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
-        
-        webview.windows[0].evaluate_js(js_cmd)
-        estado_startup = self.obter_status_startup()
-        webview.windows[0].evaluate_js(f"atualizarBotaoStartup({str(estado_startup).lower()})")
+        try:
+            cfg = RewardsCore.carregar_config()
+            webhook_seguro = json.dumps(cfg.get('webhook_url', ''))
+            quests_webhook_seguro = json.dumps(cfg.get('quests_webhook_url', ''))
+            canal_lixo_seguro = json.dumps(cfg.get('discord_trash_channel', ''))
+            lang = cfg.get("language", "pt")
+            
+            # Injeta o parâmetro cfg.get('discord_global_quests') no final da função JS
+            js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, {canal_lixo_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
+            
+            webview.windows[0].evaluate_js(js_cmd)
+            estado_startup = self.obter_status_startup()
+            webview.windows[0].evaluate_js(f"atualizarBotaoStartup({str(estado_startup).lower()})")
+        except Exception as e:
+            self.log_ui(f"Config load error: {e}", "error")
 
     def salvar_configuracoes_ui(self, dados_html):
         cfg_atual = RewardsCore.carregar_config()
@@ -286,6 +289,10 @@ class BotAPI:
 
         is_startup_active = self.obter_status_startup()
         add_item("Startup", "ON" if is_startup_active else "OFF", 'green' if is_startup_active else 'yellow')
+        try:
+            webview.windows[0].evaluate_js(f"atualizarBotaoStartup({str(is_startup_active).lower()})")
+        except Exception:
+            pass
 
         if cfg.get("do_discord", "n") != "s":
             add_item("Discord Bot", "Disabled", 'red')
