@@ -31,10 +31,10 @@ if [ $? -ne 0 ]; then
 fi
 
 echo -e "${GREEN}[SYSTEM]${NC} Checking required packages..."
-python3 -m pip install --upgrade selenium pywebview undetected-chromedriver requests pystray pillow >/dev/null 2>&1
+python3 -m pip install -r requirements.txt >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo -e "${YELLOW}[WARNING]${NC} Could not install all dependencies."
-    echo "Please run: pip install selenium pywebview undetected-chromedriver requests pystray pillow"
+    echo "Please run: pip install -r requirements.txt"
 fi
 
 echo -e "${GREEN}[SYSTEM]${NC} Cleaning up previous build files..."

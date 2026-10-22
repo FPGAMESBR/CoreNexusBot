@@ -30,10 +30,10 @@ if errorlevel 1 (
 )
 
 echo    [SYSTEM] Checking required packages...
-pip install selenium pywebview undetected-chromedriver requests pystray pillow >nul 2>&1
+pip install -r requirements.txt >nul 2>&1
 if errorlevel 1 (
     echo    [WARNING] Could not install all dependencies.
-    echo    Please run: pip install selenium pywebview undetected-chromedriver requests pystray pillow
+    echo    Please run: pip install -r requirements.txt
 )
 
 echo    [SYSTEM] Cleaning up previous build files...

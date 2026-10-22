@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core-nexus-bot"
+version = "3.2.2"
+description = "Automação avançada para Microsoft Rewards e Discord Quests"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "selenium>=4.20.0,<5.0.0",
+    "pywebview>=5.0.0",
+    "undetected-chromedriver>=3.5.5",
+    "requests>=2.31.0",
+    "pystray>=0.19.5",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
