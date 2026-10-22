@@ -32,7 +32,10 @@ from selenium.webdriver.common.action_chains import ActionChains
 def detectar_idioma():
     """Descobre o idioma do Windows. Retorna 'pt' para português, senão 'en'."""
     try:
-        idioma_so, _ = locale.getdefaultlocale()
+        try:
+            idioma_so = locale.getlocale()[0]
+        except Exception:
+            idioma_so = None
         if idioma_so and idioma_so.lower().startswith('pt'):
             return "pt"
     except Exception:
