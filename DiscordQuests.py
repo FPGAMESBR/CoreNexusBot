@@ -9,7 +9,6 @@ import shutil
 import tempfile
 import re
 import socket
-import tarfile
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service 
@@ -510,38 +509,6 @@ def bloquear_update_discord(exe_name):
             with open(settings_path, "w", encoding="utf-8") as f: json.dump(dados, f, indent=4)
             RewardsCore.LOGGER(RewardsCore.t("discord_update_blocker"))
     except Exception: pass
-
-def gerenciar_daemon_tor():
-    localappdata = os.environ.get('LOCALAPPDATA', '')
-    tor_base_dir = os.path.join(localappdata, "RewardBot", "Tor")
-    tor_exe = os.path.join(tor_base_dir, "tor", "tor.exe")
-    torrc_path = os.path.join(tor_base_dir, "torrc")
-
-    if not os.path.exists(tor_exe):
-        RewardsCore.LOGGER(RewardsCore.t("discord_tor_downloading"))
-        os.makedirs(tor_base_dir, exist_ok=True)
-        tar_url = "https://archive.torproject.org/tor-package-archive/torbrowser/13.5/tor-expert-bundle-windows-x86_64-13.5.tar.gz"
-        tar_path = os.path.join(tor_base_dir, "tor.tar.gz")
-        try:
-            urllib.request.urlretrieve(tar_url, tar_path)
-            with tarfile.open(tar_path, "r:gz") as tar:
-                tar.extractall(path=tor_base_dir)
-            os.remove(tar_path)
-            RewardsCore.LOGGER(RewardsCore.t("discord_tor_downloaded"))
-        except Exception as e:
-            RewardsCore.LOGGER(RewardsCore.t("discord_tor_error").format(str(e)))
-            return None
-
-    if not os.path.exists(torrc_path):
-        with open(torrc_path, "w") as f:
-            f.write("SocksPort 9060\nAvoidDiskWrites 1\n")
-
-    return tor_exe, torrc_path
-
-def verificar_porta_tor():
-    try:
-        with socket.create_connection(("127.0.0.1", 9060), timeout=1): return True
-    except OSError: return False
 
 def iniciar_farm_discord():
     import threading

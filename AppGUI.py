@@ -853,15 +853,11 @@ class BotAPI:
         sistema = platform.system().lower()
         if sistema == "windows":
             subprocess.run("taskkill /F /T /IM chromedriver.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("taskkill /F /T /IM ping.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("taskkill /F /T /IM tor.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                    subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif sistema in ["linux", "darwin"]:
             subprocess.run("pkill -9 -f chromedriver", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("pkill -9 -f ping", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("pkill -9 -f tor", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("pkill -9 -f DiscordCanary", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                    subprocess.run("pkill -9 -f DiscordCanary", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run("pkill -9 -f DiscordPTB", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
         self.log_ui("All background drivers and proxies terminated gracefully.", "warning")
