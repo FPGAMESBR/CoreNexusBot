@@ -3,6 +3,13 @@ import random
 import traceback
 from datetime import datetime
 
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
+
 # Importamos as ferramentas do seu Core para reutilizar a inteligência base
 import RewardsCore
 from RewardsCore import wait_human, ghost_click, salvar_historico, LOGGER, t
@@ -32,11 +39,6 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
             except Exception: pass
             
             # Encontra a barra de pesquisa
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.common.keys import Keys
-            from selenium.common.exceptions import TimeoutException, NoSuchElementException
             
             espera = WebDriverWait(driver, 10)
             try: sb = espera.until(EC.element_to_be_clickable((By.ID, "sb_form_q")))
@@ -102,8 +104,7 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
                     if links and random.random() < chance_clique: 
                         alvo_clique = random.choice(links[:3])
                         janelas_antes = driver.window_handles 
-                        import selenium.webdriver
-                        selenium.webdriver.ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(1.0, 2.0)).click().perform()
+                        ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(1.0, 2.0)).click().perform()
                         time.sleep(5) 
                         
                         janelas_depois = driver.window_handles

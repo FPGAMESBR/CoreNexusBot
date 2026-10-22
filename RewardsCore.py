@@ -1,7 +1,7 @@
 import re
 import time
 import random
-import winreg
+# winreg importado condicionalmente em obter_versao_chrome
 import locale
 import json
 import os
@@ -291,16 +291,7 @@ def preparar_ambiente_adb():
     except Exception as e:
         LOGGER(t('adb_erro').format(e))
 
-def atualizar_lista_contas():
-    cfg = carregar_config()
-    if cfg.get("multi_account", "n") == "n":
-        return ["DefaultAccount"]
-        
-    BASE_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    pastas = [p.name for p in BASE_PROFILES_DIR.iterdir() if p.is_dir()]
-    if not pastas:
-        return ["DefaultAccount"]
-    return pastas
+# (Função atualizar_lista_contas definida abaixo com suporte ordenado)
 
 def carregar_config():
     """Carrega as configurações salvas ou cria um padrão de fábrica"""
@@ -543,21 +534,28 @@ def enviar_notificacao(mensagem):
     except Exception as e:
         LOGGER(t('erro_notificacao').format(e))
         
+_HISTORICO_CACHE = None
+
 def carregar_historico():
-    try:
-        if ARQUIVO_HISTORICO.exists():
-            with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-    except Exception: pass
-    return set()
+    global _HISTORICO_CACHE
+    if _HISTORICO_CACHE is None:
+        try:
+            if ARQUIVO_HISTORICO.exists():
+                with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
+                    _HISTORICO_CACHE = set(json.load(f))
+            else:
+                _HISTORICO_CACHE = set()
+        except Exception:
+            _HISTORICO_CACHE = set()
+    return _HISTORICO_CACHE
 
 def salvar_historico(termo):
-    historico = list(carregar_historico())
+    historico = carregar_historico()
     if termo not in historico:
-        historico.append(termo)
+        historico.add(termo)
         try:
             with open(ARQUIVO_HISTORICO, "w", encoding="utf-8") as f:
-                json.dump(historico, f, ensure_ascii=False, indent=4)
+                json.dump(list(historico), f, ensure_ascii=False, indent=4)
         except Exception: pass
 
 def limpar_excesso_historico():
@@ -807,112 +805,9 @@ def verificar_pesquisas_restantes(driver, tipo):
     return 20
 
 def realizar_pesquisas(driver, num, banco):
-    update_ui("bing", "Realizando Pesquisas...", 80)
-    num_real = random.choices([num, max(1, num - 1), max(1, num - 2)], weights=[0.6, 0.25, 0.15], k=1)[0]
-    LOGGER(t('executando_pesquisas').format(num_real))
-    amostra = random.sample(banco, min(num_real + 5, len(banco)))
-    
-    for i in range(num_real):
-        if ABORTAR_PROCESSO: break
-        try:
-            if (i + 1) % 10 == 0 and random.random() < 0.15:
-                try: driver.execute_script("window.localStorage.clear();")
-                except Exception: pass
-
-            origens_bing = [
-                "https://www.bing.com/?form=QBLH",         
-                "https://www.bing.com/?form=ANNTH1",       
-                "https://www.bing.com/?form=HDRSC1",       
-                "https://www.bing.com/?form=Z9FD1",        
-                "https://www.bing.com/"                    
-            ]
-            driver.get(random.choice(origens_bing))
-            try: driver.switch_to.window(driver.window_handles[0])
-            except Exception: pass
-            
-            espera = WebDriverWait(driver, 10)
-            try: sb = espera.until(EC.element_to_be_clickable((By.ID, "sb_form_q")))
-            except TimeoutException:
-                try: sb = driver.find_element(By.NAME, "q")
-                except NoSuchElementException:
-                    try: sb = driver.find_element(By.CLASS_NAME, "b_searchbox")
-                    except Exception: continue
-            
-            termo_base = amostra[i]
-            termo_final = gerar_termo_humanizado([termo_base], idioma=IDIOMA_GLOBAL)
-            LOGGER(f"({i+1}/{num_real}) {termo_final}")
-            salvar_historico(termo_base)
-            
-            # GHOST CLICK INTEGRADO
-            ghost_click(driver, sb, cliques=3) 
-            sb.send_keys(Keys.BACKSPACE)
-            time.sleep(random.uniform(0.1, 0.3))
-            
-            for letra in termo_final:
-                sb.send_keys(letra)
-                time.sleep(random.uniform(0.05, 0.20))
-            
-            if random.random() < 0.20: 
-                time.sleep(random.uniform(0.4, 0.9))
-                qtd_apagar = random.randint(3, min(10, len(termo_final)))
-                for _ in range(qtd_apagar):
-                    sb.send_keys(Keys.BACKSPACE)
-                    time.sleep(random.uniform(0.05, 0.15))
-                nova_palavra = random.choice([" online", " review", " hoje", " grátis", " preço"])
-                for letra in nova_palavra:
-                    sb.send_keys(letra)
-                    time.sleep(random.uniform(0.05, 0.15))
-                
-            wait_human(0.8, 2.5, long_pause_chance=0.0)
-            sb.send_keys(Keys.RETURN)
-            
-            espera_cooldown = random.uniform(8.0, 15.0)
-            LOGGER(f"   {t('aguardando_ponto').format(int(espera_cooldown))}")
-            time.sleep(espera_cooldown)
-            
-            try:
-                descer = random.randint(400, 1000)
-                driver.execute_script(f"window.scrollTo(0, {descer});")
-                wait_human(2.0, 4.5, long_pause_chance=0.0)
-                
-                if random.random() < 0.15:
-                    try:
-                        extra_elements = driver.find_elements(By.CSS_SELECTOR, ".b_expansionImage, .df_img, .b_vList")
-                        if extra_elements:
-                            alvo_extra = random.choice(extra_elements)
-                            webdriver.ActionChains(driver).move_to_element(alvo_extra).pause(random.uniform(0.5, 1.5)).perform()
-                            LOGGER(f"   {t('interacao_extra')}")
-                            wait_human(3.0, 8.0, long_pause_chance=0.0)
-                    except Exception: pass
-
-                links = driver.find_elements(By.CSS_SELECTOR, "h2 a, .b_algo h2 a")
-                if links and random.random() < 0.35: 
-                    alvo_clique = random.choice(links[:4])
-                    janelas_antes = driver.window_handles 
-                    webdriver.ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(0.5, 1.5)).click().perform()
-                    LOGGER(f"   {t('lendo_artigo')}")
-                    time.sleep(4) 
-                    
-                    janelas_depois = driver.window_handles
-                    if len(janelas_depois) > len(janelas_antes):
-                        nova_aba = [j for j in janelas_depois if j not in janelas_antes][0]
-                        principal = driver.current_window_handle
-                        driver.switch_to.window(nova_aba)
-                        wait_human(15.0, 40.0, long_pause_chance=0.2) 
-                        driver.close()
-                        driver.switch_to.window(principal) 
-                    else:
-                        wait_human(15.0, 40.0, long_pause_chance=0.2) 
-                        driver.back() 
-                else:
-                    if random.random() > 0.5:
-                        subir = descer - random.randint(150, 400)
-                        driver.execute_script(f"window.scrollTo(0, {subir});")
-            except Exception: pass
-        except Exception: 
-            LOGGER(f"   {t('erro_pesquisa')}")
-            wait_human(2.0, 5.0, long_pause_chance=0.0)
-
+    """Delega a execução de buscas para o BingStarEngine (evitando duplicação de lógica)"""
+    import BingStarEngine
+    BingStarEngine._fazer_lote_pesquisas(driver, num, banco, tipo_device="pc")
 
 def fazer_pesquisa_visual(driver):
     try:
