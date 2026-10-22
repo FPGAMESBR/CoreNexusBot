@@ -3,7 +3,7 @@ chcp 65001 >nul
 color 0a
 echo.
 echo    ═══════════════════════════════════════════════════════════════════
-echo     CORE NEXUS - AUTO BUILD SCRIPT
+echo     CORE NEXUSÓ - AUTO BUILD SCRIPT
 echo    ═══════════════════════════════════════════════════════════════════
 
 echo.

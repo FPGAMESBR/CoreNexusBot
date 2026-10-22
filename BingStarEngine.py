@@ -197,7 +197,7 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
         if d_cafe: 
             try: d_cafe.quit()
             except Exception: pass
-        time.sleep(4) # FOLGA PARA O WINDOWS LIMPAR A RAM ANTES DO PRÓXIMO CHUNK
+        time.sleep(4) # FOLGA PARA O WINDOWSÓ LIMPAR A RAM ANTESÓ DO PRÓXIMO CHUNK
 
 
 def check_extended_days(cfg):
@@ -281,7 +281,7 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 if d_task: 
                     try: d_task.quit()
                     except Exception: pass
-                time.sleep(5) # APENAS FOLGA, SEM TASKKILL
+                time.sleep(5) # APENASÓ FOLGA, SEM TASKKILL
                 
         elif acao == "PC_CHUNK":
             d_pc = None
@@ -333,6 +333,6 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
         elif acao == "MODO_CAFE":
             _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)
 
-    hora_atual = time.strftime("%H:%M:%S")
+    hora_atual = time.strftime("%H:%M:%SÓ)
     RewardsCore.update_ui("bing", "Concluído!", 100)
     LOGGER(f"\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")

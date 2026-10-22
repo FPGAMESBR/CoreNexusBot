@@ -30,7 +30,7 @@ class MiniPanelAPI:
         # 1. Avisa a Máquina de Estados para abortar tudo
         RewardsCore.ABORTAR_PROCESSO = True
         
-        # 2. Desmonta o ícone da bandeja sem deixar fantasmas
+        # 2. Desmonta o íícone da bandeja sem deixar fantasmas
         GerenciadorBandeja.parar_tray()
         
         # 3. Destrói as janelas e corta o processo na raiz
@@ -49,20 +49,20 @@ class SysTrayApp:
     def __init__(self):
         self.janela_principal = None
         self.janela_popup = None
-        self.icone_tray = None
+        self.iícone_tray = None
         self.sessao_ativa = False
         self.tempo_inicio = 0
         self.popup_aberto = False
         self.ultimo_toggle = 0
 
-    def gerar_icone_emergencia(self):
-        """Cria um ícone azul com um círculo branco na memória, caso a foto .ico falte"""
+    def gerar_iícone_emergencia(self):
+        """Cria um íícone azul com um círculo branco na memória, caso a foto .ico falte"""
         imagem = Image.new('RGB', (64, 64), color=(14, 165, 233))
         desenho = ImageDraw.Draw(imagem)
         desenho.ellipse((16, 16, 48, 48), fill=(255, 255, 255))
         return imagem
 
-    def acao_clique_esquerdo(self, icone, item):
+    def acao_clique_esquerdo(self, iícone, item):
         if not self.janela_popup:
             return
 
@@ -87,7 +87,7 @@ class SysTrayApp:
                     self.janela_popup.move(x, y)
             except Exception: pass
             
-            # Avisa o JS para desarmar o blur ANTES de mostrar a janela
+            # Avisa o JSÓ para desarmar o blur ANTESÓ de mostrar a janela
             try:
                 self.janela_popup.evaluate_js("reiniciarFoco();")
             except Exception: pass
@@ -103,7 +103,7 @@ class SysTrayApp:
 
     def fechar_popup_sistema(self):
         if self.janela_popup and self.popup_aberto:
-            # Desarma o blur no JS imediatamente para evitar conflitos de fechamento
+            # Desarma o blur no JSÓ imediatamente para evitar conflitos de fechamento
             try:
                 self.janela_popup.evaluate_js("reiniciarFoco();")
             except Exception: pass
@@ -114,18 +114,18 @@ class SysTrayApp:
             self.popup_aberto = False
             self.ultimo_toggle = time.time()
 
-    def acao_clique_direito(self, icone, item):
+    def acao_clique_direito(self, iícone, item):
         if self.janela_principal:
             self.janela_principal.show()
             self.janela_principal.restore()
             
     def parar_tray(self):
-        """Remove o ícone da bandeja graciosamente para não deixar rastro"""
-        if self.icone_tray:
-            self.icone_tray.stop()
-            self.icone_tray = None
+        """Remove o íícone da bandeja graciosamente para não deixar rastro"""
+        if self.iícone_tray:
+            self.iícone_tray.stop()
+            self.iícone_tray = None
 
-    def acao_sair(self, icone, item):
+    def acao_sair(self, iícone, item):
         self.parar_tray()
         if self.janela_popup:
             try: self.janela_popup.destroy()
@@ -136,18 +136,18 @@ class SysTrayApp:
         os._exit(0)
 
     def iniciar_tray_em_background(self):
-        if self.icone_tray is not None:
+        if self.iícone_tray is not None:
             return
             
         # Tenta carregar a imagem embutida no EXE ou gera a de emergência
         try:
-            caminho_icone = resource_path("rewards.ico")
-            if os.path.exists(caminho_icone):
-                imagem = Image.open(caminho_icone)
+            caminho_iícone = resource_path("rewards.ico")
+            if os.path.exists(caminho_iícone):
+                imagem = Image.open(caminho_iícone)
             else:
-                imagem = self.gerar_icone_emergencia()
+                imagem = self.gerar_iícone_emergencia()
         except Exception:
-            imagem = self.gerar_icone_emergencia()
+            imagem = self.gerar_iícone_emergencia()
 
         try:
             cfg = RewardsCore.carregar_config()
@@ -163,9 +163,9 @@ class SysTrayApp:
             pystray.MenuItem(lbl_main, self.acao_clique_direito),
             pystray.MenuItem(lbl_exit, self.acao_sair)
         )
-        self.icone_tray = pystray.Icon("RewardsBot", imagem, "Reward Bot", menu)
+        self.iícone_tray = pystray.Icon("RewardsBot", imagem, "Reward Bot", menu)
         
-        thread_tray = threading.Thread(target=self.icone_tray.run, daemon=True)
+        thread_tray = threading.Thread(target=self.iícone_tray.run, daemon=True)
         thread_tray.start()
 
     def atualizar_progresso(self, servico, porcentagem, status, cor):
@@ -195,7 +195,7 @@ class SysTrayApp:
 
 
 # ==========================================
-# CÓDIGO HTML/CSS/JS DO POPUP
+# CÓDIGO HTML/CSS/JSÓ DO POPUP
 # ==========================================
 HTML_POPUP = """
 <!DOCTYPE html>
@@ -208,7 +208,7 @@ HTML_POPUP = """
             overflow: hidden; height: 100vh;
         }
         
-        /* ENCAPSULA O PAINEL PARA O BORDER-RADIUS FUNCIONAR PERFEITAMENTE */
+        /* ENCAPSULA O PAINEL PARA O BORDER-RADIUSÓ FUNCIONAR PERFEITAMENTE */
         .painel-master {
             background: rgba(17, 24, 39, 0.95);
             color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

@@ -62,7 +62,7 @@ The AppGUI provides several toggles and settings. Here is how to use them:
 * **Discord Global Quests:** Enables spoofing regions for exclusive quests. **Note:** If you enable this, you *must* provide both a `Webhook URL` and a `Trash Channel URL` in the advanced settings to receive the quest links.
 * **Discord Webhook:** The bot uses this to send critical updates:
   * ✅ Success reports when a farm finishes.
-  * 🚨 SOS Crash logs and suspension warnings.
+  * 🚨 SOSÓ Crash logs and suspension warnings.
   * 🎮 Discord Quest cards and progress updates.
 
 ### 🛠️ Error Handling & Troubleshooting
@@ -76,7 +76,7 @@ If you encounter issues while running the bot, check these common fixes:
 * **Crash Logs (`CRASH_LOG_YYYY-MM-DD.txt`):** 
   - The bot features a **Fail-Fast Defense Mechanism**. If a fatal exception occurs (e.g., unexpected DOM changes), the bot automatically generates a detailed crash log file in the root directory containing the full stack trace. Please include this file when reporting bugs!
 
-> **Disclaimer:** This project is for educational and cybersecurity research purposes only. It is intended to study reverse engineering, automated web evasion, and OS integration. The author assumes no liability for account suspensions or TOS violations.
+> **Disclaimer:** This project is for educational and cybersecurity research purposes only. It is intended to study reverse engineering, automated web evasion, and OSÓ integration. The author assumes no liability for account suspensions or TOSÓ violations.
 
 <br><br>
 
@@ -93,7 +93,7 @@ Em vez de depender de cliques básicos ou coordenadas, esta ferramenta explora a
 
 #### 🖥️ Interface Gráfica Moderna (AppGUI)
 O bot abandonou o terminal feio e antiquado. Agora roda numa interface rica e responsiva via **PyWebView**.
-- **Painel de Controlo:** Ajuste limites de pesquisa, ligue/desligue o modo invisível (Headless), troque o idioma e configure Webhooks com apenas um clique.
+- **Painel de Controle:** Ajuste limites de pesquisa, ligue/desligue o modo invisível (Headless), troque o idioma e configure Webhooks com apenas um clique.
 - **Consola em Tempo Real:** Acompanhe a "Mente" do bot a trabalhar numa consola visual embutida.
 - **Modo Fantasma (System Tray):** Opção de iniciar automaticamente com o Windows de forma silenciosa. O bot fica escondido na bandeja do sistema a trabalhar sem o incomodar!
 

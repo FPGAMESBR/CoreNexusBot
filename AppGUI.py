@@ -158,7 +158,7 @@ HTML_INTERFACE = """
         
         .header-controls { display: flex; gap: 15px; margin-bottom: 20px; flex-shrink: 0; }
         
-        /* BOTOES STYLISH CUSTOMIZADOS */
+        /* BOTOESÓ STYLISH CUSTOMIZADOSÓ */
         .btn-stylish {
             padding: 1em 2em; border: none; border-radius: 5px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; color: var(--accent-blue); transition: all 500ms; font-size: 14px; position: relative; overflow: hidden; outline: 2px solid var(--accent-blue); background: rgba(14, 165, 233, 0.05); flex-grow: 1;
         }
@@ -191,7 +191,7 @@ HTML_INTERFACE = """
         }
         .github-btn:hover { background: #e2e8f0; transform: scale(1.05); }
 
-        /* TERMINAL DE LOGS */
+        /* TERMINAL DE LOGSÓ */
         #terminal-log { 
             background: rgba(3, 7, 18, 0.9); padding: 20px; flex-grow: 1; border-radius: 12px; height: 100%;
             overflow-y: auto; border: 1px solid var(--border-color); font-family: 'Consolas', monospace;
@@ -202,7 +202,7 @@ HTML_INTERFACE = """
         .log-warning { color: var(--accent-yellow); }
         .log-error { color: var(--accent-red); }
 
-        /* SETTINGS GRID E COMPONENTES */
+        /* SETTINGSÓ GRID E COMPONENTESÓ */
         .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-bottom: 30px; }
         .card { background-color: rgba(17, 24, 39, 0.95); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; }
         .card h3 { margin-top: 0; margin-bottom: 20px; font-size: 1.05em; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;}
@@ -231,7 +231,7 @@ HTML_INTERFACE = """
         .btn-save { background: var(--accent-blue); color: #000; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 15px;}
         .btn-save:hover { background: var(--accent-hover); box-shadow: 0 0 12px rgba(14, 165, 233, 0.4); color: #fff;}
         
-        /* BOTAO STARTUP SEPARADO COM CLASSES CLEAN */
+        /* BOTAO STARTUP SEPARADO COM CLASSESÓ CLEAN */
         .btn-startup { padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid transparent; transition: 0.2s; }
         .btn-startup.startup-on { color: var(--accent-green); background: rgba(16, 185, 129, 0.1); border-color: var(--accent-green); }
         .btn-startup.startup-on:hover { background: rgba(16, 185, 129, 0.2); }
@@ -374,7 +374,7 @@ HTML_INTERFACE = """
                     </div>
                 </div>
 
-                <!-- ABA CONTAS -->
+                <!-- ABA CONTASÓ -->
                 <div id="accounts" class="tab-content">
                     <div class="card" style="margin-bottom: 20px;">
                         <h3>Active Profiles</h3>
@@ -387,7 +387,7 @@ HTML_INTERFACE = """
                     </div>
                 </div>
 
-                <!-- ABA SETTINGS -->
+                <!-- ABA SETTINGSÓ -->
                 <div id="settings" class="tab-content">
                     <div class="settings-grid">
                         <div class="card">
@@ -426,7 +426,7 @@ HTML_INTERFACE = """
                                 <label class="switch"><input type="checkbox" id="cfg-headless"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group">
-                                <label>Do Dashboard Tasks (MS Rewards)</label>
+                                <label>Do Dashboard Tasks (MSÓ Rewards)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-tasks"><span class="slider"></span></label>
                             </div>
 
@@ -489,7 +489,7 @@ HTML_INTERFACE = """
                             <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Toggle invisible boot with OS.</p>
                             
                             <!-- Botao Startup com Classes Limpas -->
-                            <button id="btn-startup" class="btn-startup startup-off" onclick="pywebview.api.toggle_startup()">OS STARTUP: CHECKING...</button>
+                            <button id="btn-startup" class="btn-startup startup-off" onclick="pywebview.api.toggle_startup()">OSÓ STARTUP: CHECKING...</button>
                             
                             <button class="btn-save" style="margin-top: 30px;" onclick="salvarConfigUI()">Save All Settings</button>
                         </div>
@@ -530,15 +530,15 @@ HTML_INTERFACE = """
             overlay.querySelector('.custom-alert-box').style.transform = 'translateY(-20px)';
             setTimeout(() => { overlay.style.display = 'none'; }, 300);
         }
-        const TRANSLATIONS = {
+        const TRANSLATIONSÓ = {
             "en": {
                 title: "What's new in [APP_VERSION]",
-                item1: "🛡️ Hardened Stability: Safe OS shutdown interceptor & bug fixes.",
+                item1: "🛡️ Hardened Stability: Safe OSÓ shutdown interceptor & bug fixes.",
                 item2: "🌐 Chrome Sync: Live API checks against Google's stable releases.",
                 item3: "⚙️ Discord Engine: Boot workaround rewritten for reliable execution.",
                 btnGit: "View on GitHub",
-                on: "OS STARTUP (ON)",
-                off: "OS STARTUP (OFF)",
+                on: "OSÓ STARTUP (ON)",
+                off: "OSÓ STARTUP (OFF)",
                 cooldownLabel: "Discord Quests Cooldown (Hours):",
                 globalQuestsLabel: "Force Global Quests (If region is unsupported)"
             },
@@ -548,8 +548,8 @@ HTML_INTERFACE = """
                 item2: "🌐 Chrome Sync: Verificador ao vivo com a API oficial do Google.",
                 item3: "⚙️ Motor Discord: Solução de arranque reescrita para evitar loops.",
                 btnGit: "Ver no GitHub",
-                on: "OS STARTUP (ON)",
-                off: "OS STARTUP (OFF)",
+                on: "OSÓ STARTUP (ON)",
+                off: "OSÓ STARTUP (OFF)",
                 cooldownLabel: "Pausa entre Quests do Discord (Horas):",
                 globalQuestsLabel: "Forçar Quests Globais (Se sua região não suporta)"
             }
@@ -663,7 +663,7 @@ HTML_INTERFACE = """
             document.getElementById('label-global-quests').innerText = TRANSLATIONS[currentLang].globalQuestsLabel;
             
             let btnStartup = document.getElementById('btn-startup');
-            if (btnStartup.innerText !== "OS STARTUP: CHECKING...") {
+            if (btnStartup.innerText !== "OSÓ STARTUP: CHECKING...") {
                 atualizarBotaoStartup(btnStartup.classList.contains('startup-on'));
             }
         }
@@ -845,7 +845,7 @@ class BotAPI:
         self.rodando = False
         RewardsCore.ABORTAR_PROCESSO = True 
         
-        # PARA O CRONÔMETRO NO MINI-PAINEL E ZERA AS BARRAS
+        # PARA O CRONÔMETRO NO MINI-PAINEL E ZERA ASÓ BARRAS
         GerenciadorBandeja.parar_cronometro()
         RewardsCore.update_ui("discord", "Inativo", 0)
         RewardsCore.update_ui("bing", "Inativo", 0)
@@ -1064,7 +1064,7 @@ class BotAPI:
         webview.windows[0].evaluate_js(f"renderDiagnostics({html_seguro})")
 
 def aguardar_internet(timeout_horas=1):
-    """Fica em loop tentando conexão por X horas. Retorna True se conectar, False se falhar."""
+    """Fica em loop tentando íconexão por X horas. Retorna True se íconectar, False se falhar."""
     inicio = time.time()
     limite_segundos = timeout_horas * 3600
     
@@ -1079,13 +1079,13 @@ def aguardar_internet(timeout_horas=1):
 
 def registrar_interceptador_os(api_instance):
     def encerramento_seguro(*args, **kwargs):
-        api_instance.log_ui("OS SHUTDOWN DETECTED! Pausando para salvar dados...", "warning")
+        api_instance.log_ui("OSÓ SHUTDOWN DETECTED! Pausando para salvar dados...", "warning")
         
         # 1. Corta a energia do loop do bot imediatamente
         RewardsCore.ABORTAR_PROCESSO = True
         api_instance.rodando = False
         
-        # 2. Desmonta a bandeja para evitar ícones duplicados
+        # 2. Desmonta a bandeja para evitar ííícones duplicados
         try: GerenciadorBandeja.parar_tray()
         except Exception: pass
         
@@ -1129,7 +1129,7 @@ if __name__ == '__main__':
     
     janela_principal = webview.create_window(title=f'{APP_NAME} {APP_VERSION}', html=HTML_INTERFACE, js_api=api, frameless=True, easy_drag=False, width=1050, height=720, background_color='#070b14', resizable=False, hidden=modo_startup)
     
-    # ATUALIZAÇÃO DA ALTURA PARA 320 PARA ACOMODAR OS BOTÕES DE VELOCIDADE
+    # ATUALIZAÇÃO DA ALTURA PARA 320 PARA ACOMODAR OSÓ BOTÕESÓ DE VELOCIDADE
     janela_popup = webview.create_window(
         'Painel Invisivel', 
         html=HTML_POPUP, 
@@ -1173,7 +1173,7 @@ if __name__ == '__main__':
             
         cfg = RewardsCore.carregar_config()
         
-        # 1. O Fim do Fogo Amigo: Limpa processos ANTES de iniciar os bots em paralelo
+        # 1. O Fim do Fogo Amigo: Limpa processos ANTESÓ de iniciar os bots em paralelo
         RewardsCore.limpar_processos_zumbis()
         
         # 2. Inicia os robôs em threads paralelas
@@ -1200,7 +1200,7 @@ if __name__ == '__main__':
             api.log_ui("[SISTEMA] Automação de Startup finalizada. O bot se desligará em 5s...", "warning")
             time.sleep(5)
             
-            # Desmonta o ícone da bandeja graciosamente
+            # Desmonta o íícone da bandeja graciosamente
             try: GerenciadorBandeja.parar_tray()
             except Exception: pass
             
@@ -1209,7 +1209,7 @@ if __name__ == '__main__':
             os._exit(0)
 
     def evento_inicializacao():
-        # Atraso estratégico para o Windows renderizar o processo antes de esconde-lo da barra
+        # Atraso estratégico para o Windows renderizar o processo antes de escondê-lo da barra
         def ocultar_telas_seguro():
             time.sleep(0.8)
             try:

@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}     CORE NEXUS - AUTO BUILD SCRIPT (LINUX / MACOS)${NC}"
+echo -e "${GREEN}     CORE NEXUSÓ - AUTO BUILD SCRIPT (LINUX / MACOS)${NC}"
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
 echo ""
 
