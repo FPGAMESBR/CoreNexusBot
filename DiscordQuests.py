@@ -18,7 +18,7 @@ import RewardsCore
 # ======================================================
 # JAVASCRIPT INJETOR ATUALIZADO (PONTE DE COMUNICAÇÃO SEGURA)
 # ======================================================
-SCRIPT_JSÓ = r"""
+SCRIPT_JS = r"""
 (async function() {
     window.discordQuestsDone = false;
     window.recompensas_logs = window.recompensas_logs || [];
@@ -303,7 +303,7 @@ SCRIPT_JSÓ = r"""
                 let cleanExeName = rawExeName.replace(/[\/\\:*?"<>|\n\r]/g, "").trim();
                 if (!cleanExeName.toLowerCase().endsWith(".exe")) cleanExeName += ".exe";
 
-                logP(`[JS] Solicitando camuflagem OSÓ ao Python: ${cleanExeName}`);
+                logP(`[JS] Solicitando camuflagem OS" ao Python: ${cleanExeName}`);
                 window.novoPidCamuflado = null; 
                 window.recompensas_cmd = "REWARDS_EXE:" + cleanExeName;
                 
@@ -348,7 +348,7 @@ SCRIPT_JSÓ = r"""
                         const finishUp = () => {
                             completingThisQuest = true;
                             if (RunningGameStore) { RunningGameStore.getRunningGames = realGetRunningGames; RunningGameStore.getGameForPID = realGetGameForPID; }
-                            if (FluxDispatcher) { FluxDispatcher.dispatch({type: "RUNNING_GAMES_CHANGE", removed: [fakeGame], added: [], games: []}); FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESSÓ, fn); }
+                            if (FluxDispatcher) { FluxDispatcher.dispatch({type: "RUNNING_GAMES_CHANGE", removed: [fakeGame], added: [], games: []}); FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn); }
                             executarDesligamento();
                         };
 
@@ -367,7 +367,7 @@ SCRIPT_JSÓ = r"""
                         }
                     }
                 };
-                if (FluxDispatcher) FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESSÓ, fn);
+                if (FluxDispatcher) FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
             } 
             else if(taskName === "STREAM_ON_DESKTOP") {
                 let cleanExeName = questName.replace(/[\/\\:*?"<>|\n\r]/g, "").trim() + ".exe";
@@ -401,7 +401,7 @@ SCRIPT_JSÓ = r"""
                         const finishUp = () => {
                             completingThisQuest = true;
                             if (ApplicationStreamingStore) ApplicationStreamingStore.getStreamerActiveStreamMetadata = realFunc;
-                            if (FluxDispatcher) FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESSÓ, fn);
+                            if (FluxDispatcher) FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
                             executarDesligamento();
                         };
 
@@ -420,7 +420,7 @@ SCRIPT_JSÓ = r"""
                         }
                     }
                 };
-                if (FluxDispatcher) FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESSÓ, fn);
+                if (FluxDispatcher) FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
             }
             else if(taskName === "PLAY_ACTIVITY") {
                 let channelId = "0";
@@ -712,7 +712,7 @@ def iniciar_farm_discord():
 
             processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
-            # FASE 4: Workaround JSÓ Boot/Headless (Limbo Renderização Fix)
+            # FASE 4: Workaround JS" Boot/Headless (Limbo Renderização Fix)
             # Ao iniciar o PC, o Discord pode ficar num estado zombie. Fechamos forçosamente a janela recém-aberta e reabrimos.
             time.sleep(4)
             try: processo.kill()
@@ -787,7 +787,7 @@ def iniciar_farm_discord():
                 except Exception: pass
                 continue
                 
-            # BYPASSÓ GLOBAL DA PAGE VISIBILITY API
+            # BYPASS GLOBAL DA PAGE VISIBILITY API
             try:
                 driver.execute_script("""
                     Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
@@ -937,7 +937,7 @@ def iniciar_farm_discord():
 
             ids_globais = fase.get("ids", [])
             quests_webhook_url = cfg.get("quests_webhook_url", "")
-            script_injetado = SCRIPT_JS.replace("INJECT_GLOBAL_IDSÓ, json.dumps(ids_globais))
+            script_injetado = SCRIPT_JS.replace("INJECT_GLOBAL_IDS", json.dumps(ids_globais))
             script_injetado = script_injetado.replace('"INJECT_QUESTS_WEBHOOK"', json.dumps(quests_webhook_url))
             
             try: driver.execute_script(script_injetado)
@@ -1034,7 +1034,7 @@ def iniciar_farm_discord():
                 time.sleep(4); driver.quit() 
             except Exception: pass
             
-            # Morte isolada: matar APENASÓ o processo do Discord que iniciamos, preservando o Bing.
+            # Morte isolada: matar APENAS o processo do Discord que iniciamos, preservando o Bing.
             try: processo.kill()
             except Exception: pass
             

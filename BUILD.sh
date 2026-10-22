@@ -47,7 +47,7 @@ echo "This may take a few minutes depending on your system."
 echo ""
 
 # Nota: no Linux/Mac usa-se : em vez de ; no add-data
-python3 -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico:." --add-data "locales.json:." AppGUI.py
+python3 -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico:." --add-data "locales.json:." --add-data "ui:ui" AppGUI.py
 
 if [ $? -ne 0 ]; then
     echo ""

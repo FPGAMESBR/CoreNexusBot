@@ -45,7 +45,7 @@ echo    [INFO] Starting build process...
 echo    This may take a few minutes depending on your system.
 echo.
 
-python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico;." --add-data "locales.json;." --version-file="version.txt" AppGUI.py
+python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico;." --add-data "locales.json;." --add-data "ui;ui" --version-file="version.txt" AppGUI.py
 
 if errorlevel 1 (
     echo.

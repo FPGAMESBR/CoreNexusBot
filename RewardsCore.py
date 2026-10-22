@@ -74,7 +74,7 @@ def gerar_banco_cognitivo():
     hora = datetime.now().hour
     banco = []
     
-    # 1. Fetch RSSÓ News
+    # 1. Fetch RSS News
     noticias_rss = []
     try:
         url_rss = "https://news.google.com/rss?hl=pt-BR&gl=BR&ceid=BR:pt-419" if lang == "pt" else "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en"
@@ -110,7 +110,7 @@ def gerar_banco_cognitivo():
     # 2.5 Fetch Google Trends RSS
     noticias_trends = []
     try:
-        url_trends = "https://trends.google.com/trending/rss?geo=BR" if lang == "pt" else "https://trends.google.com/trending/rss?geo=USÓ
+        url_trends = "https://trends.google.com/trending/rss?geo=BR" if lang == "pt" else "https://trends.google.com/trending/rss?geo=US"
         req = urllib.request.Request(url_trends, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=5) as response:
             xml_data = response.read()
@@ -134,7 +134,7 @@ def gerar_banco_cognitivo():
             ]
         elif 12 <= hora <= 18:
             templates = [
-                "como resolver erro de permissão na AWSÓ IAM", "diferença entre instâncias EC2 e Fargate",
+                "como resolver erro de permissão na AWS IAM", "diferença entre instâncias EC2 e Fargate",
                 "melhores cursos para certificação CompTIA Security+", "configurar VPN no Windows 11",
                 "como usar o GitHub Copilot no VSCode", "diferença entre processadores AMD Ryzen e Intel Core",
                 "qual o melhor SSD NVMe M.2 1TB", "como testar se a memória RAM está com defeito",
@@ -164,7 +164,7 @@ def gerar_banco_cognitivo():
             ]
         elif 12 <= hora <= 18:
             templates = [
-                "how to fix AWSÓ IAM permission denied", "difference between EC2 and Fargate",
+                "how to fix AWS IAM permission denied", "difference between EC2 and Fargate",
                 "best study materials for CompTIA Security+", "how to setup VPN on Windows 11",
                 "how to use GitHub Copilot in VSCode", "AMD Ryzen vs Intel Core processors comparison",
                 "best 1TB NVMe M.2 SSD", "how to test RAM for errors",
@@ -188,7 +188,7 @@ def gerar_banco_cognitivo():
     for _ in range(50):
         sorteio = random.random()
         
-        # 25% RSSÓ News, 25% Google Trends, 25% Wikipedia, 25% Templates
+        # 25% RSS" News, 25% Google Trends, 25% Wikipedia, 25% Templates
         if sorteio < 0.25 and noticias_rss:
             noticia = random.choice(noticias_rss)
             if random.random() < 0.30:
@@ -247,7 +247,7 @@ ARQUIVO_CONFIG = BASE_DIR / "RewardsConfig.json"
 
 logs = BASE_DIR / "logs"
 logs.mkdir(exist_ok=True)
-START_TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%SÓ)
+START_TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 RUN_LOG_PATH = logs / f"run_{START_TIME_STR}.txt"
 RUN_LOG_PATH.touch(exist_ok=True)
 def update_ui(modulo, status, porcentagem, total_segundos=0):
@@ -353,9 +353,9 @@ def obter_fingerprint(nome_perfil, tipo):
     if tipo not in identidade:
         if tipo == 'mobile':
             uas = [
-                "Mozilla/5.0 (iPhone; CPU iPhone OSÓ 18_1 like Mac OSÓ X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
                 "Mozilla/5.0 (Linux; Android 15; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
-                "Mozilla/5.0 (iPhone; CPU iPhone OSÓ 17_4 like Mac OSÓ X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
                 "Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
             ]
             identidade[tipo] = random.choice(uas)
@@ -419,7 +419,7 @@ def localizar_ip_celular():
     try:
         resultado = subprocess.check_output("ipconfig /all", encoding="cp850")
         for bloco in resultado.split("Adaptador"):
-            if "NDISÓ in bloco or "Remote NDISÓ in bloco:
+            if "NDIS" in bloco or "Remote NDIS" in bloco:
                 match_ip = re.search(r"IPv4.+?: (\d+\.\d+\.\d+\.\d+)", bloco)
                 if match_ip:
                     return match_ip.group(1)
@@ -504,7 +504,7 @@ def iniciar_proxy_background(ip_celular):
         LOGGER(t('proxy_erro').format(e))
 
 # =============================================================================
-# FUNÇÕESÓ DE LÓGICA CORE & STEALTH
+# # FUNÇÕES DE LÓGICA CORE & STEALTH
 # =============================================================================
 def wait_human(min_s=3.0, max_s=8.0, long_pause_chance=0.15):
     if random.random() < long_pause_chance:
@@ -995,7 +995,7 @@ def fazer_pesquisa_visual(driver):
             driver.execute_script("""
                 let link = document.querySelector('a[href*="vsstreak"]');
                 if (link) { window.location.href = link.href; } 
-                else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XESÓ; }
+                else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
             """)
             
             try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
@@ -1358,7 +1358,7 @@ def iniciar_ciclo_farm():
         
     except Exception as e:
         # GERADOR DE CRASH LOG (A "Caixa Preta")
-        data_hora = datetime.now().strftime("%Y-%m-%d_%H-%M-%SÓ)
+        data_hora = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_path = logs / f"crash_{data_hora}.txt"
         
         with open(log_path, "w", encoding="utf-8") as f:
