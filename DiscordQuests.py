@@ -724,17 +724,28 @@ def iniciar_farm_discord():
             except Exception as e:
                 RewardsCore.LOGGER(RewardsCore.t("discord_update_ignore_err").format(e))
 
-            RewardsCore.LOGGER(f"[DISCORD] Iniciando {exe_name} com porta de depuração {PORTA_DEBUG}...")
+            # KICKSTART DE STARTUP (Bounce de Aquecimento):
+            # Ao iniciar o Windows, o Discord Canary frequentemente trava na checagem inicial do Electron.
+            # O bounce rápido (abre, aguarda 4s e reabre limpo) destrava o loop de inicialização sem perder o login.
+            RewardsCore.LOGGER(f"[DISCORD] Executando kickstart de aquecimento para {exe_name}...")
+            RewardsCore.update_ui("discord", "Aquecendo Discord...", 15)
+            proc_kick = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(4)
+            _encerrar_processo_discord(exe_name, proc_kick)
+            time.sleep(2)
+
+            RewardsCore.LOGGER(f"[DISCORD] Iniciando instância principal do {exe_name} (Porta {PORTA_DEBUG})...")
             RewardsCore.update_ui("discord", "Iniciando Discord...", 25)
             processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             porta_aberta = False
             RewardsCore.update_ui("discord", "Aguardando Debugger...", 30)
-            for _ in range(45): # Até 90s para inicialização limpa no boot
+            for seg in range(45):
                 if RewardsCore.ABORTAR_PROCESSO: return
                 try:
                     with urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2) as resp:
                         porta_aberta = True
+                        RewardsCore.LOGGER(f"[DISCORD] Porta de depuração {PORTA_DEBUG} conectada!")
                         break
                 except Exception:
                     time.sleep(2)
@@ -776,8 +787,9 @@ def iniciar_farm_discord():
                 continue
 
             RewardsCore.update_ui("discord", "Localizando janela...", 38)
+            RewardsCore.LOGGER("[DISCORD] Aguardando janela principal do Discord carregar...")
             janela_correta = None
-            for _ in range(35): # Até 70s para abrir a tela principal (evita travar no splash de update)
+            for tentativa_win in range(35):
                 if RewardsCore.ABORTAR_PROCESSO: return
                 try:
                     for handle in driver.window_handles:
@@ -785,6 +797,7 @@ def iniciar_farm_discord():
                         c_url = driver.current_url.lower()
                         if any(x in c_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login"]):
                             janela_correta = handle
+                            RewardsCore.LOGGER(f"[DISCORD] Janela detectada com sucesso ({c_url.split('?')[0]})!")
                             break
                     if janela_correta: break
                 except Exception: pass

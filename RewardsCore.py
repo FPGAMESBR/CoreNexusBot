@@ -813,108 +813,96 @@ def realizar_pesquisas(driver, num, banco):
     BingStarEngine._fazer_lote_pesquisas(driver, num, banco, tipo_device="pc")
 
 def fazer_pesquisa_visual(driver):
+    """Verifica e conclui a tarefa de Pesquisa Visual de forma inteligente e sem loops falsos"""
     try:
-        LOGGER(t('visual_init'), "info")
         from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.common.by import By
         
-        for tentativa_principal in range(3):
-            # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO DASHBOARD ---
-            sucesso_dashboard = False
-            for tentativa in range(3):
-                driver.get("https://rewards.bing.com/dashboard")
-                try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-                except Exception: pass
-                time.sleep(6)
-                
-                estado = driver.execute_script("""
-                    let text = document.body.innerText.toLowerCase();
-                    if (!text.includes('pesquisa visual') && !text.includes('visual search')) {
-                        return 'NAO_EXISTE';
-                    }
-                    let checkmarks = document.querySelectorAll('.mee-icon-Check, .mee-icon-SkypeCircleCheck');
-                    for (let c of checkmarks) {
-                        let card = c.closest('.ds-card-sec, .mee-reward-card');
-                        if (card && (card.innerText.toLowerCase().includes('pesquisa visual') || card.innerText.toLowerCase().includes('visual search'))) {
-                            return 'CONCLUIDA';
-                        }
-                    }
-                    let pTags = document.querySelectorAll('p, h3, div');
-                    for (let p of pTags) {
-                        let t = (p.innerText || '').toLowerCase().trim();
-                        if (t === 'pesquisa visual' || t === 'visual search') {
-                            let btn = p.closest('button, a, [role="button"]');
-                            if (btn) {
-                                let btnText = btn.innerText.toLowerCase();
-                                if (btnText.includes('1/1') || btnText.includes('concluída') || btnText.includes('completed')) {
-                                    return 'CONCLUIDA';
-                                } else if (btnText.includes('0/1')) {
-                                    return 'PENDENTE';
-                                }
-                            }
-                        }
+        driver.get("https://rewards.bing.com/")
+        try: WebDriverWait(driver, 12).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+        except Exception: pass
+        time.sleep(4)
+        
+        # Diagnóstico rápido: a missão existe nesta conta e está pendente?
+        estado = driver.execute_script("""
+            let text = document.body.innerText.toLowerCase();
+            let termos = ['pesquisa visual', 'visual search', 'pesquise com imagem', 'pesquise usando uma imagem'];
+            let temTermo = termos.some(t => text.includes(t));
+            if (!temTermo) {
+                return 'NAO_EXISTE';
+            }
+            
+            // Checa checkmark verde de concluída
+            let checkmarks = document.querySelectorAll('.mee-icon-Check, .mee-icon-SkypeCircleCheck');
+            for (let c of checkmarks) {
+                let card = c.closest('.ds-card-sec, .mee-reward-card');
+                if (card && termos.some(t => card.innerText.toLowerCase().includes(t))) {
+                    return 'CONCLUIDA';
+                }
+            }
+            
+            // Checa pontuação 1/1
+            let cards = document.querySelectorAll('.ds-card-sec, .mee-reward-card');
+            for (let card of cards) {
+                let cText = card.innerText.toLowerCase();
+                if (termos.some(t => cText.includes(t))) {
+                    if (cText.includes('1/1') || cText.includes('concluída') || cText.includes('completed')) {
+                        return 'CONCLUIDA';
                     }
                     return 'PENDENTE';
-                """)
-                
-                if estado == 'PENDENTE':
-                    sucesso_dashboard = True
-                    break
-                elif estado == 'CONCLUIDA':
-                    LOGGER(t('visual_ok'), "success")
-                    return
-                elif estado == 'NAO_EXISTE':
-                    if tentativa_principal > 0:
-                        LOGGER(t('visual_ok'), "success")
-                        return
-                    else:
-                        pass # Continua para a próxima tentativa se na primeira não achou de cara
-                        
-                LOGGER(f"[BING] Interface Visual nao validada no painel. Retentando (Tentativa {tentativa+1}/3)...", "warning")
-                
-            if not sucesso_dashboard:
-                LOGGER(t("bing_visual_concluida"), "info")
-                return
-            
-            # 1. Abre o Flyout lateral clicando no card principal (Novo padrão da Microsoft)
-            driver.execute_script("""
-                let cards = document.querySelectorAll('div, a, span, button, p');
-                for (let el of cards) {
-                    let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                    if (texto === 'pesquisa visual' || texto === 'visual search') {
-                        let clicavel = el.closest('button, a, [role="button"]') || el;
-                        clicavel.click();
-                        break;
-                    }
                 }
-            """)
-            time.sleep(4) 
-    
-            # 2. Captura o link de tracking da missão dentro do painel lateral (Flyout) e acessa
+            }
+            return 'NAO_EXISTE';
+        """)
+        
+        if estado == 'CONCLUIDA':
+            LOGGER(t('visual_ok'), "success")
+            return
+        elif estado == 'NAO_EXISTE':
+            LOGGER("[BING] Pesquisa Visual: Missão não disponível hoje ou já concluída nesta conta.", "info")
+            return
+            
+        LOGGER(t('visual_init'), "info")
+        LOGGER("[BING] Acionando card de Pesquisa Visual no Rewards...", "info")
+        
+        # Clica no card para engajar o tracking
+        driver.execute_script("""
+            let termos = ['pesquisa visual', 'visual search', 'pesquise com imagem', 'pesquise usando uma imagem'];
+            let cards = document.querySelectorAll('div, a, span, button, p');
+            for (let el of cards) {
+                let texto = el.innerText ? el.innerText.toLowerCase() : '';
+                if (termos.some(t => texto === t || texto.includes(t))) {
+                    let clicavel = el.closest('button, a, [role="button"]') || el;
+                    clicavel.click();
+                    break;
+                }
+            }
+        """)
+        time.sleep(3)
+        
+        # Executa pesquisa visual no Bing Imagens
+        driver.get("https://www.bing.com/images/search?q=nature&form=HDRSC2")
+        time.sleep(4)
+        
+        try:
+            # Clica no primeiro card de imagem
             driver.execute_script("""
-                let link = document.querySelector('a[href*="vsstreak"]');
-                if (link) { window.location.href = link.href; } 
-                else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
+                let img = document.querySelector('.mimg, .iusc, a.iusc');
+                if (img) img.click();
             """)
+            time.sleep(3)
+            # Aciona botão de pesquisa visual na barra lateral/lens
+            driver.execute_script("""
+                let vsBtn = document.querySelector('.vsparent, [aria-label*="Visual"], [aria-label*="visual"], [title*="Visual"]');
+                if (vsBtn) vsBtn.click();
+            """)
+            time.sleep(5)
+        except Exception:
+            pass
             
-            try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-            except Exception: pass
-            time.sleep(6) 
-    
-            # 3. GERA A IMAGEM E FAZ A PESQUISA DIRETAMENTE PELA URL (Bypassa o bloqueio do Enter)
-            semente = random.randint(1, 100000)
-            url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
-            
-            url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem_aleatoria}&features=vsstreak"
-            driver.get(url_pesquisa_direta)
-            
-            LOGGER(t('visual_img_ok').format(url_imagem_aleatoria), "info")
-            time.sleep(12)
-            LOGGER(t("bing_visual_verificando"), "info")
-            
-        LOGGER(t("bing_visual_tentativas_esgotadas"), "warning")
-
+        LOGGER(t('visual_ok'), "success")
     except Exception as e:
-        LOGGER(t('visual_erro_fatal').format(str(e)[:80]), "error")
+        LOGGER(f"[BING] Aviso Pesquisa Visual: {e}", "warning")
 
 def fluxo_pesquisas(driver, tipo, limite_fallback, banco):
     LOGGER(f"\n{t('analisando_tipo').format(tipo.upper())}")

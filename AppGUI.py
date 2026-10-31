@@ -328,17 +328,22 @@ class BotAPI:
         webview.windows[0].evaluate_js(f"renderDiagnostics({html_seguro})")
 
 def aguardar_internet(timeout_horas=1):
-    """Fica em loop tentando íconexão por X horas. Retorna True se íconectar, False se falhar."""
+    """Verifica conectividade com a internet de forma rápida a cada 4 segundos no boot."""
     inicio = time.time()
     limite_segundos = timeout_horas * 3600
     
     while (time.time() - inicio) < limite_segundos:
         try:
             import urllib.request
-            urllib.request.urlopen("https://www.google.com", timeout=5)
+            # Testa rapidamente o Google ou a Microsoft
+            urllib.request.urlopen("https://www.google.com", timeout=3)
             return True
         except Exception:
-            time.sleep(30)
+            try:
+                urllib.request.urlopen("https://www.bing.com", timeout=3)
+                return True
+            except Exception:
+                time.sleep(4)
     return False
 
 def registrar_interceptador_os(api_instance):
@@ -455,9 +460,12 @@ if __name__ == '__main__':
             threads.append(t_bing)
             t_bing.start()
             
-        # 3. Aguarda todos terminarem
+        # 3. Aguarda todos terminarem com teto de segurança (evita travamento eterno no startup)
+        t_inicio_farm = time.time()
+        limite_total_segundos = 3600 # 60 minutos máximo de execução total
         for t in threads:
-            t.join()
+            tempo_restante = max(10, limite_total_segundos - int(time.time() - t_inicio_farm))
+            t.join(timeout=tempo_restante)
             
         # 4. Extermínio total da memória (Garante que o bot feche de verdade)
         if not RewardsCore.ABORTAR_PROCESSO and modo_startup:

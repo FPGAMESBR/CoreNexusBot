@@ -15,123 +15,157 @@ import RewardsCore
 from RewardsCore import wait_human, ghost_click, salvar_historico, LOGGER, t
 
 def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
-    """Função interna que faz 'X' pesquisas da forma mais humana possível"""
+    """Função que realiza buscas no Bing de forma orgânica, com garantia de execução e fail-safe"""
+    import urllib.parse
     
-    amostra = random.sample(banco, min(qtd + 5, len(banco)))
+    if not banco:
+        banco = ["tecnologia hoje", "noticias brasil", "previsao do tempo", "cinema novidades", "jogos pc"]
+    
+    # Amostragem segura sem estourar limites
+    if len(banco) >= qtd + 5:
+        amostra = random.sample(banco, qtd + 5)
+    else:
+        multiplicador = (qtd // len(banco)) + 2
+        amostra = (banco * multiplicador)[:qtd + 5]
     
     for i in range(qtd):
         if RewardsCore.ABORTAR_PROCESSO: break
         try:
-            # Limpeza ocasional de cache para simular navegador real
-            if (i + 1) % 5 == 0 and random.random() < 0.20:
-                try: driver.execute_script("window.localStorage.clear();")
-                except Exception: pass
-
-            origens_bing = [
-                "https://www.bing.com/?form=QBLH",         
-                "https://www.bing.com/?form=ANNTH1",       
-                "https://www.bing.com/?form=HDRSC1",       
-                "https://www.bing.com/?form=Z9FD1",        
-                "https://www.bing.com/"                    
-            ]
-            driver.get(random.choice(origens_bing))
-            try: driver.switch_to.window(driver.window_handles[0])
-            except Exception: pass
-            
-            # Encontra a barra de pesquisa
-            
-            espera = WebDriverWait(driver, 10)
-            try: sb = espera.until(EC.element_to_be_clickable((By.ID, "sb_form_q")))
-            except TimeoutException:
-                try: sb = driver.find_element(By.NAME, "q")
-                except NoSuchElementException:
-                    try: sb = driver.find_element(By.CLASS_NAME, "b_searchbox")
-                    except Exception: continue
-            
             termo_base = amostra[i]
             termo_final = termo_base
-            # LOG TRADUZIDO E ADAPTADO
             LOGGER(f"   [STAR ENGINE] ({i+1}/{qtd}) [{tipo_device.upper()}] {termo_final}")
             salvar_historico(termo_base)
             
-            # Ghost Click com erro humano
-            ghost_click(driver, sb, cliques=random.randint(2,3)) 
-            sb.send_keys(Keys.BACKSPACE)
-            time.sleep(random.uniform(0.2, 0.6))
+            # Limpeza ocasional de cache no modo stealth
+            if (i + 1) % 8 == 0 and random.random() < 0.15:
+                try: driver.execute_script("window.localStorage.clear();")
+                except Exception: pass
+
+            pesquisa_concluida = False
             
-            # Phase 4 - Dislexia Cognitiva
-            if RewardsCore.SPEED != "turbo" and random.random() < 0.25:
-                erro_palavras = ["bplo de cenora", "como faser", "donwload gratiz", "iphne 16"]
-                erro = random.choice(erro_palavras)
+            # 1. TENTATIVA ORGÂNICA (Digitação na barra de busca com Ghost Click)
+            try:
+                c_url = driver.current_url.lower() if driver.current_url else ""
+                if "bing.com" not in c_url:
+                    driver.get("https://www.bing.com/")
+                    time.sleep(2)
                 
-                # Typing speed logic based on SPEED
-                for letra in erro:
-                    sb.send_keys(letra)
-                    if RewardsCore.SPEED == "stealth": time.sleep(random.uniform(0.12, 0.18))
-                    else: time.sleep(random.uniform(0.06, 0.10))
+                # Auto-dispensa de banners de cookies e overlays de foco do Bing
+                try:
+                    driver.execute_script("""
+                        let b = document.querySelector('#bnp_btn_accept, [id*="accept"], #b_cookie');
+                        if (b) b.click();
+                        let ov = document.querySelector('.hp_focus_overlay, #b_overlay');
+                        if (ov) ov.remove();
+                    """)
+                except Exception: pass
                 
-                RewardsCore.smart_sleep(1.0, 3.0)
+                # Procura a caixa de texto ativa
+                sb = None
+                for seletor in [
+                    (By.ID, "sb_form_q"),
+                    (By.NAME, "q"),
+                    (By.CSS_SELECTOR, "textarea[name='q'], input[name='q'], #sb_form_q"),
+                    (By.CLASS_NAME, "b_searchbox")
+                ]:
+                    try:
+                        el = driver.find_element(*seletor)
+                        if el and el.is_displayed():
+                            sb = el
+                            break
+                    except Exception:
+                        continue
                 
-                for _ in range(len(erro)):
-                    sb.send_keys(Keys.BACKSPACE)
-                    time.sleep(random.uniform(0.02, 0.05))
+                if sb:
+                    ghost_click(driver, sb, cliques=random.randint(1, 2))
+                    time.sleep(random.uniform(0.15, 0.35))
                     
-                RewardsCore.smart_sleep(0.5, 1.0)
-                
-            # Digitação orgânica lenta
-            for letra in termo_final:
-                sb.send_keys(letra)
-                if RewardsCore.SPEED == "turbo": time.sleep(random.uniform(0.01, 0.03))
-                elif RewardsCore.SPEED == "stealth": time.sleep(random.uniform(0.12, 0.18))
-                else: time.sleep(random.uniform(0.06, 0.10))
-                
-            wait_human(1.0, 3.5, long_pause_chance=0.0)
-            sb.send_keys(Keys.RETURN)
+                    try: driver.execute_script("arguments[0].value = '';", sb)
+                    except Exception:
+                        sb.send_keys(Keys.CONTROL + "a")
+                        sb.send_keys(Keys.BACKSPACE)
+                        
+                    # Simulação de erro humano / dislexia
+                    if RewardsCore.SPEED != "turbo" and random.random() < 0.20:
+                        erros = ["bplo de cenora", "como faser", "donwload gratiz", "iphne 16"]
+                        erro = random.choice(erros)
+                        for l in erro:
+                            sb.send_keys(l)
+                            time.sleep(random.uniform(0.04, 0.08))
+                        RewardsCore.smart_sleep(0.4, 1.0)
+                        for _ in range(len(erro)):
+                            sb.send_keys(Keys.BACKSPACE)
+                            time.sleep(random.uniform(0.02, 0.04))
+                            
+                    # Digitação da busca real
+                    for l in termo_final:
+                        sb.send_keys(l)
+                        if RewardsCore.SPEED == "turbo": time.sleep(random.uniform(0.01, 0.02))
+                        elif RewardsCore.SPEED == "stealth": time.sleep(random.uniform(0.08, 0.14))
+                        else: time.sleep(random.uniform(0.04, 0.08))
+                        
+                    wait_human(0.6, 1.8, long_pause_chance=0.0)
+                    sb.send_keys(Keys.RETURN)
+                    pesquisa_concluida = True
+            except Exception:
+                pesquisa_concluida = False
             
-            # Cooldown MAIOR entre pesquisas (para a telemetria do Bing Star)
-            RewardsCore.smart_sleep(12.0, 25.0)
-            
-            # Comportamento pós-pesquisa (rolar tela e ler algo)
+            # 2. FAIL-SAFE INFALÍVEL: Navegação direta para /search se a digitação falhou
+            if not pesquisa_concluida:
+                termo_cod = urllib.parse.quote_plus(termo_final)
+                origens = [
+                    f"https://www.bing.com/search?q={termo_cod}&form=QBLH",
+                    f"https://www.bing.com/search?q={termo_cod}&form=QBRE",
+                    f"https://www.bing.com/search?q={termo_cod}&form=HDRSC1",
+                    f"https://www.bing.com/search?q={termo_cod}&form=ANNTH1"
+                ]
+                driver.get(random.choice(origens))
+                pesquisa_concluida = True
+                
+            # Cooldown inteligente entre pesquisas para registro de telemetria
+            if RewardsCore.SPEED == "turbo":
+                time.sleep(random.uniform(4.0, 7.0))
+            elif RewardsCore.SPEED == "stealth":
+                RewardsCore.smart_sleep(14.0, 26.0)
+            else:
+                RewardsCore.smart_sleep(7.0, 14.0)
+                
+            # Interação pós-pesquisa (rolagem e visualização de links)
             if RewardsCore.SPEED != "turbo":
                 try:
-                    descer = random.randint(400, 1200)
+                    descer = random.randint(350, 950)
                     driver.execute_script(f"window.scrollTo(0, {descer});")
-                    wait_human(3.0, 6.0, long_pause_chance=0.05)
+                    wait_human(2.0, 4.0, long_pause_chance=0.05)
                     
-                    # Clica em um link aleatório
                     links = driver.find_elements(By.CSS_SELECTOR, "h2 a, .b_algo h2 a")
-                    chance_clique = 0.90 if RewardsCore.SPEED == "stealth" else 0.40
+                    chance_clique = 0.70 if RewardsCore.SPEED == "stealth" else 0.30
                     if links and random.random() < chance_clique: 
                         alvo_clique = random.choice(links[:3])
                         janelas_antes = driver.window_handles 
-                        ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(1.0, 2.0)).click().perform()
-                        time.sleep(5) 
+                        ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(0.6, 1.2)).click().perform()
+                        time.sleep(4) 
                         
                         janelas_depois = driver.window_handles
                         if len(janelas_depois) > len(janelas_antes):
                             nova_aba = [j for j in janelas_depois if j not in janelas_antes][0]
                             principal = driver.current_window_handle
                             driver.switch_to.window(nova_aba)
-                            if RewardsCore.SPEED == "stealth":
-                                RewardsCore.smart_sleep(40.0, 90.0)
-                            else:
-                                wait_human(20.0, 50.0, long_pause_chance=0.3)
+                            if RewardsCore.SPEED == "stealth": RewardsCore.smart_sleep(20.0, 40.0)
+                            else: wait_human(8.0, 18.0, long_pause_chance=0.2)
                             driver.close()
                             driver.switch_to.window(principal) 
                         else:
-                            if RewardsCore.SPEED == "stealth":
-                                RewardsCore.smart_sleep(40.0, 90.0)
-                            else:
-                                wait_human(20.0, 45.0, long_pause_chance=0.3)
+                            if RewardsCore.SPEED == "stealth": RewardsCore.smart_sleep(15.0, 30.0)
+                            else: wait_human(8.0, 16.0, long_pause_chance=0.2)
                             driver.back() 
                     else:
                         if random.random() > 0.4:
-                            subir = descer - random.randint(150, 400)
+                            subir = descer - random.randint(100, 300)
                             driver.execute_script(f"window.scrollTo(0, {subir});")
                 except Exception: pass
-            
-        except Exception: 
-            wait_human(3.0, 6.0, long_pause_chance=0.0)
+        except Exception as e_busca:
+            LOGGER(f"   [STAR ENGINE] Aviso na busca {i+1}: {e_busca}", "warning")
+            wait_human(2.0, 4.0, long_pause_chance=0.0)
 
 
 def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
