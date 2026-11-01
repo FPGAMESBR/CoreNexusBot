@@ -151,40 +151,47 @@ SCRIPT_JS = r"""
                 await new Promise(r => setTimeout(r, 2000));
             }
 
-            // 1. Auto-seleção de plataforma Desktop (Área de trabalho) para missões multi-plataforma (ex: Valorant, CoD)
+                        // 1. Auto-seleção de plataforma Desktop (Área de trabalho) para missões multi-plataforma (ex: Valorant, CoD)
             try {
-                let card = document.getElementById('quest-tile-' + quest.id);
-                if (card) {
-                    let selector = card.querySelector('[class*="platformSelectorPrimary"], [aria-haspopup="listbox"]');
-                    let selectorText = selector ? (selector.innerText || selector.textContent || '') : '';
-                    if (selector && /selecione uma plataforma|select a platform/i.test(selectorText)) {
-                        logP(`[JS] Seletor de plataforma detectado em '${questName}'. Selecionando Área de trabalho...`);
-                        selector.click();
-                        await new Promise(r => setTimeout(r, 800));
-                        
-                        let options = Array.from(document.querySelectorAll('[role="listbox"] [role="option"], [role="option"], [class*="option"]'));
-                        if (options.length === 0) options = Array.from(document.querySelectorAll('div[class*="select"] div, li'));
-                        let desktopOpt = options.find(o => /(área de trabalho|area de trabalho|\bdesktop\b|\bcomputador\b|\bpc\b)/i.test(o.innerText || o.textContent || ''));
-                        if (desktopOpt) {
-                            desktopOpt.click();
-                            logP(`[JS] Plataforma 'Área de trabalho' selecionada com sucesso para '${questName}'!`);
+                let card = document.getElementById('quest-tile-' + quest.id)
+                    || document.querySelector(`[data-quest-id="${quest.id}"]`)
+                    || Array.from(document.querySelectorAll('[class*="quest"], [class*="card"], [class*="container"]')).find(el => (el.innerText || el.textContent || '').includes(questName));
+                
+                let scope = card || document;
+                let selector = scope.querySelector('[class*="platformSelectorPrimary"], [aria-haspopup="listbox"], button[class*="select"]');
+                if (!selector) {
+                    let allCandidateButtons = Array.from(scope.querySelectorAll('button, [role="button"], div[class*="select"]'));
+                    selector = allCandidateButtons.find(b => /selecione uma plataforma|select a platform/i.test(b.innerText || b.textContent || ''));
+                }
+                
+                let selectorText = selector ? (selector.innerText || selector.textContent || '') : '';
+                if (selector && /selecione uma plataforma|select a platform/i.test(selectorText)) {
+                    logP(`[JS] Seletor de plataforma detectado em '${questName}'. Selecionando Área de trabalho...`);
+                    selector.click();
+                    await new Promise(r => setTimeout(r, 800));
+                    
+                    let options = Array.from(document.querySelectorAll('[role="listbox"] [role="option"], [role="option"], [class*="option"], [data-value*="desktop"]'));
+                    if (options.length === 0) options = Array.from(document.querySelectorAll('div[class*="select"] div, li'));
+                    let desktopOpt = options.find(o => /(área de trabalho|area de trabalho|desktop|computador|pc)/i.test(o.innerText || o.textContent || ''));
+                    if (desktopOpt) {
+                        desktopOpt.click();
+                        logP(`[JS] Plataforma 'Área de trabalho' selecionada com sucesso para '${questName}'!`);
+                        await new Promise(r => setTimeout(r, 1200));
+                    } else {
+                        let firstOpt = document.querySelector('[role="option"]');
+                        if (firstOpt) {
+                            firstOpt.click();
                             await new Promise(r => setTimeout(r, 1200));
-                        } else {
-                            let firstOpt = document.querySelector('[role="option"]');
-                            if (firstOpt) {
-                                firstOpt.click();
-                                await new Promise(r => setTimeout(r, 1200));
-                            }
                         }
                     }
-                    
-                    // 2. Aciona botão de aceitar caso visível na interface
-                    let acceptBtn = Array.from(card.querySelectorAll('button')).find(b => /^(aceitar|accept)/i.test((b.innerText || '').trim()));
-                    if (acceptBtn && !acceptBtn.disabled) {
-                        logP(`[JS] Acionando botão Aceitar Missão para '${questName}'...`);
-                        acceptBtn.click();
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
+                }
+                
+                // 2. Aciona botão de aceitar caso visível na interface
+                let acceptBtn = Array.from(scope.querySelectorAll('button, [role="button"]')).find(b => /^(aceitar|accept|aceitar missão|accept quest)/i.test((b.innerText || b.textContent || '').trim()));
+                if (acceptBtn && !acceptBtn.disabled) {
+                    logP(`[JS] Acionando botão Aceitar Missão para '${questName}'...`);
+                    acceptBtn.click();
+                    await new Promise(r => setTimeout(r, 1000));
                 }
             } catch(e) {}
 
@@ -1099,6 +1106,7 @@ def iniciar_farm_discord():
             try:
                 watchdog_timeout = 180 # 3 minutos sem qualquer sinal de vida do JS
                 last_active_time = time.time()
+                falhas_consecutivas_script = 0
                 
                 while True:
                     if RewardsCore.ABORTAR_PROCESSO: break
@@ -1186,7 +1194,13 @@ def iniciar_farm_discord():
                         if driver.execute_script("return window.discordQuestsDone === true;"):
                             houve_ao_menos_um_sucesso = True
                             break
-                    except Exception: break
+                        falhas_consecutivas_script = 0
+                    except Exception as err:
+                        falhas_consecutivas_script += 1
+                        if falhas_consecutivas_script >= 10:
+                            RewardsCore.LOGGER(f"[DISCORD] Conexao com Discord perdida ({err}). Encerrando lote...", "warning")
+                            break
+                        time.sleep(1)
                     
             except Exception as e:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_loop_error").format(str(e)[:100]))
