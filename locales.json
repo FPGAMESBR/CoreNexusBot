@@ -162,7 +162,8 @@
         "star_turbo_ativado": "[STAR ENGINE] Marcha Turbo ativada. Pulando o Modo Café.",
         "star_chrono_gating": "[STAR ENGINE] Chrono-Gating: Iniciando hibernação massiva entre blocos.",
         "star_meta_pc_atingida": "   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.",
-        "star_meta_mob_atingida": "   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco."
+        "star_meta_mob_atingida": "   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco.",
+        "ja_em_execucao": "[SYSTEM] [!] O sistema já está em execução!"
     },
     "en": {
         "janela_titulo": "title FPGAMESBR Rewards",
@@ -327,6 +328,7 @@
         "star_turbo_ativado": "[STAR ENGINE] Turbo Gear activated. Skipping Coffee Mode.",
         "star_chrono_gating": "[STAR ENGINE] Chrono-Gating: Starting massive hibernation between blocks.",
         "star_meta_pc_atingida": "   [STAR ENGINE] PC Goal already reached. Skipping block.",
-        "star_meta_mob_atingida": "   [STAR ENGINE] Mobile Goal already reached. Skipping block."
+        "star_meta_mob_atingida": "   [STAR ENGINE] Mobile Goal already reached. Skipping block.",
+        "ja_em_execucao": "[SYSTEM] [!] System is already running!"
     }
 }

@@ -103,7 +103,7 @@ class BotAPI:
 
     def iniciar(self):
         if self.rodando: 
-            self.log_ui(RewardsCore.t("invalido") if hasattr(RewardsCore, "t") else "System is already running!", "error")
+            self.log_ui(RewardsCore.t("ja_em_execucao"), "error")
             return
             
         self.rodando = True
@@ -118,7 +118,11 @@ class BotAPI:
         except Exception:
             pass
             
-        webview.windows[0].evaluate_js("switchTab('console', document.querySelectorAll('.nav-item')[0]);")
+        try:
+            if webview.windows:
+                webview.windows[0].evaluate_js("switchTab('console', document.querySelectorAll('.nav-item')[0]);")
+        except Exception:
+            pass
         self.log_ui("Initializing Stealth loop...", "info")
         
         # INICIA O CRONÔMETRO NO MINI-PAINEL
@@ -362,7 +366,11 @@ class BotAPI:
                         add_item("Discord Bot", txt_disc_ready, 'green')
 
         html_seguro = json.dumps(resultados_html)
-        webview.windows[0].evaluate_js(f"renderDiagnostics({html_seguro})")
+        try:
+            if webview.windows:
+                webview.windows[0].evaluate_js(f"renderDiagnostics({html_seguro})")
+        except Exception:
+            pass
 
 def aguardar_internet(timeout_horas=1):
     """Verifica conectividade com a internet de forma rápida a cada 4 segundos no boot."""
