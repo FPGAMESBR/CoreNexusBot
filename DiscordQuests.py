@@ -72,9 +72,29 @@ SCRIPT_JS = r"""
             await new Promise(r => setTimeout(r, 2000));
         }
 
+        // VERIFICAÇÃO CRÍTICA DE SEGURANÇA: Checa se a conta está sob quarentena do Discord
+        let isSuspended = QuestsStore?.isQuestAccessSuspended || false;
+        let suspendedUntil = QuestsStore?.questAccessSuspendedUntil;
+        if (!isSuspended && suspendedUntil) {
+            let d = new Date(suspendedUntil);
+            if (d.getTime() > Date.now()) isSuspended = true;
+        }
+        if (isSuspended) {
+            let dataStr = suspendedUntil ? new Date(suspendedUntil).toLocaleString() : "Data indeterminada";
+            logP(`[JS] [ALERTA CRÍTICO DE SEGURANÇA] Acesso a Quests desta conta está suspenso até ${dataStr}.`);
+            logP(`[JS] Abortando imediatamente para preservar o Account Standing. Zero pacotes serão enviados.`);
+            window.discordQuestsDone = true;
+            return;
+        }
+
         let quests = QuestsStore ? [...QuestsStore.quests.values()] : [];
         if (quests.length === 0) {
             let resData = await request('GET', '/quests/@me');
+            if (resData?.is_quest_access_suspended || resData?.quest_access_suspended_until) {
+                logP(`[JS] [ALERTA] Suspensão detectada na API: ${resData.quest_access_suspended_until}. Abortando.`);
+                window.discordQuestsDone = true;
+                return;
+            }
             let questsList = resData.quests || resData || [];
             quests = Array.isArray(questsList) ? questsList : Object.values(questsList);
         }
