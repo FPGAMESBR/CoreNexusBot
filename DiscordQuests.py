@@ -131,6 +131,42 @@ SCRIPT_JS = r"""
                 await new Promise(r => setTimeout(r, 2000));
             }
 
+            // 1. Auto-seleção de plataforma Desktop (Área de trabalho) para missões multi-plataforma (ex: Valorant, CoD)
+            try {
+                let card = document.getElementById('quest-tile-' + quest.id);
+                if (card) {
+                    let selector = card.querySelector('[class*="platformSelectorPrimary"], [aria-haspopup="listbox"]');
+                    let selectorText = selector ? (selector.innerText || selector.textContent || '') : '';
+                    if (selector && /selecione uma plataforma|select a platform/i.test(selectorText)) {
+                        logP(`[JS] Seletor de plataforma detectado em '${questName}'. Selecionando Área de trabalho...`);
+                        selector.click();
+                        await new Promise(r => setTimeout(r, 800));
+                        
+                        let options = Array.from(document.querySelectorAll('[role="option"], [class*="option"], div, span'));
+                        let desktopOpt = options.find(o => /(área de trabalho|area de trabalho|desktop|computador|pc)/i.test(o.innerText || o.textContent || ''));
+                        if (desktopOpt) {
+                            desktopOpt.click();
+                            logP(`[JS] Plataforma 'Área de trabalho' selecionada com sucesso para '${questName}'!`);
+                            await new Promise(r => setTimeout(r, 1200));
+                        } else {
+                            let firstOpt = document.querySelector('[role="option"]');
+                            if (firstOpt) {
+                                firstOpt.click();
+                                await new Promise(r => setTimeout(r, 1200));
+                            }
+                        }
+                    }
+                    
+                    // 2. Aciona botão de aceitar caso visível na interface
+                    let acceptBtn = Array.from(card.querySelectorAll('button')).find(b => /^(aceitar|accept)/i.test((b.innerText || '').trim()));
+                    if (acceptBtn && !acceptBtn.disabled) {
+                        logP(`[JS] Acionando botão Aceitar Missão para '${questName}'...`);
+                        acceptBtn.click();
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+            } catch(e) {}
+
             if(taskName === "WATCH_VIDEO_ON_MOBILE") {
                 logP(`[JS] -> Missao: ${questName} requer dispositivo movel. Pulando...`);
                 setTimeout(doJob, 1000);
