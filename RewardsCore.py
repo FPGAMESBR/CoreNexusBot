@@ -881,21 +881,20 @@ def fazer_pesquisa_visual(driver):
         """)
         time.sleep(3)
         
-        # Executa pesquisa visual no Bing Imagens
-        driver.get("https://www.bing.com/images/search?q=nature&form=HDRSC2")
+        # Executa pesquisa visual no Hub Visual Search do Bing e na barra principal
+        driver.get("https://www.bing.com/visualsearch?q=nature")
         time.sleep(4)
         
         try:
-            # Clica no primeiro card de imagem
             driver.execute_script("""
-                let img = document.querySelector('.mimg, .iusc, a.iusc');
-                if (img) img.click();
-            """)
-            time.sleep(3)
-            # Aciona botão de pesquisa visual na barra lateral/lens
-            driver.execute_script("""
-                let vsBtn = document.querySelector('.vsparent, [aria-label*="Visual"], [aria-label*="visual"], [title*="Visual"]');
-                if (vsBtn) vsBtn.click();
+                // 1. Tenta acionar amostra de imagem ou lens no hub de pesquisa visual
+                let sampleImg = document.querySelector('.vs_sample_img, [class*="sample"] img, .cardItem, .img_item, a[href*="visualsearch"], .mimg');
+                let cam = document.querySelector('#sb_vse, [data-id="vs_icon"], [aria-label*="Visual"], [title*="Visual"]');
+                if (sampleImg) {
+                    sampleImg.click();
+                } else if (cam) {
+                    cam.click();
+                }
             """)
             time.sleep(5)
         except Exception:

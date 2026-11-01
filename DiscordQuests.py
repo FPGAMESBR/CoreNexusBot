@@ -356,8 +356,52 @@ SCRIPT_JS = r"""
                 
                 let completingThisQuest = false;
                 let fatTimerStarted = false;
-                let fn = data => {
+                let lastHeartbeatTime = Date.now();
+                let watchdogInterval = null;
+
+                const finishUp = () => {
+                    if (completingThisQuest) return;
+                    completingThisQuest = true;
+                    if (watchdogInterval) clearInterval(watchdogInterval);
+                    if (RunningGameStore) { 
+                        RunningGameStore.getRunningGames = realGetRunningGames; 
+                        RunningGameStore.getGameForPID = realGetGameForPID; 
+                    }
+                    if (FluxDispatcher) { 
+                        FluxDispatcher.dispatch({type: "RUNNING_GAMES_CHANGE", removed: [fakeGame], added: [], games: []}); 
+                        FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fnSuccess); 
+                        FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_FAILURE", fnFailure);
+                    }
+                    executarDesligamento();
+                };
+
+                // WATCHDOG (Inspirado no Orion): se o Discord travar ou nao enviar heartbeats por > 80s, aborta com seguranca
+                watchdogInterval = setInterval(() => {
+                    if (completingThisQuest) return;
+                    window.recompensas_keepalive = Date.now();
+                    let elapsed = Date.now() - lastHeartbeatTime;
+                    if (elapsed > 80000) {
+                        logP(`[JS] [WATCHDOG] Nao houve resposta de progresso do Discord para '${questName}' apos ${Math.floor(elapsed/1000)}s.`);
+                        logP(`[JS] [WATCHDOG] Pulando missao com seguranca para evitar travamento.`);
+                        finishUp();
+                    }
+                }, 15000);
+
+                let fnFailure = data => {
                     if(completingThisQuest) return;
+                    let qId = data?.questId || data?.quest_id;
+                    if (qId && qId !== quest.id) return;
+                    logP(`[JS] [ALERTA] Heartbeat rejeitado pelo backend do Discord para '${questName}'!`);
+                    if (data?.error) {
+                        try { logP(`[JS] Motivo da rejeicao: ${JSON.stringify(data.error)}`); } catch(e) {}
+                    }
+                    finishUp();
+                };
+
+                let fnSuccess = data => {
+                    if(completingThisQuest) return;
+                    lastHeartbeatTime = Date.now(); // Rearma o watchdog
+                    window.recompensas_keepalive = Date.now();
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
                     if(!fatTimerStarted) {
                         logP(`[JS] Tracker Nativo: ${progress} / ${targetTimeWithFat}s`);
@@ -366,22 +410,19 @@ SCRIPT_JS = r"""
                     
                     if(!fatTimerStarted && (progress >= secondsNeeded || data.userStatus?.completedAt || data.userStatus?.completed_at)) {
                         fatTimerStarted = true;
+                        if (watchdogInterval) clearInterval(watchdogInterval);
                         let fatRemaining = targetTimeWithFat - progress;
                         if(fatRemaining < 0) fatRemaining = 0;
                         
                         logP(`[JS] Meta oficial atingida! Mantendo o jogo aberto por mais ${fatRemaining}s (Gordura Stealth)...`);
                         let simulatedProgress = progress;
-                        const finishUp = () => {
-                            completingThisQuest = true;
-                            if (RunningGameStore) { RunningGameStore.getRunningGames = realGetRunningGames; RunningGameStore.getGameForPID = realGetGameForPID; }
-                            if (FluxDispatcher) { FluxDispatcher.dispatch({type: "RUNNING_GAMES_CHANGE", removed: [fakeGame], added: [], games: []}); FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn); }
-                            executarDesligamento();
-                        };
 
                         if(fatRemaining <= 0) finishUp();
                         else {
                             const queimarGordura = () => {
+                                if (completingThisQuest) return;
                                 if(simulatedProgress >= targetTimeWithFat) { finishUp(); return; }
+                                window.recompensas_keepalive = Date.now();
                                 let ganho = 8 + Math.floor(Math.random() * 12);
                                 simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
@@ -393,7 +434,10 @@ SCRIPT_JS = r"""
                         }
                     }
                 };
-                if (FluxDispatcher) FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
+                if (FluxDispatcher) {
+                    FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fnSuccess);
+                    FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_FAILURE", fnFailure);
+                }
             } 
             else if(taskName === "STREAM_ON_DESKTOP") {
                 let cleanExeName = questName.replace(/[\/\\:*?"<>|\n\r]/g, "").trim() + ".exe";
@@ -409,8 +453,44 @@ SCRIPT_JS = r"""
                 
                 let completingThisQuest = false;
                 let fatTimerStarted = false;
-                let fn = data => {
+                let lastHeartbeatTime = Date.now();
+                let watchdogInterval = null;
+
+                const finishUp = () => {
+                    if (completingThisQuest) return;
+                    completingThisQuest = true;
+                    if (watchdogInterval) clearInterval(watchdogInterval);
+                    if (ApplicationStreamingStore) ApplicationStreamingStore.getStreamerActiveStreamMetadata = realFunc;
+                    if (FluxDispatcher) {
+                        FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fnSuccess);
+                        FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_FAILURE", fnFailure);
+                    }
+                    executarDesligamento();
+                };
+
+                watchdogInterval = setInterval(() => {
+                    if (completingThisQuest) return;
+                    window.recompensas_keepalive = Date.now();
+                    let elapsed = Date.now() - lastHeartbeatTime;
+                    if (elapsed > 80000) {
+                        logP(`[JS] [WATCHDOG] Stream sem resposta do Discord apos ${Math.floor(elapsed/1000)}s (requer transmissao ao vivo com amigos em call).`);
+                        logP(`[JS] [WATCHDOG] Pulando missao de stream com seguranca.`);
+                        finishUp();
+                    }
+                }, 15000);
+
+                let fnFailure = data => {
                     if(completingThisQuest) return;
+                    let qId = data?.questId || data?.quest_id;
+                    if (qId && qId !== quest.id) return;
+                    logP(`[JS] [ALERTA] Heartbeat de stream rejeitado pelo Discord para '${questName}'!`);
+                    finishUp();
+                };
+
+                let fnSuccess = data => {
+                    if(completingThisQuest) return;
+                    lastHeartbeatTime = Date.now();
+                    window.recompensas_keepalive = Date.now();
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
                     if(!fatTimerStarted) {
                         logP(`[JS] Stream Nativo: ${progress} / ${targetTimeWithFat}s`);
@@ -419,22 +499,18 @@ SCRIPT_JS = r"""
                     
                     if(!fatTimerStarted && (progress >= secondsNeeded || data.userStatus?.completedAt || data.userStatus?.completed_at)) {
                         fatTimerStarted = true;
+                        if (watchdogInterval) clearInterval(watchdogInterval);
                         let fatRemaining = targetTimeWithFat - progress;
                         if(fatRemaining < 0) fatRemaining = 0;
                         logP(`[JS] Meta oficial da Stream atingida! Queimando gordura stealth (${fatRemaining}s)...`);
                         
                         let simulatedProgress = progress;
-                        const finishUp = () => {
-                            completingThisQuest = true;
-                            if (ApplicationStreamingStore) ApplicationStreamingStore.getStreamerActiveStreamMetadata = realFunc;
-                            if (FluxDispatcher) FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
-                            executarDesligamento();
-                        };
-
                         if(fatRemaining <= 0) finishUp();
                         else {
                             const queimarGorduraStream = () => {
+                                if (completingThisQuest) return;
                                 if(simulatedProgress >= targetTimeWithFat) { finishUp(); return; }
+                                window.recompensas_keepalive = Date.now();
                                 let ganho = 8 + Math.floor(Math.random() * 12);
                                 simulatedProgress += ganho;
                                 if(simulatedProgress >= targetTimeWithFat) simulatedProgress = targetTimeWithFat;
@@ -446,7 +522,10 @@ SCRIPT_JS = r"""
                         }
                     }
                 };
-                if (FluxDispatcher) FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
+                if (FluxDispatcher) {
+                    FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fnSuccess);
+                    FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_FAILURE", fnFailure);
+                }
             }
             else if(taskName === "PLAY_ACTIVITY") {
                 let channelId = "0";
@@ -479,6 +558,11 @@ SCRIPT_JS = r"""
                     executarDesligamento();
                 };
                 fn();
+            }
+            else {
+                logP(`[JS] Tipo de tarefa nao suportado ou indisponivel no momento: '${taskName}'. Avancando...`);
+                setTimeout(doJob, 1500);
+                return;
             }
         };
         doJob();
@@ -1013,7 +1097,7 @@ def iniciar_farm_discord():
             
             dummy_processes = []
             try:
-                watchdog_timeout = 120 # FASE 4: 2 minutos inativo ao invés de 1 hora fixa
+                watchdog_timeout = 180 # 3 minutos sem qualquer sinal de vida do JS
                 last_active_time = time.time()
                 
                 while True:
@@ -1023,13 +1107,18 @@ def iniciar_farm_discord():
                     
                     try:
                         js_data = driver.execute_script("""
-                            let res = { cmd: window.recompensas_cmd, logs: window.recompensas_logs || [] };
+                            let res = { 
+                                cmd: window.recompensas_cmd, 
+                                logs: window.recompensas_logs || [],
+                                keepalive: window.recompensas_keepalive || 0
+                            };
                             window.recompensas_cmd = null;
                             window.recompensas_logs = [];
+                            window.recompensas_keepalive = 0;
                             return res;
                         """)
                         
-                        if js_data and (js_data.get('logs') or js_data.get('cmd')):
+                        if js_data and (js_data.get('logs') or js_data.get('cmd') or js_data.get('keepalive')):
                             last_active_time = time.time()
                             
                         if time.time() - last_active_time > watchdog_timeout:
