@@ -814,47 +814,55 @@ def realizar_pesquisas(driver, num, banco):
     BingStarEngine._fazer_lote_pesquisas(driver, num, banco, tipo_device="pc")
 
 def fazer_pesquisa_visual(driver):
-    """Verifica e conclui a tarefa de Pesquisa Visual de forma inteligente e sem loops falsos"""
+    """Verifica e conclui a tarefa de Pesquisa Visual baseada no DOM moderno do Rewards (Tailwind + React Aria)"""
     try:
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.common.by import By
+        import urllib.parse
         
         driver.get("https://rewards.bing.com/")
         try: WebDriverWait(driver, 12).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
         except Exception: pass
         time.sleep(4)
         
-        # Diagnóstico rápido: a missão existe nesta conta e está pendente?
-        estado = driver.execute_script("""
-            let text = document.body.innerText.toLowerCase();
-            let termos = ['pesquisa visual', 'visual search', 'pesquise com imagem', 'pesquise usando uma imagem'];
-            let temTermo = termos.some(t => text.includes(t));
-            if (!temTermo) {
-                return 'NAO_EXISTE';
-            }
-            
-            // Checa checkmark verde de concluída
-            let checkmarks = document.querySelectorAll('.mee-icon-Check, .mee-icon-SkypeCircleCheck');
-            for (let c of checkmarks) {
-                let card = c.closest('.ds-card-sec, .mee-reward-card');
-                if (card && termos.some(t => card.innerText.toLowerCase().includes(t))) {
-                    return 'CONCLUIDA';
+        # 1. Diagnóstico preciso no DOM do Microsoft Rewards
+        script_checagem = """
+            let allButtons = Array.from(document.querySelectorAll('button[data-rac], button[class*="rounded-cornerCardDefault"], button'));
+            let vsCard = null;
+            for (let btn of allButtons) {
+                let hasSvg = btn.querySelector('img[src*="search_visual"], img[alt*="Pesquisa Visual"], img[alt*="Visual Search"]');
+                let txt = (btn.innerText || btn.textContent || '').toLowerCase();
+                if (hasSvg || (txt.includes('pesquisa visual') && !txt.includes('série de pesquisa visual')) || txt.includes('visual search')) {
+                    vsCard = btn;
+                    break;
                 }
             }
-            
-            // Checa pontuação 1/1
-            let cards = document.querySelectorAll('.ds-card-sec, .mee-reward-card');
-            for (let card of cards) {
-                let cText = card.innerText.toLowerCase();
-                if (termos.some(t => cText.includes(t))) {
-                    if (cText.includes('1/1') || cText.includes('concluída') || cText.includes('completed')) {
-                        return 'CONCLUIDA';
+            if (!vsCard) {
+                let allCards = Array.from(document.querySelectorAll('div[class*="rounded-cornerCardDefault"]'));
+                for (let c of allCards) {
+                    let hasSvg = c.querySelector('img[src*="search_visual"]');
+                    let txt = (c.innerText || c.textContent || '').toLowerCase();
+                    if (hasSvg || txt.includes('pesquisa visual')) {
+                        vsCard = c.closest('button') || c;
+                        break;
                     }
-                    return 'PENDENTE';
                 }
             }
-            return 'NAO_EXISTE';
-        """)
+            
+            if (!vsCard) return 'NAO_EXISTE';
+            
+            let cardText = (vsCard.innerText || vsCard.textContent || '').toLowerCase();
+            let progress = vsCard.querySelector('[role="progressbar"], [aria-valuenow]');
+            let valNow = progress ? progress.getAttribute('aria-valuenow') : null;
+            let valText = progress ? progress.getAttribute('aria-valuetext') : '';
+            
+            let concluida = (valNow === '1') || (valText.includes('100%')) || cardText.includes('1/1') || cardText.includes('concluído') || cardText.includes('concluída') || cardText.includes('completed');
+            
+            if (concluida) return 'CONCLUIDA';
+            return 'PENDENTE';
+        """
+        
+        estado = driver.execute_script(script_checagem)
         
         if estado == 'CONCLUIDA':
             LOGGER(t('visual_ok'), "success")
@@ -864,43 +872,80 @@ def fazer_pesquisa_visual(driver):
             return
             
         LOGGER(t('visual_init'), "info")
-        LOGGER("[BING] Acionando card de Pesquisa Visual no Rewards...", "info")
+        LOGGER("[BING] Card de Pesquisa Visual detectado como PENDENTE (0/1). Acionando...", "info")
         
-        # Clica no card para engajar o tracking
+        # 2. Abre o Flyout lateral clicando no botão do Card
         driver.execute_script("""
-            let termos = ['pesquisa visual', 'visual search', 'pesquise com imagem', 'pesquise usando uma imagem'];
-            let cards = document.querySelectorAll('div, a, span, button, p');
-            for (let el of cards) {
-                let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                if (termos.some(t => texto === t || texto.includes(t))) {
-                    let clicavel = el.closest('button, a, [role="button"]') || el;
-                    clicavel.click();
+            let allButtons = Array.from(document.querySelectorAll('button[data-rac], button[class*="rounded-cornerCardDefault"], button'));
+            for (let btn of allButtons) {
+                let hasSvg = btn.querySelector('img[src*="search_visual"], img[alt*="Pesquisa Visual"], img[alt*="Visual Search"]');
+                let txt = (btn.innerText || btn.textContent || '').toLowerCase();
+                if (hasSvg || (txt.includes('pesquisa visual') && !txt.includes('série de pesquisa visual')) || txt.includes('visual search')) {
+                    btn.click();
                     break;
                 }
             }
         """)
         time.sleep(3)
         
-        # Executa pesquisa visual no Hub Visual Search do Bing e na barra principal
-        driver.get("https://www.bing.com/visualsearch?q=nature")
+        # 3. Extrai o link oficial de tracking da Pesquisa Visual do painel lateral (Flyout)
+        target_url = driver.execute_script("""
+            let link = document.querySelector('a[href*="vsstreak"], a[href*="vstooltip"]');
+            if (!link) {
+                let allA = Array.from(document.querySelectorAll('a'));
+                link = allA.find(a => /pesquisar agora|search now/i.test(a.innerText || a.textContent || ''));
+            }
+            return link ? link.href : "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES";
+        """)
+        
+        if not target_url:
+            target_url = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"
+            
+        LOGGER(f"[BING] Link de streak obtido: {target_url}", "info")
+        
+        # 4. Navega para a página de destino da streak no Bing
+        driver.get(target_url)
         time.sleep(4)
         
+        # 5. Executa a ação da Pesquisa Visual
+        # Tentativa A: Aciona o botão de câmera / lente na barra de busca caso renderizado
         try:
             driver.execute_script("""
-                // 1. Tenta acionar amostra de imagem ou lens no hub de pesquisa visual
-                let sampleImg = document.querySelector('.vs_sample_img, [class*="sample"] img, .cardItem, .img_item, a[href*="visualsearch"], .mimg');
-                let cam = document.querySelector('#sb_vse, [data-id="vs_icon"], [aria-label*="Visual"], [title*="Visual"]');
-                if (sampleImg) {
-                    sampleImg.click();
-                } else if (cam) {
-                    cam.click();
-                }
+                let cam = document.querySelector('#sb_vse, .sbi_b, [aria-label*="Pesquisar por imagem"], [aria-label*="Search by image"], [aria-label*="Visual"], [data-id="vs_icon"]');
+                if (cam) cam.click();
             """)
-            time.sleep(5)
+            time.sleep(2)
         except Exception:
             pass
             
-        LOGGER(t('visual_ok'), "success")
+        # Tentativa B: Dispara pesquisa direta de imagem com a feature vsstreak ativada
+        semente = random.randint(100, 99999)
+        url_imagem = urllib.parse.quote_plus(f"https://picsum.photos/seed/{semente}/400/400")
+        url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem}&features=vsstreak"
+        driver.get(url_pesquisa_direta)
+        time.sleep(6)
+        
+        # Tentativa C: Acessa o Hub de Visual Search oficial
+        driver.get("https://www.bing.com/visualsearch?q=nature&features=vsstreak")
+        time.sleep(5)
+        try:
+            driver.execute_script("""
+                let img = document.querySelector('.vs_sample_img, [class*="sample"] img, .cardItem, .img_item, a[href*="visualsearch"], .mimg');
+                if (img) img.click();
+            """)
+            time.sleep(4)
+        except Exception:
+            pass
+            
+        # 6. Retorna ao Rewards para conferência final
+        driver.get("https://rewards.bing.com/")
+        time.sleep(4)
+        estado_final = driver.execute_script(script_checagem)
+        if estado_final == 'CONCLUIDA':
+            LOGGER(f"   {t('visual_ok')} (1/1)", "success")
+        else:
+            LOGGER("[BING] Pesquisa Visual executada no Bing. Pontuação sincronizando com a Microsoft.", "info")
+            
     except Exception as e:
         LOGGER(f"[BING] Aviso Pesquisa Visual: {e}", "warning")
 
