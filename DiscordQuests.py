@@ -142,8 +142,9 @@ SCRIPT_JS = r"""
                         selector.click();
                         await new Promise(r => setTimeout(r, 800));
                         
-                        let options = Array.from(document.querySelectorAll('[role="option"], [class*="option"], div, span'));
-                        let desktopOpt = options.find(o => /(área de trabalho|area de trabalho|desktop|computador|pc)/i.test(o.innerText || o.textContent || ''));
+                        let options = Array.from(document.querySelectorAll('[role="listbox"] [role="option"], [role="option"], [class*="option"]'));
+                        if (options.length === 0) options = Array.from(document.querySelectorAll('div[class*="select"] div, li'));
+                        let desktopOpt = options.find(o => /(área de trabalho|area de trabalho|\bdesktop\b|\bcomputador\b|\bpc\b)/i.test(o.innerText || o.textContent || ''));
                         if (desktopOpt) {
                             desktopOpt.click();
                             logP(`[JS] Plataforma 'Área de trabalho' selecionada com sucesso para '${questName}'!`);
