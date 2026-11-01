@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}     CORE NEXUS - AUTO BUILD SCRIPT (LINUX / MACOS)${NC}"
+echo -e "${GREEN}     CORE NEXUSÓ - AUTO BUILD SCRIPT (LINUX / MACOS)${NC}"
 echo -e "${GREEN}    ═══════════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -31,10 +31,10 @@ if [ $? -ne 0 ]; then
 fi
 
 echo -e "${GREEN}[SYSTEM]${NC} Checking required packages..."
-python3 -m pip install --upgrade selenium pywebview undetected-chromedriver requests pystray pillow >/dev/null 2>&1
+python3 -m pip install -r requirements.txt >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo -e "${YELLOW}[WARNING]${NC} Could not install all dependencies."
-    echo "Please run: pip install selenium pywebview undetected-chromedriver requests pystray pillow"
+    echo "Please run: pip install -r requirements.txt"
 fi
 
 echo -e "${GREEN}[SYSTEM]${NC} Cleaning up previous build files..."
@@ -47,7 +47,7 @@ echo "This may take a few minutes depending on your system."
 echo ""
 
 # Nota: no Linux/Mac usa-se : em vez de ; no add-data
-python3 -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico:." --add-data "locales.json:." AppGUI.py
+python3 -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico:." --add-data "locales.json:." --add-data "ui:ui" AppGUI.py
 
 if [ $? -ne 0 ]; then
     echo ""

@@ -1,3 +1,4 @@
+from pathlib import Path
 import webview
 import pystray
 from PIL import Image, ImageDraw
@@ -30,7 +31,7 @@ class MiniPanelAPI:
         # 1. Avisa a Máquina de Estados para abortar tudo
         RewardsCore.ABORTAR_PROCESSO = True
         
-        # 2. Desmonta o ícone da bandeja sem deixar fantasmas
+        # 2. Desmonta o íícone da bandeja sem deixar fantasmas
         GerenciadorBandeja.parar_tray()
         
         # 3. Destrói as janelas e corta o processo na raiz
@@ -49,20 +50,20 @@ class SysTrayApp:
     def __init__(self):
         self.janela_principal = None
         self.janela_popup = None
-        self.icone_tray = None
+        self.iícone_tray = None
         self.sessao_ativa = False
         self.tempo_inicio = 0
         self.popup_aberto = False
         self.ultimo_toggle = 0
 
-    def gerar_icone_emergencia(self):
-        """Cria um ícone azul com um círculo branco na memória, caso a foto .ico falte"""
+    def gerar_iícone_emergencia(self):
+        """Cria um íícone azul com um círculo branco na memória, caso a foto .ico falte"""
         imagem = Image.new('RGB', (64, 64), color=(14, 165, 233))
         desenho = ImageDraw.Draw(imagem)
         desenho.ellipse((16, 16, 48, 48), fill=(255, 255, 255))
         return imagem
 
-    def acao_clique_esquerdo(self, icone, item):
+    def acao_clique_esquerdo(self, iícone, item):
         if not self.janela_popup:
             return
 
@@ -87,7 +88,7 @@ class SysTrayApp:
                     self.janela_popup.move(x, y)
             except Exception: pass
             
-            # Avisa o JS para desarmar o blur ANTES de mostrar a janela
+            # Avisa o JS" para desarmar o blur ANTES" de mostrar a janela
             try:
                 self.janela_popup.evaluate_js("reiniciarFoco();")
             except Exception: pass
@@ -103,7 +104,7 @@ class SysTrayApp:
 
     def fechar_popup_sistema(self):
         if self.janela_popup and self.popup_aberto:
-            # Desarma o blur no JS imediatamente para evitar conflitos de fechamento
+            # Desarma o blur no JS" imediatamente para evitar conflitos de fechamento
             try:
                 self.janela_popup.evaluate_js("reiniciarFoco();")
             except Exception: pass
@@ -114,18 +115,18 @@ class SysTrayApp:
             self.popup_aberto = False
             self.ultimo_toggle = time.time()
 
-    def acao_clique_direito(self, icone, item):
+    def acao_clique_direito(self, iícone, item):
         if self.janela_principal:
             self.janela_principal.show()
             self.janela_principal.restore()
             
     def parar_tray(self):
-        """Remove o ícone da bandeja graciosamente para não deixar rastro"""
-        if self.icone_tray:
-            self.icone_tray.stop()
-            self.icone_tray = None
+        """Remove o íícone da bandeja graciosamente para não deixar rastro"""
+        if self.iícone_tray:
+            self.iícone_tray.stop()
+            self.iícone_tray = None
 
-    def acao_sair(self, icone, item):
+    def acao_sair(self, iícone, item):
         self.parar_tray()
         if self.janela_popup:
             try: self.janela_popup.destroy()
@@ -136,18 +137,18 @@ class SysTrayApp:
         os._exit(0)
 
     def iniciar_tray_em_background(self):
-        if self.icone_tray is not None:
+        if self.iícone_tray is not None:
             return
             
         # Tenta carregar a imagem embutida no EXE ou gera a de emergência
         try:
-            caminho_icone = resource_path("rewards.ico")
-            if os.path.exists(caminho_icone):
-                imagem = Image.open(caminho_icone)
+            caminho_iícone = resource_path("rewards.ico")
+            if os.path.exists(caminho_iícone):
+                imagem = Image.open(caminho_iícone)
             else:
-                imagem = self.gerar_icone_emergencia()
+                imagem = self.gerar_iícone_emergencia()
         except Exception:
-            imagem = self.gerar_icone_emergencia()
+            imagem = self.gerar_iícone_emergencia()
 
         try:
             cfg = RewardsCore.carregar_config()
@@ -163,9 +164,9 @@ class SysTrayApp:
             pystray.MenuItem(lbl_main, self.acao_clique_direito),
             pystray.MenuItem(lbl_exit, self.acao_sair)
         )
-        self.icone_tray = pystray.Icon("RewardsBot", imagem, "Reward Bot", menu)
+        self.iícone_tray = pystray.Icon("RewardsBot", imagem, "Reward Bot", menu)
         
-        thread_tray = threading.Thread(target=self.icone_tray.run, daemon=True)
+        thread_tray = threading.Thread(target=self.iícone_tray.run, daemon=True)
         thread_tray.start()
 
     def atualizar_progresso(self, servico, porcentagem, status, cor):
@@ -195,213 +196,14 @@ class SysTrayApp:
 
 
 # ==========================================
-# CÓDIGO HTML/CSS/JS DO POPUP
-# ==========================================
-HTML_POPUP = """
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        /* FORÇA A TRANSPARÊNCIA ABSOLUTA NO FUNDO DA JANELA */
-        html, body {
-            margin: 0; padding: 0; background: transparent !important;
-            overflow: hidden; height: 100vh;
-        }
-        
-        /* ENCAPSULA O PAINEL PARA O BORDER-RADIUS FUNCIONAR PERFEITAMENTE */
-        .painel-master {
-            background: rgba(17, 24, 39, 0.95);
-            color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            height: calc(100vh - 2px); width: calc(100vw - 2px);
-            margin: 1px; /* O milímetro de respiro para a transparência do Windows atuar */
-            box-sizing: border-box;
-            display: flex; flex-direction: column; user-select: none;
-        }
-        
-        .header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 15px; border-bottom: 1px solid #334155; background: rgba(30, 41, 59, 0.5);
-            border-top-left-radius: 11px; border-top-right-radius: 11px; /* Impede a ponta quadrada de vazar */
-        }
-        .timer-box { font-size: 13px; font-weight: 600; color: #94a3b8; display: flex; align-items: center; gap: 8px;}
-        .close-btn { background: transparent; border: none; color: #64748b; font-size: 16px; cursor: pointer; transition: 0.2s; }
-        .close-btn:hover { color: #ef4444; }
-        
-        .content { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
-        
-        .module { display: flex; flex-direction: column; gap: 6px; }
-        .module-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; }
-        .module-title { color: #e2e8f0; }
-        .module-status { color: #64748b; }
-        
-        .progress-bg { width: 100%; height: 6px; background: #334155; border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; width: 0%; border-radius: 10px; transition: width 0.4s ease, background 0.4s ease; }
-        
-        .footer { padding: 10px 15px; text-align: center; margin-top: auto; }
-        .kill-btn {
-            width: 100%; padding: 10px; background: #ef4444; color: white; border: none; border-radius: 8px;
-            font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s;
-        }
-        .kill-btn:hover { background: #dc2626; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
-        
-        .speed-controls { display: flex; gap: 5px; margin-top: 10px; }
-        .btn-speed { flex: 1; padding: 6px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-speed.active { background: #3b82f6; color: #fff; border-color: #60a5fa; box-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
-        .btn-speed:hover:not(.active) { background: #334155; color: #e2e8f0; }
-        .btn-speed.turbo.active { background: #ef4444; border-color: #f87171; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
-        .btn-speed.stealth.active { background: #10b981; border-color: #34d399; box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
-    </style>
-</head>
-<body>
+# C"DIGO HTML/CSS/JS" DO POPUP
+def carregar_html_ui(nome_arquivo):
+    base_dir = getattr(sys, '_MEIPASS', Path(__file__).parent)
+    caminho = Path(base_dir) / "ui" / nome_arquivo
+    if not caminho.exists():
+        caminho = Path(__file__).parent / "ui" / nome_arquivo
+    return caminho.read_text(encoding="utf-8")
 
-    <!-- TUDO AGORA FICA DENTRO DO PAINEL-MASTER -->
-    <div class="painel-master">
-        <div class="header">
-            <div class="timer-box">⏱️ <span id="timer-display">00:00:00</span></div>
-            <button class="close-btn" onclick="pywebview.api.fechar_popup()">✕</button>
-        </div>
-
-        <div class="content">
-            <div class="module">
-                <div class="module-header">
-                    <span class="module-title">Bing Rewards</span>
-                    <span class="module-status" id="bing-status">Inativo</span>
-                </div>
-                <div class="progress-bg"><div class="progress-fill" id="bing-bar" style="background: #3b82f6;"></div></div>
-            </div>
-
-            <div class="module">
-                <div class="module-header">
-                    <span class="module-title">Discord Quests</span>
-                    <span class="module-status" id="discord-status">Inativo</span>
-                </div>
-                <div class="progress-bg"><div class="progress-fill" id="discord-bar" style="background: #8b5cf6;"></div></div>
-            </div>
-
-            <div class="speed-controls">
-                <button id="btn-stealth" class="btn-speed stealth" onclick="setSpeed('stealth')">STEALTH</button>
-                <button id="btn-normal" class="btn-speed active" onclick="setSpeed('normal')">NORMAL</button>
-                <button id="btn-turbo" class="btn-speed turbo" onclick="setSpeed('turbo')">TURBO</button>
-            </div>
-        </div>
-
-        <div class="footer">
-            <button class="kill-btn" onclick="pywebview.api.kill_switch()">FINALIZAR</button>
-        </div>
-    </div>
-
-    <script>
-        let podeFecharPorBlur = false;
-
-        function setSpeed(speed) {
-            document.querySelectorAll('.btn-speed').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('btn-' + speed).classList.add('active');
-            pywebview.api.mudar_marcha(speed);
-        }
-
-        function reiniciarFoco() {
-            podeFecharPorBlur = false;
-        }
-
-        function armarAutoClose() {
-            podeFecharPorBlur = false;
-            window.focus();
-            
-            setTimeout(() => {
-                podeFecharPorBlur = true;
-                window.focus();
-            }, 500);
-        }
-
-        function updateTimer(timeStr) {
-            document.getElementById('timer-display').innerText = timeStr;
-        }
-        
-        function updateBar(service, percent, statusText, color) {
-            document.getElementById(service + '-bar').style.width = percent + '%';
-            document.getElementById(service + '-bar').style.background = color;
-            document.getElementById(service + '-status').innerText = statusText;
-            document.getElementById(service + '-status').style.color = color;
-        }
-
-        window.addEventListener('blur', function() {
-            if (podeFecharPorBlur) {
-                pywebview.api.fechar_popup();
-            }
-        });
-        
-        let optimists = {};
-
-        function atualizarPainel(modulo, status, porcentagem, total_segundos = 0) {
-            let elStatus = document.getElementById(modulo + '-status');
-            let elBarra = document.getElementById(modulo + '-bar');
-            
-            if (elStatus) elStatus.innerText = status;
-            
-            if (!elBarra) return;
-
-            let corBase = modulo === 'bing' ? '#3b82f6' : '#8b5cf6';
-            
-            // 3. Trava de Conclusão: Se chegou no 100% real (ou 0%), para o ticker
-            if (porcentagem >= 100 || porcentagem === 0) {
-                if (optimists[modulo]) {
-                    clearInterval(optimists[modulo].timer);
-                    delete optimists[modulo];
-                }
-                elBarra.style.width = porcentagem + '%';
-                elBarra.style.background = porcentagem === 100 ? '#10b981' : corBase;
-                return;
-            }
-
-            elBarra.style.background = corBase;
-
-            // 1. Desacoplamento da UI: Inicia o ticker se tiver tempo total e não existir
-            if (!optimists[modulo] && total_segundos > 0) {
-                optimists[modulo] = {
-                    currentVisual: porcentagem,
-                    realPercent: porcentagem,
-                    incrementPerSec: 100.0 / total_segundos,
-                    timer: setInterval(() => tickOptimistic(modulo), 1000)
-                };
-            } 
-            // 2. Sincronização em Background: atualiza o alvo real quando chega info da API
-            else if (optimists[modulo]) {
-                optimists[modulo].realPercent = Math.max(porcentagem, optimists[modulo].realPercent);
-            } else {
-                // Se não tem tempo total ainda, apenas atualiza visualmente
-                elBarra.style.width = porcentagem + '%';
-            }
-        }
-
-        function tickOptimistic(modulo) {
-            let opt = optimists[modulo];
-            if (!opt) return;
-
-            let elBarra = document.getElementById(modulo + '-bar');
-            if (!elBarra) return;
-            
-            // Lógica de Ajuste Suave:
-            // Acelera se estiver mais de 5% atrasado do real, diminui se passar do real.
-            let diff = opt.realPercent - opt.currentVisual;
-            let step = opt.incrementPerSec;
-            
-            if (diff > 5) step *= 2.0; 
-            else if (diff < 0) step *= 0.1; // Desacelera para esperar o real alcançar
-            
-            opt.currentVisual += step;
-            
-            // Trava do 99% - Nunca conclui visualmente sem o OK do servidor
-            if (opt.currentVisual >= 99.0) {
-                opt.currentVisual = 99.0;
-            }
-            
-            elBarra.style.width = opt.currentVisual + '%';
-        }
-    </script>
-</body>
-</html>
-"""
+HTML_POPUP = carregar_html_ui("popup.html")
 
 GerenciadorBandeja = SysTrayApp()

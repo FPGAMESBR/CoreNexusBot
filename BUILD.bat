@@ -30,10 +30,10 @@ if errorlevel 1 (
 )
 
 echo    [SYSTEM] Checking required packages...
-pip install selenium pywebview undetected-chromedriver requests pystray pillow >nul 2>&1
+pip install -r requirements.txt >nul 2>&1
 if errorlevel 1 (
     echo    [WARNING] Could not install all dependencies.
-    echo    Please run: pip install selenium pywebview undetected-chromedriver requests pystray pillow
+    echo    Please run: pip install -r requirements.txt
 )
 
 echo    [SYSTEM] Cleaning up previous build files...
@@ -45,7 +45,7 @@ echo    [INFO] Starting build process...
 echo    This may take a few minutes depending on your system.
 echo.
 
-python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico;." --add-data "locales.json;." --version-file="version.txt" AppGUI.py
+python -m PyInstaller --noconfirm --onefile --windowed --name="Core Nexus" --icon="rewards.ico" --add-data "rewards.ico;." --add-data "locales.json;." --add-data "ui;ui" --version-file="version.txt" AppGUI.py
 
 if errorlevel 1 (
     echo.

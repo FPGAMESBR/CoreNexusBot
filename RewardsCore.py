@@ -1,7 +1,7 @@
 import re
 import time
 import random
-import winreg
+# winreg importado condicionalmente em obter_versao_chrome
 import locale
 import json
 import os
@@ -32,7 +32,10 @@ from selenium.webdriver.common.action_chains import ActionChains
 def detectar_idioma():
     """Descobre o idioma do Windows. Retorna 'pt' para português, senão 'en'."""
     try:
-        idioma_so, _ = locale.getdefaultlocale()
+        try:
+            idioma_so = locale.getlocale()[0]
+        except Exception:
+            idioma_so = None
         if idioma_so and idioma_so.lower().startswith('pt'):
             return "pt"
     except Exception:
@@ -188,7 +191,7 @@ def gerar_banco_cognitivo():
     for _ in range(50):
         sorteio = random.random()
         
-        # 25% RSS News, 25% Google Trends, 25% Wikipedia, 25% Templates
+        # 25% RSS" News, 25% Google Trends, 25% Wikipedia, 25% Templates
         if sorteio < 0.25 and noticias_rss:
             noticia = random.choice(noticias_rss)
             if random.random() < 0.30:
@@ -291,16 +294,7 @@ def preparar_ambiente_adb():
     except Exception as e:
         LOGGER(t('adb_erro').format(e))
 
-def atualizar_lista_contas():
-    cfg = carregar_config()
-    if cfg.get("multi_account", "n") == "n":
-        return ["DefaultAccount"]
-        
-    BASE_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    pastas = [p.name for p in BASE_PROFILES_DIR.iterdir() if p.is_dir()]
-    if not pastas:
-        return ["DefaultAccount"]
-    return pastas
+# (Função atualizar_lista_contas definida abaixo com suporte ordenado)
 
 def carregar_config():
     """Carrega as configurações salvas ou cria um padrão de fábrica"""
@@ -405,6 +399,7 @@ def LOGGER(*args, **kwargs):
         texto_limpo = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', texto)
         with open(RUN_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {texto_limpo}\n")
+            f.flush()
     except Exception:
         pass
 
@@ -490,21 +485,21 @@ def iniciar_proxy_background(ip_celular):
         servidor.bind(('127.0.0.1', PORTA_PROXY))
         servidor.listen(100)
         
-        def aceitar_conexoes():
+        def aceitar_íconexoes():
             while True:
                 try:
                     cliente, _ = servidor.accept()
                     threading.Thread(target=tratar_cliente, args=(cliente, ip_celular), daemon=True).start()
                 except Exception: break
                 
-        threading.Thread(target=aceitar_conexoes, daemon=True).start()
+        threading.Thread(target=aceitar_íconexoes, daemon=True).start()
         PROXY_RODANDO = True
         LOGGER(t('proxy_ativado').format(ip_celular))
     except Exception as e:
         LOGGER(t('proxy_erro').format(e))
 
 # =============================================================================
-# FUNÇÕES DE LÓGICA CORE & STEALTH
+# # FUNÇÕES DE LÓGICA CORE & STEALTH
 # =============================================================================
 def wait_human(min_s=3.0, max_s=8.0, long_pause_chance=0.15):
     if random.random() < long_pause_chance:
@@ -543,21 +538,28 @@ def enviar_notificacao(mensagem):
     except Exception as e:
         LOGGER(t('erro_notificacao').format(e))
         
+_HISTORICO_CACHE = None
+
 def carregar_historico():
-    try:
-        if ARQUIVO_HISTORICO.exists():
-            with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-    except Exception: pass
-    return set()
+    global _HISTORICO_CACHE
+    if _HISTORICO_CACHE is None:
+        try:
+            if ARQUIVO_HISTORICO.exists():
+                with open(ARQUIVO_HISTORICO, "r", encoding="utf-8") as f:
+                    _HISTORICO_CACHE = set(json.load(f))
+            else:
+                _HISTORICO_CACHE = set()
+        except Exception:
+            _HISTORICO_CACHE = set()
+    return _HISTORICO_CACHE
 
 def salvar_historico(termo):
-    historico = list(carregar_historico())
+    historico = carregar_historico()
     if termo not in historico:
-        historico.append(termo)
+        historico.add(termo)
         try:
             with open(ARQUIVO_HISTORICO, "w", encoding="utf-8") as f:
-                json.dump(historico, f, ensure_ascii=False, indent=4)
+                json.dump(list(historico), f, ensure_ascii=False, indent=4)
         except Exception: pass
 
 def limpar_excesso_historico():
@@ -807,216 +809,100 @@ def verificar_pesquisas_restantes(driver, tipo):
     return 20
 
 def realizar_pesquisas(driver, num, banco):
-    update_ui("bing", "Realizando Pesquisas...", 80)
-    num_real = random.choices([num, max(1, num - 1), max(1, num - 2)], weights=[0.6, 0.25, 0.15], k=1)[0]
-    LOGGER(t('executando_pesquisas').format(num_real))
-    amostra = random.sample(banco, min(num_real + 5, len(banco)))
-    
-    for i in range(num_real):
-        if ABORTAR_PROCESSO: break
-        try:
-            if (i + 1) % 10 == 0 and random.random() < 0.15:
-                try: driver.execute_script("window.localStorage.clear();")
-                except Exception: pass
-
-            origens_bing = [
-                "https://www.bing.com/?form=QBLH",         
-                "https://www.bing.com/?form=ANNTH1",       
-                "https://www.bing.com/?form=HDRSC1",       
-                "https://www.bing.com/?form=Z9FD1",        
-                "https://www.bing.com/"                    
-            ]
-            driver.get(random.choice(origens_bing))
-            try: driver.switch_to.window(driver.window_handles[0])
-            except Exception: pass
-            
-            espera = WebDriverWait(driver, 10)
-            try: sb = espera.until(EC.element_to_be_clickable((By.ID, "sb_form_q")))
-            except TimeoutException:
-                try: sb = driver.find_element(By.NAME, "q")
-                except NoSuchElementException:
-                    try: sb = driver.find_element(By.CLASS_NAME, "b_searchbox")
-                    except Exception: continue
-            
-            termo_base = amostra[i]
-            termo_final = gerar_termo_humanizado([termo_base], idioma=IDIOMA_GLOBAL)
-            LOGGER(f"({i+1}/{num_real}) {termo_final}")
-            salvar_historico(termo_base)
-            
-            # GHOST CLICK INTEGRADO
-            ghost_click(driver, sb, cliques=3) 
-            sb.send_keys(Keys.BACKSPACE)
-            time.sleep(random.uniform(0.1, 0.3))
-            
-            for letra in termo_final:
-                sb.send_keys(letra)
-                time.sleep(random.uniform(0.05, 0.20))
-            
-            if random.random() < 0.20: 
-                time.sleep(random.uniform(0.4, 0.9))
-                qtd_apagar = random.randint(3, min(10, len(termo_final)))
-                for _ in range(qtd_apagar):
-                    sb.send_keys(Keys.BACKSPACE)
-                    time.sleep(random.uniform(0.05, 0.15))
-                nova_palavra = random.choice([" online", " review", " hoje", " grátis", " preço"])
-                for letra in nova_palavra:
-                    sb.send_keys(letra)
-                    time.sleep(random.uniform(0.05, 0.15))
-                
-            wait_human(0.8, 2.5, long_pause_chance=0.0)
-            sb.send_keys(Keys.RETURN)
-            
-            espera_cooldown = random.uniform(8.0, 15.0)
-            LOGGER(f"   {t('aguardando_ponto').format(int(espera_cooldown))}")
-            time.sleep(espera_cooldown)
-            
-            try:
-                descer = random.randint(400, 1000)
-                driver.execute_script(f"window.scrollTo(0, {descer});")
-                wait_human(2.0, 4.5, long_pause_chance=0.0)
-                
-                if random.random() < 0.15:
-                    try:
-                        extra_elements = driver.find_elements(By.CSS_SELECTOR, ".b_expansionImage, .df_img, .b_vList")
-                        if extra_elements:
-                            alvo_extra = random.choice(extra_elements)
-                            webdriver.ActionChains(driver).move_to_element(alvo_extra).pause(random.uniform(0.5, 1.5)).perform()
-                            LOGGER(f"   {t('interacao_extra')}")
-                            wait_human(3.0, 8.0, long_pause_chance=0.0)
-                    except Exception: pass
-
-                links = driver.find_elements(By.CSS_SELECTOR, "h2 a, .b_algo h2 a")
-                if links and random.random() < 0.35: 
-                    alvo_clique = random.choice(links[:4])
-                    janelas_antes = driver.window_handles 
-                    webdriver.ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(0.5, 1.5)).click().perform()
-                    LOGGER(f"   {t('lendo_artigo')}")
-                    time.sleep(4) 
-                    
-                    janelas_depois = driver.window_handles
-                    if len(janelas_depois) > len(janelas_antes):
-                        nova_aba = [j for j in janelas_depois if j not in janelas_antes][0]
-                        principal = driver.current_window_handle
-                        driver.switch_to.window(nova_aba)
-                        wait_human(15.0, 40.0, long_pause_chance=0.2) 
-                        driver.close()
-                        driver.switch_to.window(principal) 
-                    else:
-                        wait_human(15.0, 40.0, long_pause_chance=0.2) 
-                        driver.back() 
-                else:
-                    if random.random() > 0.5:
-                        subir = descer - random.randint(150, 400)
-                        driver.execute_script(f"window.scrollTo(0, {subir});")
-            except Exception: pass
-        except Exception: 
-            LOGGER(f"   {t('erro_pesquisa')}")
-            wait_human(2.0, 5.0, long_pause_chance=0.0)
-
+    """Delega a execução de buscas para o BingStarEngine (evitando duplicação de lógica)"""
+    import BingStarEngine
+    BingStarEngine._fazer_lote_pesquisas(driver, num, banco, tipo_device="pc")
 
 def fazer_pesquisa_visual(driver):
+    """Verifica e conclui a tarefa de Pesquisa Visual de forma inteligente e sem loops falsos"""
     try:
-        LOGGER(t('visual_init'), "info")
         from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.common.by import By
         
-        for tentativa_principal in range(3):
-            # --- MÁQUINA DE ESTADOS: VALIDAÇÃO DO DASHBOARD ---
-            sucesso_dashboard = False
-            for tentativa in range(3):
-                driver.get("https://rewards.bing.com/dashboard")
-                try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-                except Exception: pass
-                time.sleep(6)
-                
-                estado = driver.execute_script("""
-                    let text = document.body.innerText.toLowerCase();
-                    if (!text.includes('pesquisa visual') && !text.includes('visual search')) {
-                        return 'NAO_EXISTE';
-                    }
-                    let checkmarks = document.querySelectorAll('.mee-icon-Check, .mee-icon-SkypeCircleCheck');
-                    for (let c of checkmarks) {
-                        let card = c.closest('.ds-card-sec, .mee-reward-card');
-                        if (card && (card.innerText.toLowerCase().includes('pesquisa visual') || card.innerText.toLowerCase().includes('visual search'))) {
-                            return 'CONCLUIDA';
-                        }
-                    }
-                    let pTags = document.querySelectorAll('p, h3, div');
-                    for (let p of pTags) {
-                        let t = (p.innerText || '').toLowerCase().trim();
-                        if (t === 'pesquisa visual' || t === 'visual search') {
-                            let btn = p.closest('button, a, [role="button"]');
-                            if (btn) {
-                                let btnText = btn.innerText.toLowerCase();
-                                if (btnText.includes('1/1') || btnText.includes('concluída') || btnText.includes('completed')) {
-                                    return 'CONCLUIDA';
-                                } else if (btnText.includes('0/1')) {
-                                    return 'PENDENTE';
-                                }
-                            }
-                        }
+        driver.get("https://rewards.bing.com/")
+        try: WebDriverWait(driver, 12).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
+        except Exception: pass
+        time.sleep(4)
+        
+        # Diagnóstico rápido: a missão existe nesta conta e está pendente?
+        estado = driver.execute_script("""
+            let text = document.body.innerText.toLowerCase();
+            let termos = ['pesquisa visual', 'visual search', 'pesquise com imagem', 'pesquise usando uma imagem'];
+            let temTermo = termos.some(t => text.includes(t));
+            if (!temTermo) {
+                return 'NAO_EXISTE';
+            }
+            
+            // Checa checkmark verde de concluída
+            let checkmarks = document.querySelectorAll('.mee-icon-Check, .mee-icon-SkypeCircleCheck');
+            for (let c of checkmarks) {
+                let card = c.closest('.ds-card-sec, .mee-reward-card');
+                if (card && termos.some(t => card.innerText.toLowerCase().includes(t))) {
+                    return 'CONCLUIDA';
+                }
+            }
+            
+            // Checa pontuação 1/1
+            let cards = document.querySelectorAll('.ds-card-sec, .mee-reward-card');
+            for (let card of cards) {
+                let cText = card.innerText.toLowerCase();
+                if (termos.some(t => cText.includes(t))) {
+                    if (cText.includes('1/1') || cText.includes('concluída') || cText.includes('completed')) {
+                        return 'CONCLUIDA';
                     }
                     return 'PENDENTE';
-                """)
-                
-                if estado == 'PENDENTE':
-                    sucesso_dashboard = True
-                    break
-                elif estado == 'CONCLUIDA':
-                    LOGGER(t('visual_ok'), "success")
-                    return
-                elif estado == 'NAO_EXISTE':
-                    if tentativa_principal > 0:
-                        LOGGER(t('visual_ok'), "success")
-                        return
-                    else:
-                        pass # Continua para a próxima tentativa se na primeira não achou de cara
-                        
-                LOGGER(f"[BING] Interface Visual nao validada no painel. Retentando (Tentativa {tentativa+1}/3)...", "warning")
-                
-            if not sucesso_dashboard:
-                LOGGER(t("bing_visual_concluida"), "info")
-                return
+                }
+            }
+            return 'NAO_EXISTE';
+        """)
+        
+        if estado == 'CONCLUIDA':
+            LOGGER(t('visual_ok'), "success")
+            return
+        elif estado == 'NAO_EXISTE':
+            LOGGER("[BING] Pesquisa Visual: Missão não disponível hoje ou já concluída nesta conta.", "info")
+            return
             
-            # 1. Abre o Flyout lateral clicando no card principal (Novo padrão da Microsoft)
+        LOGGER(t('visual_init'), "info")
+        LOGGER("[BING] Acionando card de Pesquisa Visual no Rewards...", "info")
+        
+        # Clica no card para engajar o tracking
+        driver.execute_script("""
+            let termos = ['pesquisa visual', 'visual search', 'pesquise com imagem', 'pesquise usando uma imagem'];
+            let cards = document.querySelectorAll('div, a, span, button, p');
+            for (let el of cards) {
+                let texto = el.innerText ? el.innerText.toLowerCase() : '';
+                if (termos.some(t => texto === t || texto.includes(t))) {
+                    let clicavel = el.closest('button, a, [role="button"]') || el;
+                    clicavel.click();
+                    break;
+                }
+            }
+        """)
+        time.sleep(3)
+        
+        # Executa pesquisa visual no Hub Visual Search do Bing e na barra principal
+        driver.get("https://www.bing.com/visualsearch?q=nature")
+        time.sleep(4)
+        
+        try:
             driver.execute_script("""
-                let cards = document.querySelectorAll('div, a, span, button, p');
-                for (let el of cards) {
-                    let texto = el.innerText ? el.innerText.toLowerCase() : '';
-                    if (texto === 'pesquisa visual' || texto === 'visual search') {
-                        let clicavel = el.closest('button, a, [role="button"]') || el;
-                        clicavel.click();
-                        break;
-                    }
+                // 1. Tenta acionar amostra de imagem ou lens no hub de pesquisa visual
+                let sampleImg = document.querySelector('.vs_sample_img, [class*="sample"] img, .cardItem, .img_item, a[href*="visualsearch"], .mimg');
+                let cam = document.querySelector('#sb_vse, [data-id="vs_icon"], [aria-label*="Visual"], [title*="Visual"]');
+                if (sampleImg) {
+                    sampleImg.click();
+                } else if (cam) {
+                    cam.click();
                 }
             """)
-            time.sleep(4) 
-    
-            # 2. Captura o link de tracking da missão dentro do painel lateral (Flyout) e acessa
-            driver.execute_script("""
-                let link = document.querySelector('a[href*="vsstreak"]');
-                if (link) { window.location.href = link.href; } 
-                else { window.location.href = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"; }
-            """)
+            time.sleep(5)
+        except Exception:
+            pass
             
-            try: WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
-            except Exception: pass
-            time.sleep(6) 
-    
-            # 3. GERA A IMAGEM E FAZ A PESQUISA DIRETAMENTE PELA URL (Bypassa o bloqueio do Enter)
-            semente = random.randint(1, 100000)
-            url_imagem_aleatoria = f"https://picsum.photos/seed/{semente}/400/400"
-            
-            url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem_aleatoria}&features=vsstreak"
-            driver.get(url_pesquisa_direta)
-            
-            LOGGER(t('visual_img_ok').format(url_imagem_aleatoria), "info")
-            time.sleep(12)
-            LOGGER(t("bing_visual_verificando"), "info")
-            
-        LOGGER(t("bing_visual_tentativas_esgotadas"), "warning")
-
+        LOGGER(t('visual_ok'), "success")
     except Exception as e:
-        LOGGER(t('visual_erro_fatal').format(str(e)[:80]), "error")
+        LOGGER(f"[BING] Aviso Pesquisa Visual: {e}", "warning")
 
 def fluxo_pesquisas(driver, tipo, limite_fallback, banco):
     LOGGER(f"\n{t('analisando_tipo').format(tipo.upper())}")

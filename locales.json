@@ -50,7 +50,7 @@
         "4g_rotacao_concluida": "   [NETWORK] [4G] Rotação concluída! Novo IP atribuído pela torre.",
         "proxy_ativado": "   [NETWORK] [PROXY] Túnel invisível ativado com sucesso ({}).",
         "proxy_erro": "   [NETWORK] [ERRO] Falha ao iniciar proxy: {}",
-        "cel_nao_det": "[MOBILE] [!] Celular não detectado. Aguardando conexão USB (Tentando por 1 min)...",
+        "cel_nao_det": "[MOBILE] [!] Celular não detectado. Aguardando íconexão USB (Tentando por 1 min)...",
         "sessao_mob_fim": "[MOBILE] -> Sessão Mobile finalizada. Mantendo aba aberta por um tempo residual...",
         "erro_mob": "[MOBILE] [ERRO] Erro Crítico Mobile",
         "adb_nao_encontrado": "\n[MOBILE] [!] ADB não encontrado para {}. Iniciando download...",
@@ -162,7 +162,8 @@
         "star_turbo_ativado": "[STAR ENGINE] Marcha Turbo ativada. Pulando o Modo Café.",
         "star_chrono_gating": "[STAR ENGINE] Chrono-Gating: Iniciando hibernação massiva entre blocos.",
         "star_meta_pc_atingida": "   [STAR ENGINE] Meta de PC já atingida. Pulando bloco.",
-        "star_meta_mob_atingida": "   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco."
+        "star_meta_mob_atingida": "   [STAR ENGINE] Meta Mobile já atingida. Pulando bloco.",
+        "ja_em_execucao": "[SYSTEM] [!] O sistema já está em execução!"
     },
     "en": {
         "janela_titulo": "title FPGAMESBR Rewards",
@@ -327,6 +328,7 @@
         "star_turbo_ativado": "[STAR ENGINE] Turbo Gear activated. Skipping Coffee Mode.",
         "star_chrono_gating": "[STAR ENGINE] Chrono-Gating: Starting massive hibernation between blocks.",
         "star_meta_pc_atingida": "   [STAR ENGINE] PC Goal already reached. Skipping block.",
-        "star_meta_mob_atingida": "   [STAR ENGINE] Mobile Goal already reached. Skipping block."
+        "star_meta_mob_atingida": "   [STAR ENGINE] Mobile Goal already reached. Skipping block.",
+        "ja_em_execucao": "[SYSTEM] [!] System is already running!"
     }
 }
