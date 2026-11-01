@@ -1,3 +1,4 @@
+import sys
 import webview  # pyrefly: ignore [missing-import]
 import threading
 import socket
@@ -42,15 +43,31 @@ class BotAPI:
         return bool(exe_path)
         
     def log_ui(self, texto, tipo='info'):
+        # 1. Envia para a janela do pywebview
         try:
-            # Blinda quebras de linha e aspas para não quebrar a injeção do JavaScript
             t_seguro = str(texto).replace('\\', '\\\\').replace("'", "\\'").replace('"', '\\"').replace('\n', '\\n').replace('\r', '')
-            webview.windows[0].evaluate_js(f"log('{t_seguro}', '{tipo}')")
+            if webview.windows:
+                webview.windows[0].evaluate_js(f"log('{t_seguro}', '{tipo}')")
         except Exception: 
-            try:
-                # Se tudo falhar, printa no console nativo ignorando emojis que o Windows não suporta
-                print(str(texto).encode('utf-8').decode('cp1252', 'ignore'))
-            except Exception: pass
+            pass
+
+        # 2. Imprime no console nativo ignorando emojis que o Windows não suporta
+        try:
+            print(str(texto).encode('utf-8').decode('cp1252', 'ignore'))
+        except Exception: 
+            pass
+
+        # 3. Grava imediatamente no arquivo de log da sessão no disco (logs/run_*.txt)
+        try:
+            import re
+            from datetime import datetime
+            texto_limpo = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', str(texto))
+            if RewardsCore.RUN_LOG_PATH:
+                with open(RewardsCore.RUN_LOG_PATH, "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [{tipo.upper()}] {texto_limpo}\n")
+                    f.flush()
+        except Exception:
+            pass
 
     def fechar_janela(self):
         self.parar()
@@ -86,12 +103,21 @@ class BotAPI:
 
     def iniciar(self):
         if self.rodando: 
-            self.log_ui("System is already running!", "error")
+            self.log_ui(RewardsCore.t("invalido") if hasattr(RewardsCore, "t") else "System is already running!", "error")
             return
             
         self.rodando = True
         RewardsCore.ABORTAR_PROCESSO = False 
         
+        # Garante arquivo de log dedicado para este ciclo
+        try:
+            from datetime import datetime
+            agora_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            RewardsCore.RUN_LOG_PATH = RewardsCore.logs / f"run_{agora_str}.txt"
+            RewardsCore.RUN_LOG_PATH.touch(exist_ok=True)
+        except Exception:
+            pass
+            
         webview.windows[0].evaluate_js("switchTab('console', document.querySelectorAll('.nav-item')[0]);")
         self.log_ui("Initializing Stealth loop...", "info")
         
@@ -223,8 +249,11 @@ class BotAPI:
         if 'vpn_port' in cfg_atual: del cfg_atual['vpn_port']
         RewardsCore.SPEED = cfg_atual['speed_mode']
         
+        # Invalida cache de tradução para recarregar no novo idioma
+        RewardsCore._LOCALES_CACHE = None
+        
         RewardsCore.salvar_config(cfg_atual)
-        self.log_ui("Settings saved to disk!", "success")
+        self.log_ui(RewardsCore.t("conf_salva"), "success")
         webview.windows[0].evaluate_js("switchTab('console', document.querySelectorAll('.nav-item')[0]);")
         self.rodar_diagnostico_ui()
 
@@ -279,37 +308,44 @@ class BotAPI:
         if cfg.get("multi_account", "n") == "s":
             ext = ".exe" if platform.system().lower() == "windows" else ""
             caminho_adb = RewardsCore.BASE_DIR / "platform-tools" / f"adb{ext}"
-            add_item("ADB Core", "Ready" if caminho_adb.exists() else "Missing", 'green' if caminho_adb.exists() else 'yellow')
+            txt_adb = ("Pronto" if ui_lang == "pt" else "Ready") if caminho_adb.exists() else ("Ausente" if ui_lang == "pt" else "Missing")
+            add_item("ADB Core", txt_adb, 'green' if caminho_adb.exists() else 'yellow')
         else:
-            add_item("ADB Core", "Not needed", 'green')
+            txt_not_needed = "Não necessário" if ui_lang == "pt" else "Not needed"
+            add_item("ADB Core", txt_not_needed, 'green')
 
         RewardsCore.BASE_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
         pastas = [p.name for p in RewardsCore.BASE_PROFILES_DIR.iterdir() if p.is_dir()]
-        add_item("Profiles", f"{len(pastas)} Found" if pastas else "Empty", 'green' if pastas else 'yellow')
+        txt_prof = (f"{len(pastas)} Encontrado(s)" if ui_lang == "pt" else f"{len(pastas)} Found") if pastas else ("Vazio" if ui_lang == "pt" else "Empty")
+        add_item("Profiles", txt_prof, 'green' if pastas else 'yellow')
 
         is_startup_active = self.obter_status_startup()
-        add_item("Startup", "ON" if is_startup_active else "OFF", 'green' if is_startup_active else 'yellow')
+        txt_startup = ("LIGADO" if ui_lang == "pt" else "ON") if is_startup_active else ("DESLIGADO" if ui_lang == "pt" else "OFF")
+        add_item("Startup", txt_startup, 'green' if is_startup_active else 'yellow')
         try:
             webview.windows[0].evaluate_js(f"atualizarBotaoStartup({str(is_startup_active).lower()})")
         except Exception:
             pass
 
         if cfg.get("do_discord", "n") != "s":
-            add_item("Discord Bot", "Disabled", 'red')
+            txt_disc_dis = "Desativado" if ui_lang == "pt" else "Disabled"
+            add_item("Discord Bot", txt_disc_dis, 'red')
         else:
             exe_path, _ = DiscordQuests.localizar_aplicativo_discord()
             if not exe_path:
-                add_item("Discord Bot", "App Missing", 'red')
+                txt_disc_miss = "App Ausente" if ui_lang == "pt" else "App Missing"
+                add_item("Discord Bot", txt_disc_miss, 'red')
             else:
+                txt_disc_ready = "Pronto" if ui_lang == "pt" else "Ready"
                 if not RewardsCore.ARQUIVO_LOG.exists():
-                    add_item("Discord Bot", "Ready", 'green')
+                    add_item("Discord Bot", txt_disc_ready, 'green')
                 else:
                     try:
                         with open(RewardsCore.ARQUIVO_LOG, "r", encoding="utf-8") as f:
                             dados_log = json.load(f)
                             hist_discord = dados_log.get("discord", [])
                             if not hist_discord:
-                                add_item("Discord Bot", "Ready", 'green')
+                                add_item("Discord Bot", txt_disc_ready, 'green')
                             else:
                                 ultima_data_str = hist_discord[-1]
                                 formato = "%d/%m/%Y" if len(ultima_data_str.split('/')[-1]) == 4 else "%d/%m/%y"
@@ -318,11 +354,12 @@ class BotAPI:
                                 cooldown_dias = int(cfg.get("discord_cooldown", 3))
                                 
                                 if dias_passados < cooldown_dias:
-                                    add_item("Discord Bot", f"Wait {cooldown_dias - dias_passados}d", 'yellow')
+                                    txt_wait = f"Aguarde {cooldown_dias - dias_passados}d" if ui_lang == "pt" else f"Wait {cooldown_dias - dias_passados}d"
+                                    add_item("Discord Bot", txt_wait, 'yellow')
                                 else:
-                                    add_item("Discord Bot", "Ready", 'green')
+                                    add_item("Discord Bot", txt_disc_ready, 'green')
                     except Exception:
-                        add_item("Discord Bot", "Ready", 'green')
+                        add_item("Discord Bot", txt_disc_ready, 'green')
 
         html_seguro = json.dumps(resultados_html)
         webview.windows[0].evaluate_js(f"renderDiagnostics({html_seguro})")

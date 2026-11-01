@@ -304,17 +304,17 @@
             </div>
             
             <div class="nav-menu">
-                <div class="nav-item active" onclick="switchTab('console', this)"><span>Console</span></div>
-                <div class="nav-item" onclick="switchTab('accounts', this); atualizarContasUI();"><span>Accounts</span></div>
-                <div class="nav-item" onclick="switchTab('settings', this); pywebview.api.carregar_configuracoes_ui();"><span>Settings</span></div>
+                <div class="nav-item active" onclick="switchTab('console', this)"><span data-i18n="tab_console">Console</span></div>
+                <div class="nav-item" onclick="switchTab('accounts', this); atualizarContasUI();"><span data-i18n="tab_accounts">Accounts</span></div>
+                <div class="nav-item" onclick="switchTab('settings', this); pywebview.api.carregar_configuracoes_ui();"><span data-i18n="tab_settings">Settings</span></div>
             </div>
             
             <div class="sidebar-bottom">
-                <div class="diag-header">System Status
+                <div class="diag-header"><span data-i18n="system_status">System Status</span>
                     <svg style="width: 14px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'" onclick="pywebview.api.rodar_diagnostico_ui()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
                 </div>
                 <div id="sidebar-diagnostics">
-                    <div class="mini-diag-item" style="justify-content: center; color: var(--text-muted);">Scanning...</div>
+                    <div class="mini-diag-item" style="justify-content: center; color: var(--text-muted);" data-i18n="scanning">Scanning...</div>
                 </div>
             </div>
         </div>
@@ -325,8 +325,8 @@
 
             <div class="content-layer">
                 <div class="header-controls">
-                    <button class="btn-stylish" onclick="pywebview.api.iniciar()">▶ Run Now</button>
-                    <button class="btn-stylish stop" onclick="pywebview.api.parar()">■ Stop Safely</button>
+                    <button class="btn-stylish" onclick="pywebview.api.iniciar()" data-i18n="btn_run">▶ Run Now</button>
+                    <button class="btn-stylish stop" onclick="pywebview.api.parar()" data-i18n="btn_stop">■ Stop Safely</button>
                 </div>
                 
                 <!-- ABA CONSOLE -->
@@ -354,13 +354,13 @@
                 <!-- ABA CONTAS -->
                 <div id="accounts" class="tab-content">
                     <div class="card" style="margin-bottom: 20px;">
-                        <h3>Active Profiles</h3>
+                        <h3 data-i18n="active_profiles">Active Profiles</h3>
                         <div id="account-list" style="margin-bottom: 10px;"><span class="text-muted">Loading profiles...</span></div>
                     </div>
                     <div class="card">
-                        <h3>Add New Account</h3>
-                        <div class="form-group"><input type="text" id="new-account-name" placeholder="e.g. Account02"></div>
-                        <button class="btn-save" onclick="adicionarConta()">+ Launch Setup Browser</button>
+                        <h3 data-i18n="add_new_account">Add New Account</h3>
+                        <div class="form-group"><input type="text" id="new-account-name" placeholder="e.g. Account02" data-i18n="placeholder_account"></div>
+                        <button class="btn-save" onclick="adicionarConta()" data-i18n="btn_launch_setup">+ Launch Setup Browser</button>
                     </div>
                 </div>
 
@@ -368,9 +368,9 @@
                 <div id="settings" class="tab-content">
                     <div class="settings-grid">
                         <div class="card">
-                            <h3>Limits & Timers</h3>
+                            <h3 data-i18n="limits_timers">Limits & Timers</h3>
                             <div class="form-group">
-                                <label>PC Queries</label>
+                                <label data-i18n="pc_queries">PC Queries</label>
                                 <div class="custom-number-wrapper">
                                     <button onclick="changeVal('cfg-pc', -1)">-</button>
                                     <input type="number" id="cfg-pc" value="0">
@@ -378,7 +378,7 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>Mobile Queries</label>
+                                <label data-i18n="mobile_queries">Mobile Queries</label>
                                 <div class="custom-number-wrapper">
                                     <button onclick="changeVal('cfg-mob', -1)">-</button>
                                     <input type="number" id="cfg-mob" value="0">
@@ -386,7 +386,7 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label id="label-cooldown">Discord Cooldown (Days)</label>
+                                <label id="label-cooldown" data-i18n="cooldownLabel">Discord Cooldown (Days)</label>
                                 <div class="custom-number-wrapper">
                                     <button onclick="changeVal('cfg-discord-cooldown', -1)">-</button>
                                     <input type="number" id="cfg-discord-cooldown" value="3">
@@ -396,79 +396,79 @@
                         </div>
                         
                         <div class="card">
-                            <h3>Behavior & System</h3>
+                            <h3 data-i18n="behavior_system">Behavior & System</h3>
                             
                             <div class="switch-group">
-                                <label>Hide Browser (Headless)</label>
+                                <label data-i18n="hide_browser">Hide Browser (Headless)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-headless"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group">
-                                <label>Do Dashboard Tasks (MS Rewards)</label>
+                                <label data-i18n="do_tasks">Do Dashboard Tasks (MS Rewards)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-tasks"><span class="slider"></span></label>
                             </div>
 
                             <div class="switch-group">
-                                <label>Auto-Farm Discord Quests</label>
+                                <label data-i18n="do_discord">Auto-Farm Discord Quests</label>
                                 <label class="switch"><input type="checkbox" id="cfg-discord"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group" style="border:none;">
-                                <label>Enable Multi-Account Profile System</label>
+                                <label data-i18n="multi_account">Enable Multi-Account Profile System</label>
                                 <label class="switch"><input type="checkbox" id="cfg-multi"><span class="slider"></span></label>
                             </div>
                             <div class="switch-group">
-                                <label id="label-global-quests">Enable Global Quests (Auto SOCKS5 Proxy)</label>
+                                <label id="label-global-quests" data-i18n="globalQuestsLabel">Enable Global Quests (Auto SOCKS5 Proxy)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-global-quests"><span class="slider"></span></label>
                             </div>
                             
                             <div class="form-group" style="margin-top: 15px;">
-                                <label id="label-chrono">Chrono-Gating (Extended Days)</label>
+                                <label id="label-chrono" data-i18n="chrono_gating">Chrono-Gating (Extended Days)</label>
                                 <select id="cfg-extended-days" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none;">
-                                    <option value="n">Disabled</option>
-                                    <option value="w">Weekends Only</option>
-                                    <option value="a">Everyday</option>
+                                    <option value="n" data-i18n="opt_disabled">Disabled</option>
+                                    <option value="w" data-i18n="opt_weekends">Weekends Only</option>
+                                    <option value="a" data-i18n="opt_everyday">Everyday</option>
                                 </select>
                             </div>
                         </div>
                         
                         <div class="card" style="grid-column: span 2;">
-                            <h3>Integrations & Automation</h3>
+                            <h3 data-i18n="integrations_automation">Integrations & Automation</h3>
                             <div class="form-group" style="margin-bottom: 25px;">
-                                <label>Language</label>
+                                <label data-i18n="language">Language</label>
                                 <select id="cfg-lang" onchange="mudarIdiomaUI()" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none;">
                                     <option value="pt">Português (Brasil)</option>
                                     <option value="en">English</option>
                                 </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 25px;">
-                                <label>Discord Webhook URL (Leave empty to disable)</label>
+                                <label data-i18n="discord_webhook">Discord Webhook URL (Leave empty to disable)</label>
                                 <input type="text" id="cfg-webhook" placeholder="https://discord.com/api/webhooks/...">
                             </div>
                             <div class="form-group" style="margin-bottom: 25px;">
-                                <label id="label-quests-webhook">Quests Webhook URL (Para enviar missões de Vídeo)</label>
+                                <label id="label-quests-webhook" data-i18n="quests_webhook">Quests Webhook URL (Para enviar missões de Vídeo)</label>
                                 <input type="text" id="cfg-quests-webhook" placeholder="https://discord.com/api/webhooks/...">
                             </div>
                             <div class="form-group" style="margin-bottom: 25px;">
-                                <label id="label-trash-channel">Canal Lixo (Link direto do canal para renderizar os cards)</label>
+                                <label id="label-trash-channel" data-i18n="trash_channel">Canal Lixo (Link direto do canal para renderizar os cards)</label>
                                 <input type="text" id="cfg-trash-channel" placeholder="https://discord.com/channels/1234/5678">
                             </div>
                             
-                            <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;">Engine Speed Mode</h3>
+                            <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;" data-i18n="speed_mode_title">Engine Speed Mode</h3>
                             <div class="form-group" style="margin-bottom: 5px;">
                                 <select id="cfg-speed-mode" onchange="updateSpeedDesc()" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none; font-weight: bold;">
-                                    <option value="turbo">TURBO (Highest Risk, Max Speed)</option>
-                                    <option value="normal">NORMAL (Balanced Organic)</option>
-                                    <option value="stealth">STEALTH (Paranoid & Slow)</option>
+                                    <option value="turbo" data-i18n="opt_speed_turbo">TURBO (Highest Risk, Max Speed)</option>
+                                    <option value="normal" data-i18n="opt_speed_normal">NORMAL (Balanced Organic)</option>
+                                    <option value="stealth" data-i18n="opt_speed_stealth">STEALTH (Paranoid & Slow)</option>
                                 </select>
                             </div>
                             <p id="desc-speed-mode" style="font-size: 0.85em; color: var(--text-muted); line-height: 1.4; margin-bottom: 25px;"></p>
                             
-                            <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;">Startup Control</h3>
-                            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Toggle invisible boot with OS.</p>
+                            <h3 style="border-top: 1px solid var(--border-color); padding-top: 20px;" data-i18n="startup_control_title">Startup Control</h3>
+                            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;" data-i18n="startup_control_desc">Toggle invisible boot with OS.</p>
                             
                             <!-- Botao Startup com Classes Limpas -->
                             <button id="btn-startup" class="btn-startup startup-off" onclick="pywebview.api.toggle_startup()">INICIAR COM O WINDOWS (VERIFICANDO...)</button>
                             
-                            <button class="btn-save" style="margin-top: 30px;" onclick="salvarConfigUI()">Save All Settings</button>
+                            <button class="btn-save" style="margin-top: 30px;" onclick="salvarConfigUI()" data-i18n="btn_save_settings">Save All Settings</button>
                         </div>
                     </div>
                 </div>
@@ -509,26 +509,110 @@
         }
         const TRANSLATIONS = {
             "en": {
+                tab_console: "Console",
+                tab_accounts: "Accounts",
+                tab_settings: "Settings",
+                system_status: "System Status",
+                scanning: "Scanning...",
+                btn_run: "▶ Run Now",
+                btn_stop: "■ Stop Safely",
                 title: "What's new in [APP_VERSION]",
-                item1: "🛡️ Hardened Stability: Safe OS shutdown interceptor & bug fixes.",
+                item1: "🛡️ Hardened Stability: Safe OS shutdown interceptor & disk logging.",
                 item2: "🌐 Chrome Sync: Live API checks against Google's stable releases.",
-                item3: "⚙️ Discord Engine: Boot workaround rewritten for reliable execution.",
+                item3: "⚙️ Discord Engine: Resilient video-progress loop with zero HTML dependencies.",
                 btnGit: "View on GitHub",
+                active_profiles: "Active Profiles",
+                loading_profiles: "Loading profiles...",
+                add_new_account: "Add New Account",
+                placeholder_account: "e.g. Account02",
+                btn_launch_setup: "+ Launch Setup Browser",
+                limits_timers: "Limits & Timers",
+                pc_queries: "PC Queries",
+                mobile_queries: "Mobile Queries",
+                cooldownLabel: "Discord Quests Cooldown (Days):",
+                behavior_system: "Behavior & System",
+                hide_browser: "Hide Browser (Headless)",
+                do_tasks: "Do Dashboard Tasks (MS Rewards)",
+                do_discord: "Auto-Farm Discord Quests",
+                multi_account: "Enable Multi-Account Profile System",
+                globalQuestsLabel: "Force Global Quests (If region is unsupported)",
+                chrono_gating: "Chrono-Gating (Extended Days)",
+                opt_disabled: "Disabled",
+                opt_weekends: "Weekends Only",
+                opt_everyday: "Everyday",
+                integrations_automation: "Integrations & Automation",
+                language: "Language",
+                discord_webhook: "Discord Webhook URL (Notifications)",
+                quests_webhook: "Quests Webhook URL (Video Quests)",
+                trash_channel: "Trash Channel Link (Card Rendering)",
+                speed_mode_title: "Engine Speed Mode",
+                opt_speed_turbo: "TURBO (Highest Risk, Max Speed)",
+                opt_speed_normal: "NORMAL (Balanced Organic)",
+                opt_speed_stealth: "STEALTH (Paranoid & Slow)",
+                speed_turbo_desc: "<b>TURBO:</b> Skips advanced interactions, coffee breaks, and typos. <b>Very fast, but elevates account risk.</b>",
+                speed_normal_desc: "<b>NORMAL:</b> Mimics an average user. Moderate browsing duration, executes Coffee Mode (organic breaks) and subtle typos.",
+                speed_stealth_desc: "<b>STEALTH:</b> Paranoid emulation. Reads links deeply and adds 5-12 phantom queries at boundaries to deflect telemetry.",
+                startup_control_title: "Startup Control",
+                startup_control_desc: "Toggle invisible boot with OS.",
                 on: "WINDOWS STARTUP: ON",
                 off: "WINDOWS STARTUP: OFF",
-                cooldownLabel: "Discord Quests Cooldown (Hours):",
-                globalQuestsLabel: "Force Global Quests (If region is unsupported)"
+                btn_save_settings: "Save All Settings",
+                confirm_delete: "Are you sure you want to delete profile '{name}'?",
+                req_missing: "Requirement Missing",
+                saved_success: "Settings saved to disk successfully!"
             },
             "pt": {
+                tab_console: "Console",
+                tab_accounts: "Perfis",
+                tab_settings: "Configurações",
+                system_status: "Status do Sistema",
+                scanning: "Verificando...",
+                btn_run: "▶ Iniciar Agora",
+                btn_stop: "■ Parar com Segurança",
                 title: "O que há de novo na [APP_VERSION]",
-                item1: "🛡️ Estabilidade: Interceptador de SO seguro e correção de bugs.",
+                item1: "🛡️ Estabilidade: Interceptador de SO seguro e logs de sessão no disco.",
                 item2: "🌐 Chrome Sync: Verificador ao vivo com a API oficial do Google.",
-                item3: "⚙️ Motor Discord: Solução de arranque reescrita para evitar loops.",
+                item3: "⚙️ Motor Discord: Loop resiliente de vídeo nativo sem dependências frágeis de HTML.",
                 btnGit: "Ver no GitHub",
-                on: "WINDOWS STARTUP: ON",
-                off: "WINDOWS STARTUP: OFF",
-                cooldownLabel: "Pausa entre Quests do Discord (Horas):",
-                globalQuestsLabel: "Forçar Quests Globais (Se sua região não suporta)"
+                active_profiles: "Perfis Ativos",
+                loading_profiles: "Carregando perfis...",
+                add_new_account: "Adicionar Nova Conta",
+                placeholder_account: "Ex: Conta02",
+                btn_launch_setup: "+ Abrir Navegador de Configuração",
+                limits_timers: "Limites e Temporizadores",
+                pc_queries: "Pesquisas no PC",
+                mobile_queries: "Pesquisas no Celular",
+                cooldownLabel: "Pausa entre Quests do Discord (Dias):",
+                behavior_system: "Comportamento e Sistema",
+                hide_browser: "Ocultar Navegador (Modo Oculto)",
+                do_tasks: "Fazer Tarefas do Painel (Rewards)",
+                do_discord: "Auto-Farm Quests do Discord",
+                multi_account: "Ativar Sistema Multi-Contas",
+                globalQuestsLabel: "Forçar Quests Globais (Se sua região não suporta)",
+                chrono_gating: "Chrono-Gating (Dias Estendidos)",
+                opt_disabled: "Desativado",
+                opt_weekends: "Apenas Fins de Semana",
+                opt_everyday: "Todos os Dias",
+                integrations_automation: "Integrações e Automação",
+                language: "Idioma",
+                discord_webhook: "Webhook do Discord (Notificações)",
+                quests_webhook: "Webhook de Quests (Vídeos)",
+                trash_channel: "Canal de Descarte (Renderização de Cards)",
+                speed_mode_title: "Modo de Velocidade",
+                opt_speed_turbo: "TURBO (Mais Rápido / Maior Risco)",
+                opt_speed_normal: "NORMAL (Balanceado / Orgânico)",
+                opt_speed_stealth: "STEALTH (Lento e Paranóico)",
+                speed_turbo_desc: "<b>TURBO:</b> Ignora interações avançadas, pausas longas (Café) e erros de digitação. <b>Muito rápido, mas eleva o risco na conta.</b>",
+                speed_normal_desc: "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pausa orgânica) e comete alguns erros de digitação leves.",
+                speed_stealth_desc: "<b>STEALTH:</b> Simulação extrema e paranóica. Passa longos períodos lendo links e adiciona de 5 a 12 pesquisas fantasmas no limite para desviar telemetria.",
+                startup_control_title: "Inicialização com o Windows",
+                startup_control_desc: "Ativar/desativar inicialização invisível no boot do Windows.",
+                on: "INICIAR COM O WINDOWS (LIGADO)",
+                off: "INICIAR COM O WINDOWS (DESLIGADO)",
+                btn_save_settings: "Salvar Configurações",
+                confirm_delete: "Tem certeza que deseja deletar o perfil '{name}'?",
+                req_missing: "Requerimento Ausente",
+                saved_success: "Configurações salvas no disco com sucesso!"
             }
         };
         let currentLang = "pt";
@@ -590,7 +674,9 @@
         function abrirConta(nome) { pywebview.api.abrir_setup_conta(nome); switchTab('console', document.querySelectorAll('.nav-item')[0]); }
 
         async function deletarConta(nome) {
-            if(confirm(`Are you sure you want to delete '${nome}'?`)) {
+            const dict = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang]) ? TRANSLATIONS[currentLang] : (TRANSLATIONS['pt'] || {});
+            let msg = (dict.confirm_delete || "Are you sure you want to delete profile '{name}'?").replace('{name}', nome);
+            if(confirm(msg)) {
                 await pywebview.api.deletar_conta(nome);
                 atualizarContasUI();
                 pywebview.api.rodar_diagnostico_ui();
@@ -631,6 +717,19 @@
             }
             const dict = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang]) ? TRANSLATIONS[currentLang] : (TRANSLATIONS['pt'] || {});
             
+            // 1. Atualiza dinamicamente todos os nós que possuem o atributo data-i18n
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = dict[key];
+                    } else {
+                        el.innerHTML = dict[key];
+                    }
+                }
+            });
+
+            // 2. Atualiza elementos específicos
             let elUpTitle = document.getElementById('update-title');
             if (elUpTitle && dict.title) elUpTitle.innerText = dict.title;
             let elUp1 = document.getElementById('update-1');
@@ -657,6 +756,8 @@
             if (btnStartup) {
                 atualizarBotaoStartup(btnStartup.classList.contains('startup-on'));
             }
+
+            updateSpeedDesc();
         }
 
         function atualizarBotaoStartup(isAtivo) {
@@ -726,12 +827,14 @@
         function updateSpeedDesc() {
             let mode = document.getElementById('cfg-speed-mode').value;
             let desc = document.getElementById('desc-speed-mode');
+            if (!desc) return;
+            const dict = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang]) ? TRANSLATIONS[currentLang] : (TRANSLATIONS['pt'] || {});
             if(mode === 'turbo') {
-                desc.innerHTML = "<b>TURBO:</b> Ignora interações avançadas, pausas longas (Café) e erros de digitação. <b>Muito rápido, mas eleva o risco na conta.</b>";
+                desc.innerHTML = dict.speed_turbo_desc || "<b>TURBO:</b> Ignora interações avançadas, pausas longas (Café) e erros de digitação. <b>Muito rápido, mas eleva o risco na conta.</b>";
             } else if (mode === 'stealth') {
-                desc.innerHTML = "<b>STEALTH:</b> Simulação extrema e paranóica. Passa longos períodos lendo links e adiciona de 5 a 12 pesquisas fantasmas no limite para desviar telemetria.";
+                desc.innerHTML = dict.speed_stealth_desc || "<b>STEALTH:</b> Simulação extrema e paranóica. Passa longos períodos lendo links e adiciona de 5 a 12 pesquisas fantasmas no limite para desviar telemetria.";
             } else {
-                desc.innerHTML = "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pausa orgânica) e comete alguns erros de digitação leves.";
+                desc.innerHTML = dict.speed_normal_desc || "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pausa orgânica) e comete alguns erros de digitação leves.";
             }
         }
         

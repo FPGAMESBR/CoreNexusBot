@@ -399,6 +399,7 @@ def LOGGER(*args, **kwargs):
         texto_limpo = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', texto)
         with open(RUN_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {texto_limpo}\n")
+            f.flush()
     except Exception:
         pass
 

@@ -118,6 +118,7 @@ SCRIPT_JS = r"""
             const applicationId = taskData.applications?.[0]?.id || qApp.id || "0";
             
             const secondsNeeded = taskData.target || 900;
+            const secondsDone = uStatus.progress?.[taskName]?.value || uStatus.stream_progress_seconds || 0;
             const isVideo = (taskName === "WATCH_VIDEO" || taskName === "WATCH_VIDEO_ON_MOBILE");
             const isGame = (taskName === "PLAY_ON_DESKTOP" || taskName === "STREAM_ON_DESKTOP");
             const extraSeconds = isVideo ? 0 : Math.floor(Math.random() * 240) + 60; 
@@ -192,109 +193,77 @@ SCRIPT_JS = r"""
             };
 
             if(isVideo) {
-                if (questsWebhookUrl && questsWebhookUrl !== "INJECT_QUESTS_WEBHOOK" && questsWebhookUrl.startsWith("http")) {
-                    logP(`[JS] Webhook configurado! Enviando missao de video para o canal lixo...`);
+                logP(`[JS] -> Missao de Video detectada: ${questName}`);
+                
+                // 1. Tenta reproduzir qualquer elemento <video> que esteja na tela
+                const ensureVideoPlayback = () => {
                     try {
-                        await fetch(questsWebhookUrl, {
-                            method: "POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify({
-                                content: `https://discord.com/quests/${quest.id}`
-                            })
+                        document.querySelectorAll('video').forEach(v => {
+                            v.muted = true;
+                            if (v.paused) v.play().catch(() => {});
                         });
-                        logP(`[JS] Webhook enviado. Aguardando 4 segundos para o Card renderizar no chat...`);
-                        await new Promise(r => setTimeout(r, 4000));
-                        
-                        let allBtns = Array.from(document.querySelectorAll('button'));
-                        let watchBtns = allBtns.filter(b => /(assistir|continuar|watch|play|jogar)/i.test(b.innerText) && b.classList.contains('primary_a22cb0'));
-                        if(watchBtns.length === 0) watchBtns = allBtns.filter(b => /(assistir|continuar|watch)/i.test(b.innerText));
-                        
-                        let watchBtn = watchBtns[watchBtns.length - 1]; // Pega o ultimo gerado
-                        if(watchBtn) {
-                            let extractedSeconds = secondsNeeded;
-                            let match = watchBtn.innerText.match(/Assistir\s+(\d+)(m|s)/i);
-                            if (match) {
-                                let val = parseInt(match[1]);
-                                if (match[2].toLowerCase() === 'm') extractedSeconds = val * 60;
-                                else extractedSeconds = val;
-                            }
-                            
-                            logP(`[JS] Acionando Play no Video do Chat... (Duração extraída: ${extractedSeconds}s)`);
-                            watchBtn.click();
-                            
-                            let waitTimeMs = (extractedSeconds + 15) * 1000;
-                            logP(`[JS] Aguardando ${extractedSeconds + 15}s (margem de erro) para concluir a missão de vídeo...`);
-                            
-                            setTimeout(() => {
-                                logP(`[JS] Tempo esgotado! Fechando o video...`);
-                                let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
-                                if(closeBtn) closeBtn.click();
-                                setTimeout(() => {
-                                    logP(`[JS] Missão de video concluída pelo Webhook!`);
-                                    executarDesligamento();
-                                }, 1000);
-                            }, waitTimeMs);
-                            
-                            return; 
-                        } else {
-                            logP(`[JS] Botão no chat não encontrado. Tentando fallback tradicional...`);
-                        }
-                    } catch(e) {
-                        logP(`[JS] Falha no Webhook: ${e}`);
-                    }
-                }
-
-                let card = document.getElementById('quest-tile-' + quest.id);
-                if(!card) {
-                    let questsTab = document.querySelector('a[href="/quest-home"]');
-                    if (questsTab) {
-                        logP(`[JS] Aba de missões não ativa. Navegando para a aba de Missões...`);
-                        questsTab.click();
-                        quests.push(quest); // Coloca de volta para tentar de novo
-                        setTimeout(doJob, 3000);
-                        return;
-                    }
-                }
+                    } catch(e) {}
+                };
+                ensureVideoPlayback();
                 
-                if(!card) { logP(`[JS] ALERTA: Card de video nao encontrado (Aba de missoes fechada?). Encerrando bloco.`); executarDesligamento(); return; }
-                
-                let btns = Array.from(card.querySelectorAll('button'));
-                let watchBtn = btns.find(b => /(assistir|continuar|watch|play|jogar)/i.test(b.innerText) && b.classList.contains('primary_a22cb0')) || btns.find(b => b.classList.contains('primary_a22cb0'));
-                
-                if(watchBtn) {
-                    let extractedSeconds = secondsNeeded;
-                    let match = watchBtn.innerText.match(/Assistir\s+(\d+)(m|s)/i);
-                    if (match) {
-                        let val = parseInt(match[1]);
-                        if (match[2].toLowerCase() === 'm') extractedSeconds = val * 60;
-                        else extractedSeconds = val;
-                    }
-                    
-                    let readDelay = 3000 + Math.floor(Math.random() * 5000);
-                    setTimeout(() => {
-                        logP(`[JS] Acionando Play no Video... (Duração extraída: ${extractedSeconds}s)`);
+                // 2. Procura botão de Play / Assistir na UI (caso o usuário esteja com o Discord aberto)
+                try {
+                    let allBtns = Array.from(document.querySelectorAll('button, [role="button"], a'));
+                    let watchBtn = allBtns.find(b => {
+                        let txt = (b.innerText || b.textContent || '').trim().toLowerCase();
+                        return /^(assistir|continuar|watch|ver v[íi]deo|play)/i.test(txt);
+                    });
+                    if (watchBtn) {
+                        logP(`[JS] Botao de video detectado na interface. Acionando...`);
                         watchBtn.click();
-                        window.recompensas_cmd = "REWARDS_PROGRESS:0:" + extractedSeconds;
-                        
-                        let waitTimeMs = (extractedSeconds + 15) * 1000;
-                        logP(`[JS] Aguardando ${extractedSeconds + 15}s (margem de erro) para concluir a missão de vídeo...`);
-                        
-                        setTimeout(() => {
-                            logP(`[JS] Tempo esgotado! Buscando botão de reivindicar recompensa...`);
-                            let closeBtn = document.querySelector('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"]');
-                            if(closeBtn) closeBtn.click();
-                            
-                            setTimeout(() => {
-                                logP(`[JS] Missão de vídeo concluída! A etapa de reivindicar recompensa foi pulada para evitar bloqueios de hCaptcha.`);
-                                executarDesligamento();
-                            }, 1000);
-                            
-                        }, waitTimeMs);
-                        
-                    }, readDelay);
-                } else { 
-                    logP(`[JS] Botao Play (Assistir) nao encontrado.`); executarDesligamento(); return; 
+                    }
+                } catch(e) {}
+
+                // 3. Loop de Heartbeat e Progressão Oficial via API (/video-progress)
+                let curProgress = secondsDone;
+                let targetSec = secondsNeeded;
+                
+                logP(`[JS] Progresso inicial do video: ${Math.floor(curProgress)}s / ${targetSec}s`);
+                window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
+                
+                let videoFinished = false;
+                
+                while (!videoFinished && curProgress < targetSec) {
+                    let delayMs = 7000 + Math.floor(Math.random() * 2500); // 7.0s a 9.5s (padrão oficial Discord)
+                    await new Promise(r => setTimeout(r, delayMs));
+                    
+                    ensureVideoPlayback();
+                    
+                    let elapsed = (delayMs / 1000) + (Math.random() * 0.04 - 0.02);
+                    curProgress = Math.min(targetSec, curProgress + elapsed);
+                    let payloadTs = Number(curProgress.toFixed(6));
+                    
+                    logP(`[JS] Video em reproducao: ${Math.floor(curProgress)} / ${targetSec}s`);
+                    window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
+                    
+                    try {
+                        let res = await request('POST', `/quests/${quest.id}/video-progress`, { timestamp: payloadTs });
+                        let st = res?.user_status || res?.userStatus || res;
+                        if (st?.completed_at || st?.completedAt || curProgress >= targetSec) {
+                            videoFinished = true;
+                            logP(`[JS] Meta do video atingida com sucesso!`);
+                            break;
+                        }
+                    } catch(errApi) {
+                        logP(`[JS] Aviso heartbeat video: ${errApi}`);
+                    }
                 }
+                
+                // 4. Fechamento seguro de modal de vídeo se existir na interface
+                try {
+                    let closeBtns = document.querySelectorAll('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"], [aria-label*="Fechar"]');
+                    closeBtns.forEach(b => b.click());
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+                } catch(e) {}
+                
+                logP(`[JS] Missao de video concluida com exito!`);
+                executarDesligamento();
+                return;
             }
             else if(taskName === "PLAY_ON_DESKTOP") {
                 let appDataRes = await request('GET', `/applications/public?application_ids=${applicationId}`);
