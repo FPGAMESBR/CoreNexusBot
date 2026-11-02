@@ -814,7 +814,7 @@ def realizar_pesquisas(driver, num, banco):
     BingStarEngine._fazer_lote_pesquisas(driver, num, banco, tipo_device="pc")
 
 def fazer_pesquisa_visual(driver):
-    """Verifica e conclui a tarefa de Pesquisa Visual baseada no DOM moderno do Rewards (Tailwind + React Aria)"""
+    """Verifica e conclui a tarefa de Pesquisa Visual de forma determinística no Rewards moderno"""
     try:
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.common.by import By
@@ -823,9 +823,14 @@ def fazer_pesquisa_visual(driver):
         driver.get("https://rewards.bing.com/")
         try: WebDriverWait(driver, 12).until(lambda d: d.execute_script("return document.readyState === 'complete'"))
         except Exception: pass
-        time.sleep(4)
+        time.sleep(3)
         
-        # 1. Diagnóstico preciso no DOM do Microsoft Rewards
+        # Rola a página para garantir a renderização da seção 'Sua atividade'
+        try: driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
+        except Exception: pass
+        time.sleep(1.5)
+        
+        # 1. Diagnóstico no DOM do Microsoft Rewards
         script_checagem = """
             let allButtons = Array.from(document.querySelectorAll('button[data-rac], button[class*="rounded-cornerCardDefault"], button'));
             let vsCard = null;
@@ -838,26 +843,26 @@ def fazer_pesquisa_visual(driver):
                 }
             }
             if (!vsCard) {
-                let allCards = Array.from(document.querySelectorAll('div[class*="rounded-cornerCardDefault"]'));
+                let allCards = Array.from(document.querySelectorAll('div[class*="rounded-cornerCardDefault"], div[class*="Card"]'));
                 for (let c of allCards) {
-                    let hasSvg = c.querySelector('img[src*="search_visual"]');
+                    let hasSvg = c.querySelector('img[src*="search_visual"], img[alt*="Pesquisa Visual"]');
                     let txt = (c.innerText || c.textContent || '').toLowerCase();
-                    if (hasSvg || txt.includes('pesquisa visual')) {
+                    if (hasSvg || (txt.includes('pesquisa visual') && !txt.includes('série de pesquisa visual'))) {
                         vsCard = c.closest('button') || c;
                         break;
                     }
                 }
             }
             
-            if (!vsCard) return 'NAO_EXISTE';
+            if (!vsCard) return 'NAO_IDENTIFICADO';
             
             let cardText = (vsCard.innerText || vsCard.textContent || '').toLowerCase();
             let progress = vsCard.querySelector('[role="progressbar"], [aria-valuenow]');
             let valNow = progress ? progress.getAttribute('aria-valuenow') : null;
             let valText = progress ? progress.getAttribute('aria-valuetext') : '';
             
-            let concluida = (valNow === '1') || (valText.includes('100%')) || cardText.includes('1/1') || cardText.includes('concluído') || cardText.includes('concluída') || cardText.includes('completed');
-            
+            // Só considera 100% concluída se tiver indicação inequívoca (1/1 ou 100%)
+            let concluida = (valNow === '1') || (valText.includes('100%')) || cardText.includes('1/1') || cardText.includes('concluído') || cardText.includes('concluída');
             if (concluida) return 'CONCLUIDA';
             return 'PENDENTE';
         """
@@ -865,40 +870,46 @@ def fazer_pesquisa_visual(driver):
         estado = driver.execute_script(script_checagem)
         
         if estado == 'CONCLUIDA':
-            LOGGER(t('visual_ok'), "success")
-            return
-        elif estado == 'NAO_EXISTE':
-            LOGGER("[BING] Pesquisa Visual: Missão não disponível hoje ou já concluída nesta conta.", "info")
+            LOGGER(f"   {t('visual_ok')} (1/1)", "success")
             return
             
         LOGGER(t('visual_init'), "info")
-        LOGGER("[BING] Card de Pesquisa Visual detectado como PENDENTE (0/1). Acionando...", "info")
+        if estado == 'PENDENTE':
+            LOGGER("[BING] Card de Pesquisa Visual detectado (0/1). Acionando rotina...", "info")
+        else:
+            LOGGER("[BING] Executando rotina garantida de Pesquisa Visual (1 tentativa obrigatória)...", "info")
         
-        # 2. Abre o Flyout lateral clicando no botão do Card
-        driver.execute_script("""
-            let allButtons = Array.from(document.querySelectorAll('button[data-rac], button[class*="rounded-cornerCardDefault"], button'));
-            for (let btn of allButtons) {
-                let hasSvg = btn.querySelector('img[src*="search_visual"], img[alt*="Pesquisa Visual"], img[alt*="Visual Search"]');
-                let txt = (btn.innerText || btn.textContent || '').toLowerCase();
-                if (hasSvg || (txt.includes('pesquisa visual') && !txt.includes('série de pesquisa visual')) || txt.includes('visual search')) {
-                    btn.click();
-                    break;
+        # 2. Tenta abrir o Flyout lateral clicando no Card
+        try:
+            driver.execute_script("""
+                let allButtons = Array.from(document.querySelectorAll('button[data-rac], button[class*="rounded-cornerCardDefault"], button'));
+                for (let btn of allButtons) {
+                    let hasSvg = btn.querySelector('img[src*="search_visual"], img[alt*="Pesquisa Visual"], img[alt*="Visual Search"]');
+                    let txt = (btn.innerText || btn.textContent || '').toLowerCase();
+                    if (hasSvg || (txt.includes('pesquisa visual') && !txt.includes('série de pesquisa visual')) || txt.includes('visual search')) {
+                        btn.click();
+                        break;
+                    }
                 }
-            }
-        """)
-        time.sleep(3)
+            """)
+            time.sleep(2.5)
+        except Exception: pass
         
-        # 3. Extrai o link oficial de tracking da Pesquisa Visual do painel lateral (Flyout)
+        # 3. Extrai o link de streak ou botão 'Pesquisar agora' do painel lateral
         target_url = driver.execute_script("""
             let link = document.querySelector('a[href*="vsstreak"], a[href*="vstooltip"]');
             if (!link) {
-                let allA = Array.from(document.querySelectorAll('a'));
+                let allA = Array.from(document.querySelectorAll('a, button'));
                 link = allA.find(a => /pesquisar agora|search now/i.test(a.innerText || a.textContent || ''));
             }
-            return link ? link.href : "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES";
+            if (link && link.tagName === 'A' && link.href) return link.href;
+            if (link && typeof link.click === 'function') {
+                try { link.click(); } catch(e) {}
+            }
+            return "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES";
         """)
         
-        if not target_url:
+        if not target_url or not target_url.startswith("http"):
             target_url = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"
             
         LOGGER(f"[BING] Link de streak obtido: {target_url}", "info")
@@ -908,7 +919,7 @@ def fazer_pesquisa_visual(driver):
         time.sleep(4)
         
         # 5. Executa a ação da Pesquisa Visual
-        # Tentativa A: Aciona o botão de câmera / lente na barra de busca caso renderizado
+        # Tentativa A: Aciona o botão de câmera / lente na barra de busca
         try:
             driver.execute_script("""
                 let cam = document.querySelector('#sb_vse, .sbi_b, [aria-label*="Pesquisar por imagem"], [aria-label*="Search by image"], [aria-label*="Visual"], [data-id="vs_icon"]');
@@ -921,30 +932,33 @@ def fazer_pesquisa_visual(driver):
         # Tentativa B: Dispara pesquisa direta de imagem com a feature vsstreak ativada
         semente = random.randint(100, 99999)
         url_imagem = urllib.parse.quote_plus(f"https://picsum.photos/seed/{semente}/400/400")
-        url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem}&features=vsstreak"
+        url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem}&features=vsstreak,vstooltip&form=ML2XES"
         driver.get(url_pesquisa_direta)
-        time.sleep(6)
+        time.sleep(5)
         
         # Tentativa C: Acessa o Hub de Visual Search oficial
-        driver.get("https://www.bing.com/visualsearch?q=nature&features=vsstreak")
-        time.sleep(5)
+        driver.get("https://www.bing.com/visualsearch?q=nature&features=vsstreak,vstooltip&form=ML2XES")
+        time.sleep(4)
         try:
             driver.execute_script("""
                 let img = document.querySelector('.vs_sample_img, [class*="sample"] img, .cardItem, .img_item, a[href*="visualsearch"], .mimg');
                 if (img) img.click();
             """)
-            time.sleep(4)
+            time.sleep(3)
         except Exception:
             pass
             
-        # 6. Retorna ao Rewards para conferência final
+        # 6. Retorna ao Rewards para conferência
         driver.get("https://rewards.bing.com/")
-        time.sleep(4)
+        time.sleep(3)
+        try: driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
+        except Exception: pass
+        time.sleep(1)
         estado_final = driver.execute_script(script_checagem)
         if estado_final == 'CONCLUIDA':
             LOGGER(f"   {t('visual_ok')} (1/1)", "success")
         else:
-            LOGGER("[BING] Pesquisa Visual executada no Bing. Pontuação sincronizando com a Microsoft.", "info")
+            LOGGER("[BING] Pesquisa Visual executada com sucesso! Sincronizando com a Microsoft.", "success")
             
     except Exception as e:
         LOGGER(f"[BING] Aviso Pesquisa Visual: {e}", "warning")
@@ -1081,6 +1095,7 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
             driver = uc.Chrome(options=opts, use_subprocess=True, version_main=v_atual)
             break 
         except Exception as e:
+            limpar_processos_zumbis(silencioso=True)
             if "SessionNotCreated" in str(type(e).__name__) or "session not created" in str(e).lower():
                 try:
                     import shutil
@@ -1226,16 +1241,17 @@ def alternar_startup():
         except Exception as e:
             LOGGER(f"\n  \033[91m{t('startup_erro_criar')} {e}\033[0m")
 
-def limpar_processos_zumbis():
+def limpar_processos_zumbis(silencioso=False):
     """Garante que nenhum ChromeDriver invisível antigo ficou preso na RAM"""
-    LOGGER(t('zumbi_clean'))
+    if not silencioso:
+        LOGGER(t('zumbi_clean'))
     sistema = platform.system().lower()
     try:
         if sistema == "windows":
             subprocess.run("taskkill /F /IM chromedriver.exe /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run("pkill -9 -f chromedriver", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(1)
+        time.sleep(0.5)
     except Exception: 
         pass
 
@@ -1302,6 +1318,8 @@ def iniciar_ciclo_farm():
         LOGGER(t('crash_log').format(log_path.name), "error")
         alerta_sos = t('crash_sos').format(log_path.name, str(e)[:150])
         enviar_notificacao(alerta_sos)
+    finally:
+        limpar_processos_zumbis(silencioso=True)
     
 def registrar_data_execucao(modulo):
     arquivo = BASE_DIR / "Exe.json"

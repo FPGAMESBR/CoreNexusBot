@@ -54,6 +54,31 @@ SCRIPT_JS = r"""
             window.discordQuestsDone = true; return;
         }
 
+        let findAPI = () => {
+            for (let m of modules) {
+                try {
+                    let exp = m?.exports;
+                    if (!exp || typeof exp !== 'object') continue;
+                    for (let key of Object.keys(exp)) {
+                        let prop = exp[key];
+                        if (prop && typeof prop.get === 'function'
+                            && typeof prop.post === 'function'
+                            && typeof prop.del === 'function'
+                            && !prop._dispatcher) {
+                            return prop;
+                        }
+                    }
+                } catch(e) {}
+            }
+            return null;
+        };
+        let DiscordAPI = findAPI();
+
+        const sealedFor = (questId) => {
+            try { return QuestsStore?.getQuest?.(questId)?.trafficMetadataSealed ?? null; }
+            catch (_) { return null; }
+        };
+
         const request = async (method, path, body = null) => {
             let options = { method: method, headers: { 'Authorization': token, 'Content-Type': 'application/json' } };
             if (body) options.body = JSON.stringify(body);
@@ -62,12 +87,38 @@ SCRIPT_JS = r"""
             return data;
         };
 
+        const safePost = async (path, body = null) => {
+            if (DiscordAPI && typeof DiscordAPI.post === 'function') {
+                try {
+                    let res = await DiscordAPI.post({ url: path, body: body || {} });
+                    return { ok: true, body: res?.body || res, status: res?.status || 200, raw: res };
+                } catch(err) {
+                    return { ok: false, error: err, status: err?.status || 500, body: err?.body || {} };
+                }
+            }
+            try {
+                let res = await request('POST', path, body);
+                return { ok: true, body: res, status: 200 };
+            } catch(err) {
+                return { ok: false, error: err, status: 500 };
+            }
+        };
+
+        window.peloMenosUmSucesso = false;
+
         const globalIds = INJECT_GLOBAL_IDS;
         const questsWebhookUrl = "INJECT_QUESTS_WEBHOOK";
         if (globalIds && globalIds.length > 0) {
             logP(`[JS] Injetando ${globalIds.length} missoes da API Global...`);
             for (let id of globalIds) {
-                try { await request('POST', `/quests/${id}/enroll`, { location: 2 }); } catch(e) {}
+                try {
+                    await safePost(`/quests/${id}/enroll`, {
+                        location: 11,
+                        is_targeted: false,
+                        metadata_sealed: null,
+                        traffic_metadata_sealed: sealedFor(id)
+                    });
+                } catch(e) {}
             }
             await new Promise(r => setTimeout(r, 2000));
         }
@@ -147,8 +198,16 @@ SCRIPT_JS = r"""
             logP(`[JS] -> Missao: ${questName} | Base: ${secondsNeeded}s | Furtiva: ${targetTimeWithFat}s`);
 
             if (!(uStatus.enrolled_at || uStatus.enrolledAt)) {
-                try { await request('POST', `/quests/${quest.id}/enroll`, { location: 2 }); } catch(e) {}
-                await new Promise(r => setTimeout(r, 2000));
+                logP(`[JS] Matrícula JIT na missao '${questName}'...`);
+                try {
+                    await safePost(`/quests/${quest.id}/enroll`, {
+                        location: 11,
+                        is_targeted: false,
+                        metadata_sealed: null,
+                        traffic_metadata_sealed: sealedFor(quest.id)
+                    });
+                } catch(e) {}
+                await new Promise(r => setTimeout(r, 1500));
             }
 
                         // 1. Auto-seleção de plataforma Desktop (Área de trabalho) para missões multi-plataforma (ex: Valorant, CoD)
@@ -246,13 +305,17 @@ SCRIPT_JS = r"""
                 await new Promise(r => setTimeout(r, startDelay));
             }
 
-            const executarDesligamento = () => {
+            const executarDesligamento = (sucesso = false) => {
                 if (ghostInterval) clearTimeout(ghostInterval);
-                let endDelay = 4000 + Math.floor(Math.random() * 8000);
-                logP(`[JS] Objetivo cumprido! Descompressao organica de ${Math.floor(endDelay/1000)}s...`);
+                let endDelay = 3000 + Math.floor(Math.random() * 4000);
+                if (sucesso) {
+                    logP(`[JS] Objetivo cumprido! Descompressao organica de ${Math.floor(endDelay/1000)}s...`);
+                } else {
+                    logP(`[JS] Avancando para a proxima missao (${Math.floor(endDelay/1000)}s)...`);
+                }
                 setTimeout(() => {
                     window.recompensas_cmd = "REWARDS_KILL:ALL";
-                    setTimeout(doJob, 3000);
+                    setTimeout(doJob, 2500);
                 }, endDelay);
             };
 
@@ -270,51 +333,85 @@ SCRIPT_JS = r"""
                 };
                 ensureVideoPlayback();
                 
-                // 2. Procura botão de Play / Assistir na UI (caso o usuário esteja com o Discord aberto)
+                // 2. Procura botão de Play / Assistir / Continuar na UI do Card ou tela
                 try {
-                    let allBtns = Array.from(document.querySelectorAll('button, [role="button"], a'));
+                    let card = document.getElementById('quest-tile-' + quest.id)
+                        || document.querySelector(`[data-quest-id="${quest.id}"]`)
+                        || Array.from(document.querySelectorAll('[class*="quest"], [class*="card"], [class*="container"]')).find(el => (el.innerText || el.textContent || '').includes(questName));
+                    let scope = card || document;
+                    let allBtns = Array.from(scope.querySelectorAll('button, [role="button"], a'));
                     let watchBtn = allBtns.find(b => {
                         let txt = (b.innerText || b.textContent || '').trim().toLowerCase();
-                        return /^(assistir|continuar|watch|ver v[íi]deo|play)/i.test(txt);
+                        return /^(assistir|continuar|watch|ver v[íi]deo|play)/i.test(txt) || txt.includes('continuar') || txt.includes('assistir') || txt.includes('watch');
                     });
                     if (watchBtn) {
-                        logP(`[JS] Botao de video detectado na interface. Acionando...`);
+                        let btnTxt = (watchBtn.innerText || watchBtn.textContent || '').trim();
+                        logP(`[JS] Botao de video detectado na interface ('${btnTxt}'). Acionando...`);
                         watchBtn.click();
+                        await new Promise(r => setTimeout(r, 2000));
+                        ensureVideoPlayback();
                     }
                 } catch(e) {}
 
                 // 3. Loop de Heartbeat e Progressão Oficial via API (/video-progress)
                 let curProgress = secondsDone;
                 let targetSec = secondsNeeded;
+                let failCount = 0;
                 
                 logP(`[JS] Progresso inicial do video: ${Math.floor(curProgress)}s / ${targetSec}s`);
                 window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
                 
                 let videoFinished = false;
+                const startTimeVideo = Date.now();
+                const maxVideoTime = (targetSec + 60) * 1000;
                 
                 while (!videoFinished && curProgress < targetSec) {
-                    let delayMs = 7000 + Math.floor(Math.random() * 2500); // 7.0s a 9.5s (padrão oficial Discord)
+                    let delayMs = 7000 + Math.floor(Math.random() * 2500); // 7.0s a 9.5s
                     await new Promise(r => setTimeout(r, delayMs));
                     
                     ensureVideoPlayback();
                     
                     let elapsed = (delayMs / 1000) + (Math.random() * 0.04 - 0.02);
-                    curProgress = Math.min(targetSec, curProgress + elapsed);
-                    let payloadTs = Number(curProgress.toFixed(6));
-                    
-                    logP(`[JS] Video em reproducao: ${Math.floor(curProgress)} / ${targetSec}s`);
-                    window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
+                    let payloadTs = Number(Math.min(targetSec, curProgress + elapsed).toFixed(6));
                     
                     try {
-                        let res = await request('POST', `/quests/${quest.id}/video-progress`, { timestamp: payloadTs });
-                        let st = res?.user_status || res?.userStatus || res;
-                        if (st?.completed_at || st?.completedAt || curProgress >= targetSec) {
-                            videoFinished = true;
-                            logP(`[JS] Meta do video atingida com sucesso!`);
-                            break;
+                        let res = await safePost(`/quests/${quest.id}/video-progress`, { timestamp: payloadTs });
+                        if (res.ok) {
+                            failCount = 0;
+                            let b = res.body || {};
+                            let serverVal = b.progress?.[taskName]?.value ?? b.progress?.WATCH_VIDEO?.value ?? b.progress?.WATCH_VIDEO_ON_MOBILE?.value ?? b.user_status?.progress?.[taskName]?.value;
+                            if (typeof serverVal === 'number' && serverVal > curProgress) {
+                                curProgress = Math.min(targetSec, serverVal);
+                            } else {
+                                curProgress = Math.min(targetSec, curProgress + elapsed);
+                            }
+                            
+                            logP(`[JS] Video em reproducao: ${Math.floor(curProgress)} / ${targetSec}s`);
+                            window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
+
+                            if (b.completed_at || b.user_status?.completed_at || curProgress >= targetSec) {
+                                videoFinished = true;
+                                window.peloMenosUmSucesso = true;
+                                logP(`[JS] Meta do video confirmada pelo servidor Discord com sucesso!`);
+                                break;
+                            }
+                        } else {
+                            failCount++;
+                            logP(`[JS] [AVISO] Heartbeat video falhou (${failCount}/5). Status: ${res.status}`);
+                            if (failCount >= 5) {
+                                logP(`[JS] [ERRO] Falha persistente no progresso de video para '${questName}'. Pulando...`);
+                                break;
+                            }
                         }
                     } catch(errApi) {
+                        failCount++;
                         logP(`[JS] Aviso heartbeat video: ${errApi}`);
+                        if (failCount >= 5) break;
+                    }
+                    
+                    if (Date.now() - startTimeVideo > maxVideoTime) {
+                        logP(`[JS] [TIMEOUT] Tempo maximo de video excedido para '${questName}'.`);
+                        break;
                     }
                 }
                 
@@ -325,8 +422,13 @@ SCRIPT_JS = r"""
                     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
                 } catch(e) {}
                 
-                logP(`[JS] Missao de video concluida com exito!`);
-                executarDesligamento();
+                if (videoFinished) {
+                    logP(`[JS] Missao de video '${questName}' concluida com exito!`);
+                    executarDesligamento(true);
+                } else {
+                    logP(`[JS] Missao de video '${questName}' incompleta. Avancando...`);
+                    executarDesligamento(false);
+                }
                 return;
             }
             else if(taskName === "PLAY_ON_DESKTOP") {
@@ -361,14 +463,16 @@ SCRIPT_JS = r"""
                 }
                 if (FluxDispatcher) FluxDispatcher.dispatch({type: "RUNNING_GAMES_CHANGE", removed: realGames, added: [fakeGame], games: fakeGames});
                 
+                let consecutiveFailures = 0;
                 let completingThisQuest = false;
                 let fatTimerStarted = false;
                 let lastHeartbeatTime = Date.now();
                 let watchdogInterval = null;
 
-                const finishUp = () => {
+                const finishUp = (sucesso = false) => {
                     if (completingThisQuest) return;
                     completingThisQuest = true;
+                    if (sucesso) window.peloMenosUmSucesso = true;
                     if (watchdogInterval) clearInterval(watchdogInterval);
                     if (RunningGameStore) { 
                         RunningGameStore.getRunningGames = realGetRunningGames; 
@@ -379,18 +483,18 @@ SCRIPT_JS = r"""
                         FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fnSuccess); 
                         FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_FAILURE", fnFailure);
                     }
-                    executarDesligamento();
+                    executarDesligamento(sucesso);
                 };
 
-                // WATCHDOG (Inspirado no Orion): se o Discord travar ou nao enviar heartbeats por > 80s, aborta com seguranca
+                // WATCHDOG (Inspirado no Orion): se o Discord nao enviar heartbeats por > 90s, aborta com seguranca
                 watchdogInterval = setInterval(() => {
                     if (completingThisQuest) return;
                     window.recompensas_keepalive = Date.now();
                     let elapsed = Date.now() - lastHeartbeatTime;
-                    if (elapsed > 80000) {
+                    if (elapsed > 90000) {
                         logP(`[JS] [WATCHDOG] Nao houve resposta de progresso do Discord para '${questName}' apos ${Math.floor(elapsed/1000)}s.`);
                         logP(`[JS] [WATCHDOG] Pulando missao com seguranca para evitar travamento.`);
-                        finishUp();
+                        finishUp(false);
                     }
                 }, 15000);
 
@@ -398,15 +502,26 @@ SCRIPT_JS = r"""
                     if(completingThisQuest) return;
                     let qId = data?.questId || data?.quest_id;
                     if (qId && qId !== quest.id) return;
-                    logP(`[JS] [ALERTA] Heartbeat rejeitado pelo backend do Discord para '${questName}'!`);
+                    consecutiveFailures++;
+                    logP(`[JS] [AVISO] Heartbeat falhou (${consecutiveFailures}/5) para '${questName}' (erro temporario do Discord).`);
                     if (data?.error) {
                         try { logP(`[JS] Motivo da rejeicao: ${JSON.stringify(data.error)}`); } catch(e) {}
                     }
-                    finishUp();
+                    if (consecutiveFailures >= 5) {
+                        logP(`[JS] [ERRO] 5 falhas consecutivas de heartbeat para '${questName}'. Pulando missao.`);
+                        finishUp(false);
+                    } else {
+                        // Rearma watchdog pois o Discord continua rodando a contagem de heartbeat
+                        lastHeartbeatTime = Date.now();
+                    }
                 };
 
                 let fnSuccess = data => {
                     if(completingThisQuest) return;
+                    let qId = data?.questId || data?.quest_id;
+                    if (qId && qId !== quest.id) return;
+                    
+                    consecutiveFailures = 0;
                     lastHeartbeatTime = Date.now(); // Rearma o watchdog
                     window.recompensas_keepalive = Date.now();
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
@@ -424,11 +539,11 @@ SCRIPT_JS = r"""
                         logP(`[JS] Meta oficial atingida! Mantendo o jogo aberto por mais ${fatRemaining}s (Gordura Stealth)...`);
                         let simulatedProgress = progress;
 
-                        if(fatRemaining <= 0) finishUp();
+                        if(fatRemaining <= 0) finishUp(true);
                         else {
                             const queimarGordura = () => {
                                 if (completingThisQuest) return;
-                                if(simulatedProgress >= targetTimeWithFat) { finishUp(); return; }
+                                if(simulatedProgress >= targetTimeWithFat) { finishUp(true); return; }
                                 window.recompensas_keepalive = Date.now();
                                 let ganho = 8 + Math.floor(Math.random() * 12);
                                 simulatedProgress += ganho;
@@ -458,31 +573,33 @@ SCRIPT_JS = r"""
                 let realFunc = ApplicationStreamingStore ? ApplicationStreamingStore.getStreamerActiveStreamMetadata : null;
                 if (ApplicationStreamingStore) ApplicationStreamingStore.getStreamerActiveStreamMetadata = () => ({ id: applicationId, pid: pid, sourceName: null });
                 
+                let consecutiveFailures = 0;
                 let completingThisQuest = false;
                 let fatTimerStarted = false;
                 let lastHeartbeatTime = Date.now();
                 let watchdogInterval = null;
 
-                const finishUp = () => {
+                const finishUp = (sucesso = false) => {
                     if (completingThisQuest) return;
                     completingThisQuest = true;
+                    if (sucesso) window.peloMenosUmSucesso = true;
                     if (watchdogInterval) clearInterval(watchdogInterval);
                     if (ApplicationStreamingStore) ApplicationStreamingStore.getStreamerActiveStreamMetadata = realFunc;
                     if (FluxDispatcher) {
                         FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fnSuccess);
                         FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_FAILURE", fnFailure);
                     }
-                    executarDesligamento();
+                    executarDesligamento(sucesso);
                 };
 
                 watchdogInterval = setInterval(() => {
                     if (completingThisQuest) return;
                     window.recompensas_keepalive = Date.now();
                     let elapsed = Date.now() - lastHeartbeatTime;
-                    if (elapsed > 80000) {
+                    if (elapsed > 90000) {
                         logP(`[JS] [WATCHDOG] Stream sem resposta do Discord apos ${Math.floor(elapsed/1000)}s (requer transmissao ao vivo com amigos em call).`);
                         logP(`[JS] [WATCHDOG] Pulando missao de stream com seguranca.`);
-                        finishUp();
+                        finishUp(false);
                     }
                 }, 15000);
 
@@ -490,12 +607,20 @@ SCRIPT_JS = r"""
                     if(completingThisQuest) return;
                     let qId = data?.questId || data?.quest_id;
                     if (qId && qId !== quest.id) return;
-                    logP(`[JS] [ALERTA] Heartbeat de stream rejeitado pelo Discord para '${questName}'!`);
-                    finishUp();
+                    consecutiveFailures++;
+                    logP(`[JS] [AVISO] Heartbeat de stream falhou (${consecutiveFailures}/5) para '${questName}'!`);
+                    if (consecutiveFailures >= 5) {
+                        finishUp(false);
+                    } else {
+                        lastHeartbeatTime = Date.now();
+                    }
                 };
 
                 let fnSuccess = data => {
                     if(completingThisQuest) return;
+                    let qId = data?.questId || data?.quest_id;
+                    if (qId && qId !== quest.id) return;
+                    consecutiveFailures = 0;
                     lastHeartbeatTime = Date.now();
                     window.recompensas_keepalive = Date.now();
                     let progress = quest.config.configVersion === 1 ? data.userStatus?.streamProgressSeconds || 0 : Math.floor(data.userStatus?.progress?.[taskName]?.value || 0);
@@ -512,11 +637,11 @@ SCRIPT_JS = r"""
                         logP(`[JS] Meta oficial da Stream atingida! Queimando gordura stealth (${fatRemaining}s)...`);
                         
                         let simulatedProgress = progress;
-                        if(fatRemaining <= 0) finishUp();
+                        if(fatRemaining <= 0) finishUp(true);
                         else {
                             const queimarGorduraStream = () => {
                                 if (completingThisQuest) return;
-                                if(simulatedProgress >= targetTimeWithFat) { finishUp(); return; }
+                                if(simulatedProgress >= targetTimeWithFat) { finishUp(true); return; }
                                 window.recompensas_keepalive = Date.now();
                                 let ganho = 8 + Math.floor(Math.random() * 12);
                                 simulatedProgress += ganho;
@@ -1191,8 +1316,13 @@ def iniciar_farm_discord():
                     except Exception: pass
                     
                     try:
-                        if driver.execute_script("return window.discordQuestsDone === true;"):
+                        sucesso_flag = driver.execute_script("return window.peloMenosUmSucesso === true;")
+                        if sucesso_flag:
                             houve_ao_menos_um_sucesso = True
+                            
+                        if driver.execute_script("return window.discordQuestsDone === true;"):
+                            if driver.execute_script("return window.peloMenosUmSucesso === true;"):
+                                houve_ao_menos_um_sucesso = True
                             break
                         falhas_consecutivas_script = 0
                     except Exception as err:

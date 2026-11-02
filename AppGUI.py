@@ -18,7 +18,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.3"
+APP_VERSION = "v3.2.4"
 APP_CODENAME = "Intelligent Bypass"
 
 def carregar_html_ui(nome_arquivo):
@@ -165,6 +165,7 @@ class BotAPI:
             self.log_ui(f"Fatal error: {e}", "error")
         finally:
             self.rodando = False
+            RewardsCore.limpar_processos_zumbis(silencioso=True)
 
     def listar_contas(self): return RewardsCore.atualizar_lista_contas()
     
@@ -511,6 +512,8 @@ if __name__ == '__main__':
         for t in threads:
             tempo_restante = max(10, limite_total_segundos - int(time.time() - t_inicio_farm))
             t.join(timeout=tempo_restante)
+            
+        RewardsCore.limpar_processos_zumbis(silencioso=True)
             
         # 4. Extermínio total da memória (Garante que o bot feche de verdade)
         if not RewardsCore.ABORTAR_PROCESSO and modo_startup:

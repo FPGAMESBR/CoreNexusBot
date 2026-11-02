@@ -246,6 +246,13 @@ def check_extended_days(cfg):
 
 def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
     if RewardsCore.ABORTAR_PROCESSO: return
+    try:
+        _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy)
+    finally:
+        RewardsCore.limpar_processos_zumbis(silencioso=True)
+
+def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
+    if RewardsCore.ABORTAR_PROCESSO: return
 
     RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
     LOGGER("======================================================")
@@ -308,8 +315,10 @@ def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 time.sleep(5)
                 if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil): return 
                 RewardsCore.limpar_todas_as_missoes(d_task)
-                try: RewardsCore.fazer_pesquisa_visual(d_task)
-                except Exception: pass
+                try: 
+                    RewardsCore.fazer_pesquisa_visual(d_task)
+                except Exception as e:
+                    LOGGER(f"[STAR ENGINE] Aviso Pesquisa Visual: {e}", "warning")
             except Exception as e:
                 LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
             finally:
