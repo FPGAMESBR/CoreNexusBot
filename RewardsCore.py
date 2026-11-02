@@ -1255,6 +1255,9 @@ def limpar_processos_zumbis(silencioso=False):
     except Exception: 
         pass
 
+import atexit
+atexit.register(lambda: limpar_processos_zumbis(silencioso=True))
+
 
 def iniciar_ciclo_farm():
     """Função central chamada pela GUI"""

@@ -114,6 +114,7 @@ SCRIPT_JS = r"""
                 try {
                     await safePost(`/quests/${id}/enroll`, {
                         location: 11,
+                        platform: 0,
                         is_targeted: false,
                         metadata_sealed: null,
                         traffic_metadata_sealed: sealedFor(id)
@@ -202,6 +203,7 @@ SCRIPT_JS = r"""
                 try {
                     await safePost(`/quests/${quest.id}/enroll`, {
                         location: 11,
+                        platform: 0,
                         is_targeted: false,
                         metadata_sealed: null,
                         traffic_metadata_sealed: sealedFor(quest.id)
@@ -216,6 +218,11 @@ SCRIPT_JS = r"""
                     || document.querySelector(`[data-quest-id="${quest.id}"]`)
                     || Array.from(document.querySelectorAll('[class*="quest"], [class*="card"], [class*="container"]')).find(el => (el.innerText || el.textContent || '').includes(questName));
                 
+                if (card && typeof card.scrollIntoView === 'function') {
+                    card.scrollIntoView({ behavior: 'instant', block: 'center' });
+                    await new Promise(r => setTimeout(r, 400));
+                }
+
                 let scope = card || document;
                 let selector = scope.querySelector('[class*="platformSelectorPrimary"], [aria-haspopup="listbox"], button[class*="select"]');
                 if (!selector) {
@@ -231,7 +238,10 @@ SCRIPT_JS = r"""
                     
                     let options = Array.from(document.querySelectorAll('[role="listbox"] [role="option"], [role="option"], [class*="option"], [data-value*="desktop"]'));
                     if (options.length === 0) options = Array.from(document.querySelectorAll('div[class*="select"] div, li'));
-                    let desktopOpt = options.find(o => /(área de trabalho|area de trabalho|desktop|computador|pc)/i.test(o.innerText || o.textContent || ''));
+                    let desktopOpt = options.find(o => {
+                        let t = (o.innerText || o.textContent || '').trim().toLowerCase();
+                        return t.includes('área de trabalho') || t.includes('area de trabalho') || t.includes('desktop') || t.includes('computador') || t === 'pc' || t.startsWith('pc ');
+                    });
                     if (desktopOpt) {
                         desktopOpt.click();
                         logP(`[JS] Plataforma 'Área de trabalho' selecionada com sucesso para '${questName}'!`);
@@ -245,6 +255,18 @@ SCRIPT_JS = r"""
                     }
                 }
                 
+                // Fecha qualquer modal/popup de detalhes que possa abrir (ex: 'Jogos participantes' no Resident Evil)
+                let closeBtn = document.querySelector('[class*="modal"] [aria-label*="Fechar"], [class*="modal"] [aria-label*="Close"], [class*="modal"] button[class*="close"], [role="dialog"] [aria-label*="Fechar"], [role="dialog"] [aria-label*="Close"]');
+                if (closeBtn) {
+                    try { closeBtn.click(); } catch(e) {}
+                }
+            } catch(e) {}
+
+            try {
+                let card = document.getElementById('quest-tile-' + quest.id)
+                    || document.querySelector(`[data-quest-id="${quest.id}"]`)
+                    || Array.from(document.querySelectorAll('[class*="quest"], [class*="card"], [class*="container"]')).find(el => (el.innerText || el.textContent || '').includes(questName));
+                let scope = card || document;
                 // 2. Aciona botão de aceitar caso visível na interface
                 let acceptBtn = Array.from(scope.querySelectorAll('button, [role="button"]')).find(b => /^(aceitar|accept|aceitar missão|accept quest)/i.test((b.innerText || b.textContent || '').trim()));
                 if (acceptBtn && !acceptBtn.disabled) {
