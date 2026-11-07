@@ -988,17 +988,7 @@ def iniciar_farm_discord():
             except Exception as e:
                 RewardsCore.LOGGER(RewardsCore.t("discord_update_ignore_err").format(e))
 
-            # KICKSTART DE STARTUP (Bounce de Aquecimento):
-            # Ao iniciar o Windows, o Discord Canary frequentemente trava na checagem inicial do Electron.
-            # O bounce rápido (abre, aguarda 4s e reabre limpo) destrava o loop de inicialização sem perder o login.
-            RewardsCore.LOGGER(f"[DISCORD] Executando kickstart de aquecimento para {exe_name}...")
-            RewardsCore.update_ui("discord", "Aquecendo Discord...", 15)
-            proc_kick = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(4)
-            _encerrar_processo_discord(exe_name, proc_kick)
-            time.sleep(2)
-
-            RewardsCore.LOGGER(f"[DISCORD] Iniciando instância principal do {exe_name} (Porta {PORTA_DEBUG})...")
+            RewardsCore.LOGGER(f"[DISCORD] Iniciando {exe_name} (Porta {PORTA_DEBUG})...")
             RewardsCore.update_ui("discord", "Iniciando Discord...", 25)
             processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
@@ -1012,7 +1002,7 @@ def iniciar_farm_discord():
                         RewardsCore.LOGGER(f"[DISCORD] Porta de depuração {PORTA_DEBUG} conectada!")
                         break
                 except Exception:
-                    time.sleep(2)
+                    time.sleep(1)
 
             if not porta_aberta:
                 if not RewardsCore.ABORTAR_PROCESSO:
@@ -1021,61 +1011,89 @@ def iniciar_farm_discord():
                 _encerrar_processo_discord(exe_name, processo)
                 continue
             
+            # Aguarda a janela principal via HTTP DevTools /json ANTES de conectar o Selenium (evita travar na splash screen)
+            RewardsCore.update_ui("discord", "Localizando janela...", 35)
+            RewardsCore.LOGGER("[DISCORD] Aguardando janela principal do Discord carregar...")
+            janela_pronta = False
+            for tentativa_win in range(45):
+                if RewardsCore.ABORTAR_PROCESSO: return
+                try:
+                    with urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json", timeout=2) as resp:
+                        targets = json.loads(resp.read().decode())
+                        for t in targets:
+                            t_url = t.get("url", "").lower()
+                            t_type = t.get("type", "")
+                            if t_type == "page" and any(x in t_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login", "canary.discord.com"]):
+                                janela_pronta = True
+                                RewardsCore.LOGGER(f"[DISCORD] Janela detectada via DevTools ({t.get('title', 'Discord')}: {t_url.split('?')[0]})!")
+                                break
+                except Exception:
+                    pass
+                if janela_pronta:
+                    break
+                time.sleep(1)
+
+            if not janela_pronta:
+                if not RewardsCore.ABORTAR_PROCESSO:
+                    RewardsCore.LOGGER("[DISCORD] Timeout: Discord Canary não carregou a janela principal (ficou preso na tela inicial).", "error")
+                    RewardsCore.update_ui("discord", "Travado na tela inicial", 0)
+                _encerrar_processo_discord(exe_name, processo)
+                continue
+
             from selenium.webdriver.chrome.options import Options
             from selenium.webdriver.chrome.service import Service
             chrome_options = Options()
             chrome_options.debugger_address = f"127.0.0.1:{PORTA_DEBUG}"
 
             try:
-                req = urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=5)
-                dados_json = json.loads(req.read())
-                match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
-                if match: chrome_options.browser_version = match.group(1)
+                with urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=3) as req:
+                    dados_json = json.loads(req.read().decode())
+                    match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
+                    if match: chrome_options.browser_version = match.group(1)
             except Exception: pass
+
+            servico = Service()
+            if os.name == 'nt': servico.creation_flags = 0x08000000
 
             driver = None
             for _ in range(3):
                 if RewardsCore.ABORTAR_PROCESSO: return
                 try:
-                    servico = Service()
-                    if os.name == 'nt': servico.creation_flags = 0x08000000
                     driver = webdriver.Chrome(service=servico, options=chrome_options)
-                    driver.set_page_load_timeout(60)
+                    driver.set_page_load_timeout(30)
+                    driver.set_script_timeout(30)
                     break
-                except Exception: time.sleep(5)
+                except Exception: time.sleep(2)
                 
             if not driver:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_selenium_err"))
-                try: processo.kill()
-                except Exception: pass
+                _encerrar_processo_discord(exe_name, processo)
                 continue
 
-            RewardsCore.update_ui("discord", "Localizando janela...", 38)
-            RewardsCore.LOGGER("[DISCORD] Aguardando janela principal do Discord carregar...")
             janela_correta = None
-            for tentativa_win in range(35):
-                if RewardsCore.ABORTAR_PROCESSO: return
-                try:
-                    for handle in driver.window_handles:
+            try:
+                for handle in driver.window_handles:
+                    try:
                         driver.switch_to.window(handle)
                         c_url = driver.current_url.lower()
-                        if any(x in c_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login"]):
+                        if any(x in c_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login", "canary.discord.com"]):
                             janela_correta = handle
-                            RewardsCore.LOGGER(f"[DISCORD] Janela detectada com sucesso ({c_url.split('?')[0]})!")
+                            RewardsCore.LOGGER(f"[DISCORD] Janela conectada com sucesso ({c_url.split('?')[0]})!")
                             break
-                    if janela_correta: break
-                except Exception: pass
-                time.sleep(2)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
                 
             if not janela_correta:
                 if not RewardsCore.ABORTAR_PROCESSO:
-                    RewardsCore.LOGGER("[DISCORD] Timeout: Discord Canary não carregou a janela principal (ficou preso na tela inicial).", "error")
-                    RewardsCore.update_ui("discord", "Travado na tela inicial", 0)
+                    RewardsCore.LOGGER("[DISCORD] Erro ao alternar para a janela principal do Discord.", "error")
+                    RewardsCore.update_ui("discord", "Erro ao alternar janela", 0)
                 try: driver.quit()
                 except Exception: pass
                 _encerrar_processo_discord(exe_name, processo)
                 continue
-                
+            
             # BYPASS GLOBAL DA PAGE VISIBILITY API
             try:
                 driver.execute_script("""

@@ -18,7 +18,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.4"
+APP_VERSION = "v3.2.5"
 APP_CODENAME = "Intelligent Bypass"
 
 def carregar_html_ui(nome_arquivo):
@@ -166,6 +166,9 @@ class BotAPI:
         finally:
             self.rodando = False
             RewardsCore.limpar_processos_zumbis(silencioso=True)
+            if platform.system().lower() == "windows":
+                subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def listar_contas(self): return RewardsCore.atualizar_lista_contas()
     
@@ -514,6 +517,9 @@ if __name__ == '__main__':
             t.join(timeout=tempo_restante)
             
         RewardsCore.limpar_processos_zumbis(silencioso=True)
+        if platform.system().lower() == "windows":
+            subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
         # 4. Extermínio total da memória (Garante que o bot feche de verdade)
         if not RewardsCore.ABORTAR_PROCESSO and modo_startup:
