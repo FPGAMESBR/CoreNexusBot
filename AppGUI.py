@@ -36,6 +36,8 @@ HTML_INTERFACE = HTML_INTERFACE.replace("[APP_CODENAME]", APP_CODENAME)
 class BotAPI:
     def __init__(self):
         self.rodando = False
+        self.bing_rodando = False
+        self.discord_rodando = False
         RewardsCore.LOGGER = self.log_ui
         
     def verificar_discord(self):
@@ -107,6 +109,8 @@ class BotAPI:
             return
             
         self.rodando = True
+        self.bing_rodando = False
+        self.discord_rodando = False
         RewardsCore.ABORTAR_PROCESSO = False 
         
         # Garante arquivo de log dedicado para este ciclo
@@ -128,18 +132,43 @@ class BotAPI:
         # INICIA O CRONÔMETRO NO MINI-PAINEL
         GerenciadorBandeja.iniciar_cronometro()
         
+        cfg = RewardsCore.carregar_config()
+        if cfg.get("do_discord", "n") == "s":
+            self.discord_rodando = True
+            threading.Thread(target=self.loop_farm_discord, daemon=True).start()
+            
+        self.bing_rodando = True
         threading.Thread(target=self.loop_farm, daemon=True).start()
-        threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True).start()
+
+    def loop_farm_discord(self):
+        try:
+            self.discord_rodando = True
+            DiscordQuests.iniciar_farm_discord()
+        except Exception as e:
+            self.log_ui(f"[DISCORD] Erro: {e}", "error")
+        finally:
+            self.discord_rodando = False
+            if not self.bing_rodando:
+                self.rodando = False
+                GerenciadorBandeja.parar_cronometro()
 
     def parar(self):
         self.log_ui("KILL SWITCH ACTIVATED. Initiating safe shutdown...", "error")
         self.rodando = False
+        self.bing_rodando = False
+        self.discord_rodando = False
         RewardsCore.ABORTAR_PROCESSO = True 
         
         # PARA O CRONÔMETRO NO MINI-PAINEL E ZERA AS BARRAS
         GerenciadorBandeja.parar_cronometro()
         RewardsCore.update_ui("discord", "Inativo", 0)
         RewardsCore.update_ui("bing", "Inativo", 0)
+        
+        # Encerra processos camuflados do Discord (ping.exe) imediatamente
+        try:
+            DiscordQuests.matar_processos_camuflados()
+        except Exception:
+            pass
         
         sistema = platform.system().lower()
         if sistema == "windows":
@@ -155,6 +184,7 @@ class BotAPI:
 
     def loop_farm(self):
         try:
+            self.bing_rodando = True
             RewardsCore.preparar_ambiente_adb()
             RewardsCore.iniciar_ciclo_farm()
             
@@ -164,11 +194,15 @@ class BotAPI:
         except Exception as e:
             self.log_ui(f"Fatal error: {e}", "error")
         finally:
-            self.rodando = False
+            self.bing_rodando = False
+            if not self.discord_rodando:
+                self.rodando = False
+                GerenciadorBandeja.parar_cronometro()
+                try:
+                    DiscordQuests.matar_processos_camuflados()
+                except Exception:
+                    pass
             RewardsCore.limpar_processos_zumbis(silencioso=True)
-            if platform.system().lower() == "windows":
-                subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def listar_contas(self): return RewardsCore.atualizar_lista_contas()
     
@@ -499,12 +533,14 @@ if __name__ == '__main__':
         
         threads = []
         if cfg.get("do_discord", "n") == "s":
-            t_discord = threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True)
+            api.discord_rodando = True
+            t_discord = threading.Thread(target=api.loop_farm_discord, daemon=True)
             threads.append(("discord", t_discord, 21600))
             t_discord.start()
             
         rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
         if rodar_rewards and not RewardsCore.ABORTAR_PROCESSO:
+            api.bing_rodando = True
             t_bing = threading.Thread(target=api.loop_farm, daemon=True)
             threads.append(("rewards", t_bing, 3600))
             t_bing.start()
@@ -517,6 +553,10 @@ if __name__ == '__main__':
                 th.join(timeout=limite_srv - tempo_decorrido)
             
         RewardsCore.limpar_processos_zumbis(silencioso=True)
+        try:
+            DiscordQuests.matar_processos_camuflados()
+        except Exception:
+            pass
         if platform.system().lower() == "windows":
             subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

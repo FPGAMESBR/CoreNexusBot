@@ -16,6 +16,49 @@ from selenium.webdriver.chrome.service import Service
 import RewardsCore
 
 # ======================================================
+# GERENCIAMENTO GLOBAL DE PROCESSOS CAMUFLADOS (JOGOS / PING)
+# ======================================================
+DUMMY_PROCESSES = []
+
+def matar_processos_camuflados():
+    """Mata todos os processos falsos (ex: ping.exe camuflado de jogo) e limpa arquivos temporários"""
+    global DUMMY_PROCESSES
+    for dp, path in list(DUMMY_PROCESSES):
+        try:
+            if dp and hasattr(dp, 'kill'):
+                dp.kill()
+        except Exception:
+            pass
+        if platform.system().lower() == "windows" and path:
+            try:
+                base = os.path.basename(path)
+                subprocess.run(f'taskkill /F /IM "{base}" /T', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+        try:
+            if path and os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+    DUMMY_PROCESSES.clear()
+
+    # Varredura de segurança para matar processos órfãos derivados de jogos falsos no temp
+    if platform.system().lower() == "windows":
+        try:
+            temp_dir = tempfile.gettempdir()
+            for exe_file in glob.glob(os.path.join(temp_dir, "*.exe")):
+                nome = os.path.basename(exe_file)
+                if any(k in nome.lower() for k in ["maple", "callofduty", "cod", "rust", "endfield", "kof", "resident", "valorant", "outlanders", "wumpus"]):
+                    subprocess.run(f'taskkill /F /IM "{nome}" /T', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    try: os.remove(exe_file)
+                    except Exception: pass
+        except Exception:
+            pass
+
+import atexit
+atexit.register(matar_processos_camuflados)
+
+# ======================================================
 # JAVASCRIPT INJETOR ATUALIZADO (PONTE DE COMUNICAÇÃO SEGURA)
 # ======================================================
 SCRIPT_JS = r"""
@@ -1267,7 +1310,7 @@ def iniciar_farm_discord():
             
             RewardsCore.update_ui("discord", "Processando Tarefas...", 80)
             
-            dummy_processes = []
+            matar_processos_camuflados()
             try:
                 watchdog_timeout = 180 # 3 minutos sem qualquer sinal de vida do JS
                 last_active_time = time.time()
@@ -1330,16 +1373,11 @@ def iniciar_farm_discord():
                                         os.chmod(fake_exe_path, 0o755) 
                                         dp = subprocess.Popen([fake_exe_path, "3600"])
 
-                                    dummy_processes.append((dp, fake_exe_path))
+                                    DUMMY_PROCESSES.append((dp, fake_exe_path))
                                     driver.execute_script(f"window.novoPidCamuflado = {dp.pid};") 
                                     
                                 elif "REWARDS_KILL:ALL" in cmd:
-                                    for dp, path in dummy_processes:
-                                        try: dp.kill()
-                                        except Exception: pass
-                                        try: os.remove(path)
-                                        except Exception: pass
-                                    dummy_processes.clear()
+                                    matar_processos_camuflados()
                                     
                                 elif "REWARDS_PROGRESS:" in cmd:
                                     try:
@@ -1375,16 +1413,7 @@ def iniciar_farm_discord():
             except Exception as e:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_loop_error").format(str(e)[:100]))
                 
-            for dp, path in dummy_processes:
-                try: dp.kill()
-                except Exception: pass
-                if platform.system().lower() == "windows":
-                    try: subprocess.run(f'taskkill /F /IM "{os.path.basename(path)}" /T', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    except Exception: pass
-                try:
-                    if os.path.exists(path): os.remove(path)
-                except Exception: pass
-            dummy_processes.clear()
+            matar_processos_camuflados()
                 
             try:
                 driver.execute_script("try { window.DiscordNative.app.quit(); } catch(e) {}")
