@@ -686,7 +686,7 @@ if __name__ == '__main__':
         if modo_startup:
             try: janela_principal.evaluate_js("skipAnimation();")
             except Exception: pass
-            api.rodando = True
+            # api.rodando será setado por api.iniciar() dentro do coordenador
             GerenciadorBandeja.iniciar_cronometro()
             # Chama o coordenador em vez de lançar as threads soltas
             threading.Thread(target=coordenador_auto_close, daemon=True).start()
