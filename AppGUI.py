@@ -38,6 +38,7 @@ class BotAPI:
         self.rodando = False
         self.bing_rodando = False
         self.discord_rodando = False
+        self._lock_fim = threading.Lock()
         RewardsCore.LOGGER = self.log_ui
         
     def verificar_discord(self):
@@ -148,9 +149,7 @@ class BotAPI:
             self.log_ui(f"[DISCORD] Erro: {e}", "error")
         finally:
             self.discord_rodando = False
-            if not self.bing_rodando:
-                self.rodando = False
-                GerenciadorBandeja.parar_cronometro()
+            self.checar_fim_geral()
 
     def parar(self):
         self.log_ui("KILL SWITCH ACTIVATED. Initiating safe shutdown...", "error")
@@ -189,20 +188,28 @@ class BotAPI:
             RewardsCore.iniciar_ciclo_farm()
             
             RewardsCore.registrar_data_execucao("rewards")
-            
-            self.log_ui("FARM COMPLETED SUCCESSFULLY!", "success")
+            self.log_ui("[BING] Farm diário de pesquisas e tarefas concluído com sucesso!", "success")
         except Exception as e:
             self.log_ui(f"Fatal error: {e}", "error")
         finally:
             self.bing_rodando = False
-            if not self.discord_rodando:
+            self.checar_fim_geral()
+
+    def checar_fim_geral(self):
+        """Coordena o encerramento conjunto do Bing e Discord sem abortos prematuros nem bloqueios de UI"""
+        with self._lock_fim:
+            if not self.rodando:
+                return
+            if not self.bing_rodando and not self.discord_rodando:
                 self.rodando = False
                 GerenciadorBandeja.parar_cronometro()
                 try:
                     DiscordQuests.matar_processos_camuflados()
                 except Exception:
                     pass
-            RewardsCore.limpar_processos_zumbis(silencioso=True)
+                RewardsCore.limpar_processos_zumbis(silencioso=True)
+                if not RewardsCore.ABORTAR_PROCESSO:
+                    self.log_ui("FARM COMPLETED SUCCESSFULLY!", "success")
 
     def listar_contas(self): return RewardsCore.atualizar_lista_contas()
     

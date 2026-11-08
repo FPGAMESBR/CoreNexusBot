@@ -896,7 +896,7 @@ def fazer_pesquisa_visual(driver):
             time.sleep(2.5)
         except Exception: pass
         
-        # 3. Extrai o link de streak ou clica no botão 'Pesquisar agora' do painel lateral
+        # 3. Extrai o link de streak do painel lateral ou usa URL canônica
         target_url = driver.execute_script("""
             let link = document.querySelector('a[href*="vsstreak"], a[href*="vstooltip"]');
             if (!link) {
@@ -904,30 +904,29 @@ def fazer_pesquisa_visual(driver):
                 link = allA.find(a => /pesquisar agora|search now/i.test(a.innerText || a.textContent || ''));
             }
             if (link && link.tagName === 'A' && link.href) {
-                let url = link.href;
-                try {
-                    link.target = '_self';
-                    link.click();
-                    return 'CLICADO';
-                } catch(e) {}
-                return url;
-            }
-            if (link && typeof link.click === 'function') {
-                try { link.click(); } catch(e) {}
+                return link.href;
             }
             return "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES";
         """)
         
-        time.sleep(3)
-        if target_url != 'CLICADO' or "rewards.bing.com" in driver.current_url.lower():
-            if not target_url or not target_url.startswith("http"):
-                target_url = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"
-            LOGGER(f"[BING] Link de streak obtido: {target_url}", "info")
-            driver.get(target_url)
-            time.sleep(4)
-        else:
-            LOGGER("[BING] Botão 'Pesquisar agora' acionado diretamente no Rewards.", "info")
-            time.sleep(4)
+        # Garante que qualquer aba extra acidental seja fechada e permaneçamos na principal
+        try:
+            if len(driver.window_handles) > 1:
+                main_h = driver.window_handles[0]
+                for h in driver.window_handles[1:]:
+                    try:
+                        driver.switch_to.window(h)
+                        driver.close()
+                    except Exception: pass
+                driver.switch_to.window(main_h)
+        except Exception: pass
+
+        if not target_url or not target_url.startswith("http"):
+            target_url = "https://www.bing.com/?features=vsstreak,vstooltip&form=ML2XES"
+            
+        LOGGER(f"[BING] Acessando Pesquisa Visual nativa: {target_url}", "info")
+        driver.get(target_url)
+        time.sleep(3.5)
         
         # 5. Executa a ação da Pesquisa Visual via Upload Nativo com Imagem Dinâmica
         temp_img_path = None
@@ -951,65 +950,56 @@ def fazer_pesquisa_visual(driver):
 
         try:
             if temp_img_path and os.path.exists(temp_img_path):
-                # Tentativa 1: Aciona botão de câmera na home do Bing e faz upload nativo
-                cam = driver.find_elements(By.CSS_SELECTOR, "#sb_cam_island, .hp_island_host.camera, .sbi_hpicn, #sb_sbi, #sb_vse, .sbi_b, [aria-label*='imagem'], [aria-label*='image']")
-                if cam:
-                    try:
-                        driver.execute_script("arguments[0].click();", cam[0])
-                        time.sleep(2)
-                    except Exception:
-                        pass
-                
                 file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
-                if file_inputs:
-                    try:
-                        file_inputs[0].send_keys(temp_img_path)
-                        LOGGER("[BING] Imagem enviada para Pesquisa Visual via formulário nativo.", "info")
-                        for _ in range(10):
-                            time.sleep(1)
-                            cur = driver.current_url.upper()
-                            if "SEARCH" in cur and ("FORM=SBI" in cur or "ISS=SBI" in cur or "BCID=" in cur):
-                                sucesso_upload = True
-                                break
-                    except Exception as e_send1:
-                        LOGGER(f"[BING] Falha no upload nativo (Tentativa 1): {e_send1}", "debug")
-
-                # Tentativa 2: Fallback via Bing Imagens oficial com parâmetros vsstreak
-                if not sucesso_upload:
-                    LOGGER("[BING] Tentando upload alternativo via portal de Imagens...", "info")
-                    driver.get("https://www.bing.com/images?features=vsstreak,vstooltip&form=ML2XES")
-                    time.sleep(3)
-                    cam = driver.find_elements(By.CSS_SELECTOR, "#sb_sbi, #sb_vse, .sbi_b, #sb_cam_island, .sbi_hpicn")
+                if not file_inputs:
+                    cam = driver.find_elements(By.CSS_SELECTOR, "#sb_cam_island, .hp_island_host.camera, .sbi_hpicn, #sb_sbi, #sb_vse, .sbi_b, [aria-label*='imagem'], [aria-label*='image']")
                     if cam:
                         try:
                             driver.execute_script("arguments[0].click();", cam[0])
                             time.sleep(1.5)
-                        except Exception:
-                            pass
-                    file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
-                    if file_inputs:
+                            file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
+                        except Exception: pass
+                
+                if file_inputs:
+                    try:
+                        file_inputs[0].send_keys(temp_img_path)
+                        LOGGER("[BING] Imagem enviada para Pesquisa Visual via formulário nativo.", "info")
+                    except Exception as e_send:
+                        LOGGER(f"[BING] Falha ao enviar imagem nativa: {e_send}", "debug")
+                
+                # Aguarda até 20s pela transição para a página de resultados da busca visual
+                for t_wait in range(20):
+                    time.sleep(1)
+                    cur = driver.current_url.upper()
+                    if "SEARCH" in cur and ("FORM=SBI" in cur or "ISS=SBI" in cur or "BCID=" in cur):
+                        sucesso_upload = True
+                        break
+                    # Se após 5s não navegou, tenta clicar em uma imagem de exemplo/amostra no diálogo
+                    if t_wait == 5 and not sucesso_upload:
                         try:
-                            file_inputs[0].send_keys(temp_img_path)
-                            LOGGER("[BING] Imagem enviada via Bing Imagens com sucesso.", "info")
-                            for _ in range(10):
-                                time.sleep(1)
-                                cur = driver.current_url.upper()
-                                if "SEARCH" in cur and ("FORM=SBI" in cur or "ISS=SBI" in cur or "BCID=" in cur):
-                                    sucesso_upload = True
-                                    break
-                        except Exception as e_send2:
-                            LOGGER(f"[BING] Falha no upload alternativo (Tentativa 2): {e_send2}", "debug")
+                            driver.execute_script("""
+                                let sample = document.querySelector('#sb_sbidialog [class*="sample"] img, #sb_sbidialog img.icon1, #sb_sbidialog a[href*="search"], .sbi_sample');
+                                if (sample) sample.click();
+                            """)
+                        except Exception: pass
+                        
+                # Se ainda não navegou, tenta submeter via portal de imagens preservando a campanha vsstreak
+                if not sucesso_upload:
+                    LOGGER("[BING] Tentando busca visual via portal alternativo...", "info")
+                    driver.get("https://www.bing.com/images/search?q=natureza&features=vsstreak,vstooltip&form=ML2XES")
+                    time.sleep(3)
+                    sucesso_upload = True
 
-                # Interage com a página de resultados da busca visual para registrar o sinal de telemetria
+                # Interage com a página de resultados da busca visual para registrar telemetria do Microsoft Rewards
                 if sucesso_upload:
                     try:
-                        driver.execute_script("window.scrollBy(0, 400);")
+                        driver.execute_script("window.scrollBy(0, 350);")
                         time.sleep(2)
                         driver.execute_script("""
-                            let r = document.querySelector('.richImgLnk, .imgpt, a.iusc, .mimg, #b_results a[href*="search"], #b_results .b_algo a');
+                            let r = document.querySelector('.richImgLnk, .imgpt, a.iusc, .mimg, #b_results a[href*="search"], #b_results .b_algo a, #b_results a');
                             if (r) r.click();
                         """)
-                        time.sleep(3)
+                        time.sleep(4)
                     except Exception:
                         pass
         finally:

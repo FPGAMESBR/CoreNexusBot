@@ -25,6 +25,8 @@ def matar_processos_camuflados():
     global DUMMY_PROCESSES
     for dp, path in list(DUMMY_PROCESSES):
         try:
+            if dp and hasattr(dp, 'pid'):
+                subprocess.run(f'taskkill /F /PID {dp.pid} /T', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if dp and hasattr(dp, 'kill'):
                 dp.kill()
         except Exception:
@@ -52,6 +54,8 @@ def matar_processos_camuflados():
                     subprocess.run(f'taskkill /F /IM "{nome}" /T', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     try: os.remove(exe_file)
                     except Exception: pass
+            # Elimina com certeza cirúrgica qualquer processo ping residual gerado para simulação de jogos
+            subprocess.run('wmic process where "CommandLine like \'%127.0.0.1 -n 3600%\'" call terminate', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
