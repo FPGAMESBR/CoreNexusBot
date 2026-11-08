@@ -51,6 +51,61 @@ class TestSessionLoggingAndQuests(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_discord_video_quest_resolution_in_node(self):
+        """Verifica se o motor JS identifica corretamente missões de vídeo com Map e taskConfigV2."""
+        test_script = """
+        const taskKeys = (tasks) => (tasks instanceof Map ? [...tasks.keys()] : Object.keys(tasks ?? {}));
+        const taskAt = (tasks, key) => (tasks instanceof Map ? tasks.get(key) : tasks?.[key]);
+        const selectTaskConfig = (cfg) => {
+            const v2 = cfg?.taskConfigV2 || cfg?.task_config_v2;
+            if (taskKeys(v2?.tasks).length > 0) return v2;
+            const v1 = cfg?.taskConfig || cfg?.task_config;
+            if (taskKeys(v1?.tasks).length > 0) return v1;
+            return v2 || v1 || cfg || null;
+        };
+
+        const typeMap = [
+            { match: k => k.includes("VIDEO"), type: "WATCH_VIDEO", prefer: ["WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE"] },
+            { match: k => k.startsWith("PLAY"), type: "GAME", prefer: ["PLAY_ON_DESKTOP"] }
+        ];
+
+        const resolveQuestTask = (q) => {
+            let tCfg = selectTaskConfig(q.config);
+            const keys = taskKeys(tCfg?.tasks);
+            for (const { match, type, prefer } of typeMap) {
+                const keyName = (prefer && keys.find(k => prefer.includes(k))) || keys.find(k => match(k));
+                if (keyName) {
+                    const taskData = taskAt(tCfg.tasks, keyName) || {};
+                    return { keyName, type, taskData };
+                }
+            }
+            return null;
+        };
+
+        const mockVideoQuest = {
+            id: '1562249301252645008',
+            config: {
+                taskConfig: { tasks: {} },
+                taskConfigV2: { tasks: new Map([['WATCH_VIDEO', { target: 30 }]]) }
+            }
+        };
+
+        const res = resolveQuestTask(mockVideoQuest);
+        if (!res || res.type !== 'WATCH_VIDEO' || res.taskData.target !== 30) {
+            process.exit(1);
+        }
+        process.exit(0);
+        """
+        with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as f:
+            f.write(test_script)
+            temp_path = f.name
+        try:
+            res = subprocess.run(['node', temp_path], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, "Falha na resolução de missão de vídeo no motor JS")
+        finally:
+            try: os.remove(temp_path)
+            except Exception: pass
+
     def test_locales_keys_synchronization(self):
         """Verifica se todas as chaves em pt existem em en e vice-versa sem discrepâncias."""
         locales_path = Path(__file__).parent.parent / "locales.json"

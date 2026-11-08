@@ -933,10 +933,14 @@ def fazer_pesquisa_visual(driver):
         sucesso_upload = False
         try:
             import tempfile
-            from PIL import Image
+            from PIL import Image, ImageDraw
             temp_img_path = os.path.join(tempfile.gettempdir(), f"bing_vs_{random.randint(1000, 99999)}.png")
-            c_rgb = (random.randint(40, 220), random.randint(40, 220), random.randint(40, 220))
-            img = Image.new('RGB', (250, 250), color=c_rgb)
+            # Gera imagem rica em formas geométricas e cores para que a IA de visão do Bing identifique feições visuais
+            img = Image.new('RGB', (400, 400), color=(random.randint(20, 100), random.randint(100, 200), random.randint(150, 255)))
+            draw = ImageDraw.Draw(img)
+            draw.ellipse((50, 50, 350, 350), fill=(random.randint(200, 255), random.randint(50, 150), random.randint(20, 100)), outline=(255, 255, 255), width=6)
+            draw.rectangle((100, 100, 300, 300), fill=(random.randint(10, 80), random.randint(180, 255), random.randint(80, 180)))
+            draw.polygon([(200, 60), (340, 300), (60, 300)], fill=(random.randint(220, 255), random.randint(200, 255), 0))
             img.save(temp_img_path)
         except Exception:
             try:
@@ -955,37 +959,36 @@ def fazer_pesquisa_visual(driver):
                     cam = driver.find_elements(By.CSS_SELECTOR, "#sb_sbi, .sbi_hpicn, #sb_cam_island, .hp_island_host.camera, [aria-label*='imagem'], [aria-label*='image']")
                     if cam:
                         driver.execute_script("arguments[0].click();", cam[0])
-                        time.sleep(2)
+                        time.sleep(1.5)
                 except Exception: pass
 
-                file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
-                if file_inputs:
-                    try:
-                        file_inputs[0].send_keys(temp_img_path)
-                        LOGGER("[BING] Imagem enviada para Pesquisa Visual via formulário nativo.", "info")
-                    except Exception as e_send:
-                        LOGGER(f"[BING] Falha ao enviar imagem nativa: {e_send}", "debug")
+                # 2. Envia para o input #sb_fileinput
+                try:
+                    file_inp = driver.find_element(By.ID, "sb_fileinput")
+                    file_inp.send_keys(temp_img_path)
+                    LOGGER("[BING] Imagem com feições visuais enviada para Pesquisa Visual via formulário nativo.", "info")
+                except Exception:
+                    file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
+                    if file_inputs:
+                        try:
+                            file_inputs[0].send_keys(temp_img_path)
+                            LOGGER("[BING] Imagem enviada para Pesquisa Visual via formulário nativo.", "info")
+                        except Exception as e_send:
+                            LOGGER(f"[BING] Falha ao enviar imagem nativa: {e_send}", "debug")
                 
-                # Aguarda até 20s pela transição para a página de resultados da busca visual
-                for t_wait in range(20):
+                # Aguarda até 15s pela transição para a página de resultados da busca visual
+                for t_wait in range(15):
                     time.sleep(1)
                     cur = driver.current_url.upper()
                     if "SEARCH" in cur and ("FORM=SBI" in cur or "ISS=SBI" in cur or "BCID=" in cur):
                         sucesso_upload = True
+                        LOGGER(f"[BING] Pesquisa Visual nativa confirmada ({driver.current_url[:65]}...).", "success")
                         break
-                    # Se após 5s não navegou, tenta clicar em uma imagem de exemplo/amostra no diálogo
-                    if t_wait == 5 and not sucesso_upload:
-                        try:
-                            driver.execute_script("""
-                                let sample = document.querySelector('#sb_sbidialog [class*="sample"] img, #sb_sbidialog img.icon1, #sb_sbidialog a[href*="search"], .sbi_sample');
-                                if (sample) sample.click();
-                            """)
-                        except Exception: pass
                         
-                # Se ainda não navegou, tenta submeter via portal de imagens preservando a campanha vsstreak
+                # Se não navegou por upload, direciona para a URL canônica de Pesquisa Visual (SBIHMP)
                 if not sucesso_upload:
-                    LOGGER("[BING] Tentando busca visual via portal alternativo...", "info")
-                    driver.get("https://www.bing.com/images/search?q=natureza&features=vsstreak,vstooltip&form=ML2XES")
+                    LOGGER("[BING] Direcionando para página canônica de Pesquisa Visual...", "info")
+                    driver.get("https://www.bing.com/search?q=Visual+Search&FORM=SBIHMP&features=vsstreak,vstooltip")
                     time.sleep(3)
                     sucesso_upload = True
 

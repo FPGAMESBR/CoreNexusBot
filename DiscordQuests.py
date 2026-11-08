@@ -198,18 +198,43 @@ SCRIPT_JS = r"""
             quests = Array.isArray(questsList) ? questsList : Object.values(questsList);
         }
 
-        const supportedTasks = ["WATCH_VIDEO", "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP", "PLAY_ACTIVITY", "WATCH_VIDEO_ON_MOBILE"];
-        
-        quests = quests.filter(x => {
-            if (!x || !x.config) return false;
-            let uStatus = x.user_status || x.userStatus || {};
-            if (uStatus.completed_at || uStatus.completedAt) return false;
-            let exp = x.config.expires_at || x.config.expiresAt;
-            if (exp && new Date(exp).getTime() < Date.now()) return false;
-            let tConfig = x.config.task_config || x.config.taskConfig || x.config.task_config_v2 || x.config.taskConfigV2 || x.config;
-            if (!tConfig || !tConfig.tasks) return false;
-            return supportedTasks.some(y => Object.keys(tConfig.tasks).includes(y));
-        });
+        const taskKeys = (tasks) => (tasks instanceof Map ? [...tasks.keys()] : Object.keys(tasks ?? {}));
+        const taskAt = (tasks, key) => (tasks instanceof Map ? tasks.get(key) : tasks?.[key]);
+        const selectTaskConfig = (cfg) => {
+            const v2 = cfg?.taskConfigV2 || cfg?.task_config_v2;
+            if (taskKeys(v2?.tasks).length > 0) return v2;
+            const v1 = cfg?.taskConfig || cfg?.task_config;
+            if (taskKeys(v1?.tasks).length > 0) return v1;
+            return v2 || v1 || cfg || null;
+        };
+
+        const typeMap = [
+            { match: k => k.includes("VIDEO"), type: "WATCH_VIDEO", prefer: ["WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE"] },
+            { match: k => k.startsWith("PLAY"), type: "GAME", prefer: ["PLAY_ON_DESKTOP"] },
+            { match: k => k.startsWith("STREAM"), type: "STREAM", prefer: ["STREAM_ON_DESKTOP"] },
+            { match: k => k.includes("ACTIVITY"), type: "ACTIVITY", prefer: ["PLAY_ACTIVITY"] }
+        ];
+
+        const resolveQuestTask = (q) => {
+            if (!q || !q.config) return null;
+            let uStatus = q.user_status || q.userStatus || {};
+            if (uStatus.completed_at || uStatus.completedAt) return null;
+            let exp = q.config.expires_at || q.config.expiresAt;
+            if (exp && new Date(exp).getTime() < Date.now()) return null;
+            let tCfg = selectTaskConfig(q.config);
+            if (!tCfg || !tCfg.tasks) return null;
+            const keys = taskKeys(tCfg.tasks);
+            for (const { match, type, prefer } of typeMap) {
+                const keyName = (prefer && keys.find(k => prefer.includes(k))) || keys.find(k => match(k));
+                if (keyName) {
+                    const taskData = taskAt(tCfg.tasks, keyName) || {};
+                    return { keyName, type, taskData, tCfg };
+                }
+            }
+            return null;
+        };
+
+        quests = quests.filter(x => resolveQuestTask(x) !== null);
 
         if(quests.length === 0) {
             logP("[JS] Nenhuma missao compativel pendente na sua conta.");
@@ -225,21 +250,29 @@ SCRIPT_JS = r"""
                 window.discordQuestsDone = true; return;
             }
 
+            let resolved = resolveQuestTask(quest);
+            if (!resolved) {
+                setTimeout(doJob, 500);
+                return;
+            }
+
             let uStatus = quest.user_status || quest.userStatus || {};
             let qConfig = quest.config || {};
             let qMessages = qConfig.messages || {};
             let qApp = qConfig.application || {};
             
             const questName = qMessages.quest_name || qMessages.questName || qApp.name || "Unknown Quest";
-            let tConfig = qConfig.task_config || qConfig.taskConfig || qConfig.task_config_v2 || qConfig.taskConfigV2 || qConfig;
-            const taskName = supportedTasks.find(x => tConfig.tasks?.[x] != null);
-            const taskData = tConfig.tasks[taskName];
+            const taskName = resolved.keyName;
+            const taskData = resolved.taskData;
             const applicationId = taskData.applications?.[0]?.id || qApp.id || "0";
             
             const secondsNeeded = taskData.target || 900;
-            const secondsDone = uStatus.progress?.[taskName]?.value || uStatus.stream_progress_seconds || 0;
-            const isVideo = (taskName === "WATCH_VIDEO" || taskName === "WATCH_VIDEO_ON_MOBILE");
-            const isGame = (taskName === "PLAY_ON_DESKTOP" || taskName === "STREAM_ON_DESKTOP");
+            const rawProgress = (uStatus.progress instanceof Map ? uStatus.progress.get(taskName) : uStatus.progress?.[taskName])?.value 
+                || (uStatus.progress instanceof Map ? uStatus.progress.get("WATCH_VIDEO") : uStatus.progress?.WATCH_VIDEO)?.value 
+                || uStatus.stream_progress_seconds || 0;
+            const secondsDone = rawProgress;
+            const isVideo = (resolved.type === "WATCH_VIDEO" || taskName.includes("VIDEO"));
+            const isGame = (resolved.type === "GAME" || taskName.startsWith("PLAY"));
             const extraSeconds = isVideo ? 0 : Math.floor(Math.random() * 240) + 60; 
             const targetTimeWithFat = secondsNeeded + extraSeconds;
 
@@ -448,7 +481,9 @@ SCRIPT_JS = r"""
                         if (res.ok) {
                             failCount = 0;
                             let b = res.body || {};
-                            let serverVal = b.progress?.[taskName]?.value ?? b.progress?.WATCH_VIDEO?.value ?? b.progress?.WATCH_VIDEO_ON_MOBILE?.value ?? b.user_status?.progress?.[taskName]?.value;
+                            let progObj = b.progress || b.user_status?.progress || {};
+                            let readVal = (prog, k) => (prog instanceof Map ? prog.get(k) : prog?.[k])?.value;
+                            let serverVal = readVal(progObj, taskName) ?? readVal(progObj, "WATCH_VIDEO") ?? readVal(progObj, "WATCH_VIDEO_ON_MOBILE");
                             if (typeof serverVal === 'number' && serverVal > curProgress) {
                                 curProgress = Math.min(targetSec, serverVal);
                             } else {
