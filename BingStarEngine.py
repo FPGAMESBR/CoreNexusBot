@@ -256,7 +256,7 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
 
     RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
     LOGGER("======================================================")
-    LOGGER(f"\n>>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
+    LOGGER(f">>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
     LOGGER("======================================================")
     
     acoes = []
@@ -293,7 +293,7 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
 
     for i, acao in enumerate(acoes):
         if RewardsCore.ABORTAR_PROCESSO: break
-        LOGGER(f"\n[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
+        LOGGER(f"[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
         
         if acao == "MODO_CAFE" and RewardsCore.SPEED == "turbo":
             LOGGER(t("star_turbo_ativado"), "warning")
@@ -379,4 +379,4 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
 
     hora_atual = time.strftime("%H:%M:%S")
     RewardsCore.update_ui("bing", "Concluído!", 100)
-    LOGGER(f"\n[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")
+    LOGGER(f"[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")

@@ -391,15 +391,16 @@ def atualizar_lista_contas():
 CONTAS_PARA_FARMAR = atualizar_lista_contas()
 URL_WEBHOOK_DISCORD = ""
 def LOGGER(*args, **kwargs):
-    texto = " ".join(map(str, args))
+    texto = " ".join(map(str, args)).strip('\r\n')
     print(*args, **kwargs)
     try:
         from datetime import datetime
         import re
         texto_limpo = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', texto)
-        with open(RUN_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {texto_limpo}\n")
-            f.flush()
+        if texto_limpo and RUN_LOG_PATH:
+            with open(RUN_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {texto_limpo}\n")
+                f.flush()
     except Exception:
         pass
 
@@ -918,35 +919,84 @@ def fazer_pesquisa_visual(driver):
         driver.get(target_url)
         time.sleep(4)
         
-        # 5. Executa a ação da Pesquisa Visual
-        # Tentativa A: Aciona o botão de câmera / lente na barra de busca
+        # 5. Executa a ação da Pesquisa Visual via Upload Nativo com Imagem Dinâmica
+        temp_img_path = None
+        sucesso_upload = False
         try:
-            driver.execute_script("""
-                let cam = document.querySelector('#sb_vse, .sbi_b, [aria-label*="Pesquisar por imagem"], [aria-label*="Search by image"], [aria-label*="Visual"], [data-id="vs_icon"]');
-                if (cam) cam.click();
-            """)
-            time.sleep(2)
+            import tempfile
+            from PIL import Image
+            temp_img_path = os.path.join(tempfile.gettempdir(), f"bing_vs_{random.randint(1000, 99999)}.png")
+            c_rgb = (random.randint(40, 220), random.randint(40, 220), random.randint(40, 220))
+            img = Image.new('RGB', (220, 220), color=c_rgb)
+            img.save(temp_img_path)
         except Exception:
-            pass
-            
-        # Tentativa B: Dispara pesquisa direta de imagem com a feature vsstreak ativada
-        semente = random.randint(100, 99999)
-        url_imagem = urllib.parse.quote_plus(f"https://picsum.photos/seed/{semente}/400/400")
-        url_pesquisa_direta = f"https://www.bing.com/images/search?view=detailv2&iss=sbi&FORM=SBIHMP&q=imgurl:{url_imagem}&features=vsstreak,vstooltip&form=ML2XES"
-        driver.get(url_pesquisa_direta)
-        time.sleep(5)
-        
-        # Tentativa C: Acessa o Hub de Visual Search oficial
-        driver.get("https://www.bing.com/visualsearch?q=nature&features=vsstreak,vstooltip&form=ML2XES")
-        time.sleep(4)
+            try:
+                import tempfile
+                temp_img_path = os.path.join(tempfile.gettempdir(), f"bing_vs_{random.randint(1000, 99999)}.bmp")
+                bmp_bytes = b'BM6\x00\x00\x00\x00\x00\x00\x006\x00\x00\x00(\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x18\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\x00\x00\x00'
+                with open(temp_img_path, "wb") as bf:
+                    bf.write(bmp_bytes)
+            except Exception:
+                temp_img_path = None
+
         try:
-            driver.execute_script("""
-                let img = document.querySelector('.vs_sample_img, [class*="sample"] img, .cardItem, .img_item, a[href*="visualsearch"], .mimg');
-                if (img) img.click();
-            """)
-            time.sleep(3)
-        except Exception:
-            pass
+            if temp_img_path and os.path.exists(temp_img_path):
+                # Tentativa 1: Upload direto na página de streak do Bing
+                file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
+                if not file_inputs:
+                    try:
+                        driver.execute_script("""
+                            let cam = document.querySelector('#sb_vse, .sbi_b, #sb_sbi, [aria-label*="Pesquisar por imagem"], [aria-label*="Search by image"], [aria-label*="Visual"], [data-id="vs_icon"]');
+                            if (cam) cam.click();
+                        """)
+                        time.sleep(1.5)
+                        file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
+                    except Exception:
+                        pass
+
+                if file_inputs:
+                    try:
+                        file_inputs[0].send_keys(temp_img_path)
+                        LOGGER("[BING] Imagem enviada para Pesquisa Visual via formulário nativo.", "info")
+                        time.sleep(6)
+                        sucesso_upload = True
+                    except Exception as e_send1:
+                        LOGGER(f"[BING] Falha no upload nativo (Tentativa 1): {e_send1}", "debug")
+
+                # Tentativa 2: Fallback via Bing Imagens oficial com parâmetros vsstreak
+                if not sucesso_upload:
+                    LOGGER("[BING] Tentando upload alternativo via portal de Imagens...", "info")
+                    driver.get("https://www.bing.com/images?features=vsstreak,vstooltip&form=ML2XES")
+                    time.sleep(3)
+                    file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
+                    if not file_inputs:
+                        try:
+                            cam = driver.find_elements(By.CSS_SELECTOR, "#sb_sbi, #sb_vse, .sbi_b")
+                            if cam:
+                                cam[0].click()
+                                time.sleep(1.5)
+                            file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
+                        except Exception:
+                            pass
+                    if file_inputs:
+                        try:
+                            file_inputs[0].send_keys(temp_img_path)
+                            LOGGER("[BING] Imagem enviada via Bing Imagens com sucesso.", "info")
+                            time.sleep(6)
+                            sucesso_upload = True
+                        except Exception as e_send2:
+                            LOGGER(f"[BING] Falha no upload alternativo (Tentativa 2): {e_send2}", "debug")
+
+                # Interage com a página de resultados da busca visual para registrar o sinal de telemetria
+                try:
+                    driver.execute_script("window.scrollBy(0, 300);")
+                    time.sleep(2)
+                except Exception:
+                    pass
+        finally:
+            if temp_img_path and os.path.exists(temp_img_path):
+                try: os.remove(temp_img_path)
+                except Exception: pass
             
         # 6. Retorna ao Rewards para conferência
         driver.get("https://rewards.bing.com/")

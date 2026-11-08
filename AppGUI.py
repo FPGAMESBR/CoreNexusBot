@@ -500,21 +500,21 @@ if __name__ == '__main__':
         threads = []
         if cfg.get("do_discord", "n") == "s":
             t_discord = threading.Thread(target=DiscordQuests.iniciar_farm_discord, daemon=True)
-            threads.append(t_discord)
+            threads.append(("discord", t_discord, 21600))
             t_discord.start()
             
         rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
         if rodar_rewards and not RewardsCore.ABORTAR_PROCESSO:
             t_bing = threading.Thread(target=api.loop_farm, daemon=True)
-            threads.append(t_bing)
+            threads.append(("rewards", t_bing, 3600))
             t_bing.start()
             
-        # 3. Aguarda todos terminarem com teto de segurança (evita travamento eterno no startup)
+        # 3. Aguarda todos terminarem com teto de segurança por serviço
         t_inicio_farm = time.time()
-        limite_total_segundos = 3600 # 60 minutos máximo de execução total
-        for t in threads:
-            tempo_restante = max(10, limite_total_segundos - int(time.time() - t_inicio_farm))
-            t.join(timeout=tempo_restante)
+        for nome_srv, th, limite_srv in threads:
+            tempo_decorrido = int(time.time() - t_inicio_farm)
+            if tempo_decorrido < limite_srv:
+                th.join(timeout=limite_srv - tempo_decorrido)
             
         RewardsCore.limpar_processos_zumbis(silencioso=True)
         if platform.system().lower() == "windows":
