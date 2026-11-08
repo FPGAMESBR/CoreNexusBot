@@ -950,16 +950,15 @@ def fazer_pesquisa_visual(driver):
 
         try:
             if temp_img_path and os.path.exists(temp_img_path):
-                file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
-                if not file_inputs:
-                    cam = driver.find_elements(By.CSS_SELECTOR, "#sb_cam_island, .hp_island_host.camera, .sbi_hpicn, #sb_sbi, #sb_vse, .sbi_b, [aria-label*='imagem'], [aria-label*='image']")
+                # 1. Aciona o botão de câmera na home para ativar o diálogo e os listeners de upload
+                try:
+                    cam = driver.find_elements(By.CSS_SELECTOR, "#sb_sbi, .sbi_hpicn, #sb_cam_island, .hp_island_host.camera, [aria-label*='imagem'], [aria-label*='image']")
                     if cam:
-                        try:
-                            driver.execute_script("arguments[0].click();", cam[0])
-                            time.sleep(1.5)
-                            file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
-                        except Exception: pass
-                
+                        driver.execute_script("arguments[0].click();", cam[0])
+                        time.sleep(2)
+                except Exception: pass
+
+                file_inputs = driver.find_elements(By.CSS_SELECTOR, "#sb_fileinput, input[type='file']")
                 if file_inputs:
                     try:
                         file_inputs[0].send_keys(temp_img_path)
@@ -1154,7 +1153,6 @@ def configurar_driver(nome_perfil, tipo, oculto, identidade_ua, forcar_visivel=F
             driver = uc.Chrome(options=opts, use_subprocess=True, version_main=v_atual)
             break 
         except Exception as e:
-            limpar_processos_zumbis(silencioso=True)
             if "SessionNotCreated" in str(type(e).__name__) or "session not created" in str(e).lower():
                 try:
                     import shutil
@@ -1380,8 +1378,6 @@ def iniciar_ciclo_farm():
         LOGGER(t('crash_log').format(log_path.name), "error")
         alerta_sos = t('crash_sos').format(log_path.name, str(e)[:150])
         enviar_notificacao(alerta_sos)
-    finally:
-        limpar_processos_zumbis(silencioso=True)
     
 def registrar_data_execucao(modulo):
     arquivo = BASE_DIR / "Exe.json"

@@ -33,6 +33,98 @@ HTML_INTERFACE = HTML_INTERFACE.replace("[APP_NAME]", APP_NAME)
 HTML_INTERFACE = HTML_INTERFACE.replace("[APP_VERSION]", APP_VERSION)
 HTML_INTERFACE = HTML_INTERFACE.replace("[APP_CODENAME]", APP_CODENAME)
 
+class OrquestradorTickets:
+    """
+    Gerenciador Central de Tickets de Execução.
+    Garante que cada worker (Bing, Discord) registre seu ticket de entrada ao iniciar,
+    e seu ticket de saída ao finalizar (seja com sucesso ou com erro).
+    O encerramento global NUNCA ocorre prematuramente enquanto houver tickets ativos.
+    """
+    def __init__(self, callback_log, callback_fim):
+        self.log = callback_log
+        self.callback_fim = callback_fim
+        self._lock = threading.Lock()
+        self.tickets = {}
+        self._ativo = False
+        self._thread_watchdog = None
+
+    def iniciar_ciclo(self):
+        with self._lock:
+            self.tickets.clear()
+            self._ativo = True
+        self._iniciar_watchdog()
+
+    def registrar_ticket_entrada(self, modulo: str, timeout_segundos: float = 7200):
+        with self._lock:
+            self.tickets[modulo] = {
+                "status": "EM_ANDAMENTO",
+                "erro": None,
+                "inicio": time.time(),
+                "timeout": timeout_segundos
+            }
+            self.log(f"[ORQUESTRADOR] Ticket de ENTRADA emitido para [{modulo.upper()}].", "info")
+
+    def registrar_ticket_saida(self, modulo: str, status="sucesso", erro=None):
+        precisa_finalizar = False
+        todos_sucesso = False
+        erros_dict = {}
+
+        with self._lock:
+            if modulo not in self.tickets:
+                self.tickets[modulo] = {"inicio": time.time(), "timeout": 3600}
+
+            # Idempotência: se este ticket já deu saída, ignora chamadas duplicadas
+            if self.tickets[modulo].get("status") in ["CONCLUIDO", "ERRO"]:
+                return
+
+            if status == "sucesso":
+                self.tickets[modulo]["status"] = "CONCLUIDO"
+                self.tickets[modulo]["erro"] = None
+                self.log(f"[ORQUESTRADOR] Ticket de SAÍDA recebido de [{modulo.upper()}] (Sucesso).", "success")
+            else:
+                self.tickets[modulo]["status"] = "ERRO"
+                self.tickets[modulo]["erro"] = erro or "Erro não especificado"
+                self.log(f"[ORQUESTRADOR] Ticket de SAÍDA recebido de [{modulo.upper()}] (ERRO: {erro}).", "warning")
+
+            pendentes = [m for m, d in self.tickets.items() if d["status"] == "EM_ANDAMENTO"]
+            if pendentes:
+                pendentes_str = ", ".join([p.upper() for p in pendentes])
+                self.log(f"[ORQUESTRADOR] Tarefa [{modulo.upper()}] finalizada. Aguardando módulo(s) em execução: [{pendentes_str}]...", "info")
+                return
+
+            if self._ativo:
+                self._ativo = False
+                precisa_finalizar = True
+                todos_sucesso = all(d["status"] == "CONCLUIDO" for d in self.tickets.values())
+                erros_dict = {m: d["erro"] for m, d in self.tickets.items() if d["status"] == "ERRO"}
+
+        if precisa_finalizar:
+            self.callback_fim(todos_sucesso, erros_dict)
+
+    def _iniciar_watchdog(self):
+        def _loop_watchdog():
+            while self._ativo:
+                time.sleep(5)
+                if RewardsCore.ABORTAR_PROCESSO:
+                    break
+                agora = time.time()
+                modulos_timeout = []
+                with self._lock:
+                    if not self._ativo:
+                        break
+                    for modulo, dados in self.tickets.items():
+                        if dados["status"] == "EM_ANDAMENTO":
+                            if agora - dados["inicio"] > dados.get("timeout", 7200):
+                                modulos_timeout.append((modulo, dados["timeout"]))
+                for modulo, t_lim in modulos_timeout:
+                    self.log(f"[ORQUESTRADOR] [TIMEOUT] Módulo [{modulo.upper()}] atingiu o limite de segurança ({int(t_lim)}s). Forçando ticket de saída...", "error")
+                    self.registrar_ticket_saida(modulo, status="erro", erro=f"Timeout de {int(t_lim)}s excedido")
+
+        t = threading.Thread(target=_loop_watchdog, daemon=True)
+        t.start()
+        self._thread_watchdog = t
+
+
 class BotAPI:
     def __init__(self):
         self.rodando = False
@@ -40,6 +132,10 @@ class BotAPI:
         self.discord_rodando = False
         self._lock_fim = threading.Lock()
         RewardsCore.LOGGER = self.log_ui
+        self.orquestrador = OrquestradorTickets(
+            callback_log=self.log_ui,
+            callback_fim=self.finalizar_tudo
+        )
         
     def verificar_discord(self):
         exe_path, _ = DiscordQuests.localizar_aplicativo_discord()
@@ -130,26 +226,39 @@ class BotAPI:
             pass
         self.log_ui("Initializing Stealth loop...", "info")
         
-        # INICIA O CRONÔMETRO NO MINI-PAINEL
+        # Inicia o cronômetro no mini-painel da bandeja
         GerenciadorBandeja.iniciar_cronometro()
         
+        # Inicia o ciclo no Orquestrador Central de Tickets
+        self.orquestrador.iniciar_ciclo()
+        
         cfg = RewardsCore.carregar_config()
+        
+        # 1. Ticket e Thread do Discord (se ativado nas configurações)
         if cfg.get("do_discord", "n") == "s":
             self.discord_rodando = True
+            self.orquestrador.registrar_ticket_entrada("discord", timeout_segundos=21600)
             threading.Thread(target=self.loop_farm_discord, daemon=True).start()
             
+        # 2. Ticket e Thread do Bing
         self.bing_rodando = True
+        self.orquestrador.registrar_ticket_entrada("bing", timeout_segundos=7200)
         threading.Thread(target=self.loop_farm, daemon=True).start()
 
     def loop_farm_discord(self):
         try:
             self.discord_rodando = True
+            self.log_ui("[DISCORD] Módulo de missões iniciado...", "info")
             DiscordQuests.iniciar_farm_discord()
+            self.log_ui("[DISCORD] Módulo de missões finalizado com sucesso!", "success")
+            self.orquestrador.registrar_ticket_saida("discord", status="sucesso")
         except Exception as e:
-            self.log_ui(f"[DISCORD] Erro: {e}", "error")
+            self.log_ui(f"[DISCORD] Erro durante a execução: {e}", "error")
+            self.orquestrador.registrar_ticket_saida("discord", status="erro", erro=str(e))
         finally:
             self.discord_rodando = False
-            self.checar_fim_geral()
+            # Garantia contra deadlock / encerramento silencioso
+            self.orquestrador.registrar_ticket_saida("discord", status="erro", erro="Thread encerrada inesperadamente")
 
     def parar(self):
         self.log_ui("KILL SWITCH ACTIVATED. Initiating safe shutdown...", "error")
@@ -157,6 +266,8 @@ class BotAPI:
         self.bing_rodando = False
         self.discord_rodando = False
         RewardsCore.ABORTAR_PROCESSO = True 
+        if hasattr(self, 'orquestrador'):
+            self.orquestrador._ativo = False
         
         # PARA O CRONÔMETRO NO MINI-PAINEL E ZERA AS BARRAS
         GerenciadorBandeja.parar_cronometro()
@@ -184,32 +295,46 @@ class BotAPI:
     def loop_farm(self):
         try:
             self.bing_rodando = True
+            self.log_ui("[BING] Módulo de tarefas e pesquisas iniciado...", "info")
             RewardsCore.preparar_ambiente_adb()
             RewardsCore.iniciar_ciclo_farm()
             
             RewardsCore.registrar_data_execucao("rewards")
             self.log_ui("[BING] Farm diário de pesquisas e tarefas concluído com sucesso!", "success")
+            self.orquestrador.registrar_ticket_saida("bing", status="sucesso")
         except Exception as e:
-            self.log_ui(f"Fatal error: {e}", "error")
+            self.log_ui(f"[BING] Erro fatal durante a execução: {e}", "error")
+            self.orquestrador.registrar_ticket_saida("bing", status="erro", erro=str(e))
         finally:
             self.bing_rodando = False
-            self.checar_fim_geral()
+            # Garantia contra deadlock / encerramento silencioso
+            self.orquestrador.registrar_ticket_saida("bing", status="erro", erro="Thread encerrada inesperadamente")
 
-    def checar_fim_geral(self):
-        """Coordena o encerramento conjunto do Bing e Discord sem abortos prematuros nem bloqueios de UI"""
+    def finalizar_tudo(self, todos_sucesso, erros_dict):
+        """Coordena o encerramento conjunto mestre APENAS quando todos os tickets tiverem saído"""
         with self._lock_fim:
-            if not self.rodando:
-                return
-            if not self.bing_rodando and not self.discord_rodando:
-                self.rodando = False
-                GerenciadorBandeja.parar_cronometro()
-                try:
-                    DiscordQuests.matar_processos_camuflados()
-                except Exception:
-                    pass
-                RewardsCore.limpar_processos_zumbis(silencioso=True)
-                if not RewardsCore.ABORTAR_PROCESSO:
+            self.rodando = False
+            self.bing_rodando = False
+            self.discord_rodando = False
+            
+            # Para o cronômetro na bandeja do Windows
+            GerenciadorBandeja.parar_cronometro()
+            
+            # Limpa processos camuflados de forma segura
+            try:
+                DiscordQuests.matar_processos_camuflados()
+            except Exception:
+                pass
+                
+            # Como ambos os módulos finalizaram, limpa processos zumbis finais
+            RewardsCore.limpar_processos_zumbis(silencioso=True)
+            
+            if not RewardsCore.ABORTAR_PROCESSO:
+                if todos_sucesso:
                     self.log_ui("FARM COMPLETED SUCCESSFULLY!", "success")
+                else:
+                    detalhes = ", ".join([f"{k.upper()}: {v}" for k, v in erros_dict.items()])
+                    self.log_ui(f"FARM FINALIZADO COM AVISOS ({detalhes})", "warning")
 
     def listar_contas(self): return RewardsCore.atualizar_lista_contas()
     
@@ -524,60 +649,24 @@ if __name__ == '__main__':
 
     GerenciadorBandeja.iniciar_tray_em_background()
     
-    # === NOVO: COORDENADOR DE AUTO-CLOSE (FILA SEQUENCIAL BLINDADA) ===
+    # === COORDENADOR DE AUTO-CLOSE (MODO STARTUP) ===
     def coordenador_auto_close():
         if modo_startup:
             api.log_ui("[SISTEMA] Modo Startup: Aplicando delay de segurança (15s)...", "info")
             time.sleep(15)
             
-        cfg = RewardsCore.carregar_config()
-        
-        # 1. O Fim do Fogo Amigo: Limpa processos ANTES" de iniciar os bots em paralelo
-        RewardsCore.limpar_processos_zumbis()
-        
-        # 2. Inicia os robôs em threads paralelas
-        import threading
-        
-        threads = []
-        if cfg.get("do_discord", "n") == "s":
-            api.discord_rodando = True
-            t_discord = threading.Thread(target=api.loop_farm_discord, daemon=True)
-            threads.append(("discord", t_discord, 21600))
-            t_discord.start()
-            
-        rodar_rewards = not RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=0)
-        if rodar_rewards and not RewardsCore.ABORTAR_PROCESSO:
-            api.bing_rodando = True
-            t_bing = threading.Thread(target=api.loop_farm, daemon=True)
-            threads.append(("rewards", t_bing, 3600))
-            t_bing.start()
-            
-        # 3. Aguarda todos terminarem com teto de segurança por serviço
-        t_inicio_farm = time.time()
-        for nome_srv, th, limite_srv in threads:
-            tempo_decorrido = int(time.time() - t_inicio_farm)
-            if tempo_decorrido < limite_srv:
-                th.join(timeout=limite_srv - tempo_decorrido)
-            
         RewardsCore.limpar_processos_zumbis(silencioso=True)
-        try:
-            DiscordQuests.matar_processos_camuflados()
-        except Exception:
-            pass
-        if platform.system().lower() == "windows":
-            subprocess.run("taskkill /F /T /IM DiscordCanary.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run("taskkill /F /T /IM DiscordPTB.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        api.iniciar()
+        
+        while api.rodando and not RewardsCore.ABORTAR_PROCESSO:
+            time.sleep(2)
             
-        # 4. Extermínio total da memória (Garante que o bot feche de verdade)
+        # Extermínio total da memória (Garante que o bot feche de verdade)
         if not RewardsCore.ABORTAR_PROCESSO and modo_startup:
             api.log_ui("[SISTEMA] Automação de Startup finalizada. O bot se desligará em 5s...", "warning")
             time.sleep(5)
-            
-            # Desmonta o íícone da bandeja graciosamente
             try: GerenciadorBandeja.parar_tray()
             except Exception: pass
-            
-            # Força o sistema operacional a matar a raiz do programa
             import os
             os._exit(0)
 

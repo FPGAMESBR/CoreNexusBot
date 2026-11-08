@@ -246,10 +246,7 @@ def check_extended_days(cfg):
 
 def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
     if RewardsCore.ABORTAR_PROCESSO: return
-    try:
-        _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy)
-    finally:
-        RewardsCore.limpar_processos_zumbis(silencioso=True)
+    _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy)
 
 def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
     if RewardsCore.ABORTAR_PROCESSO: return
