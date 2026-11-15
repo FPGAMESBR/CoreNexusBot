@@ -156,19 +156,32 @@ SCRIPT_JS = r"""
         const globalIds = INJECT_GLOBAL_IDS;
         const questsWebhookUrl = "INJECT_QUESTS_WEBHOOK";
         if (globalIds && globalIds.length > 0) {
-            logP(`[JS] Injetando ${globalIds.length} missoes da API Global...`);
-            for (let id of globalIds) {
-                try {
-                    await safePost(`/quests/${id}/enroll`, {
-                        location: 11,
-                        platform: 0,
-                        is_targeted: false,
-                        metadata_sealed: null,
-                        traffic_metadata_sealed: sealedFor(id)
-                    });
-                } catch(e) {}
+            const pendingGlobalIds = globalIds.filter(id => {
+                let q = QuestsStore?.getQuest?.(id);
+                if (!q) return true;
+                let us = q.userStatus || q.user_status || {};
+                if (us.completedAt || us.completed_at || us.enrolledAt || us.enrolled_at) return false;
+                let cfg = q.config || {};
+                let tCfg = cfg.taskConfigV2 || cfg.taskConfig || cfg.task_config_v2 || cfg.task_config || {};
+                let keys = tCfg.tasks instanceof Map ? [...tCfg.tasks.keys()] : Object.keys(tCfg.tasks || {});
+                return !keys.some(k => k.includes("VIDEO"));
+            });
+            if (pendingGlobalIds.length > 0) {
+                logP(`[JS] Sincronizando ${pendingGlobalIds.length} missoes globais pendentes...`);
+                for (let id of pendingGlobalIds) {
+                    try {
+                        await safePost(`/quests/${id}/enroll`, {
+                            location: 11,
+                            platform: 0,
+                            is_targeted: false,
+                            metadata_sealed: null,
+                            traffic_metadata_sealed: sealedFor(id)
+                        });
+                    } catch(e) {}
+                    await new Promise(r => setTimeout(r, 900 + Math.floor(Math.random() * 600)));
+                }
+                await new Promise(r => setTimeout(r, 2000));
             }
-            await new Promise(r => setTimeout(r, 2000));
         }
 
         // VERIFICAÇÃO CRÍTICA DE SEGURANÇA: Checa se a conta está sob quarentena do Discord
@@ -278,7 +291,7 @@ SCRIPT_JS = r"""
 
             logP(`[JS] -> Missao: ${questName} | Base: ${secondsNeeded}s | Furtiva: ${targetTimeWithFat}s`);
 
-            if (!(uStatus.enrolled_at || uStatus.enrolledAt)) {
+            if (!isVideo && !(uStatus.enrolled_at || uStatus.enrolledAt)) {
                 logP(`[JS] Matrícula JIT na missao '${questName}'...`);
                 try {
                     await safePost(`/quests/${quest.id}/enroll`, {
@@ -365,19 +378,22 @@ SCRIPT_JS = r"""
             let ghostInterval = null;
             if (isVideo) {
                 try {
-                    Document.prototype.hasFocus = function() { return true; };
-                    Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
-                    Object.defineProperty(Document.prototype, 'hidden', { get: () => false, configurable: true });
-                    const ogDocAdd = Document.prototype.addEventListener;
-                    Document.prototype.addEventListener = function(type, listener, options) {
-                        if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
-                        return ogDocAdd.call(this, type, listener, options);
-                    };
-                    const ogWinAdd = Window.prototype.addEventListener;
-                    Window.prototype.addEventListener = function(type, listener, options) {
-                        if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
-                        return ogWinAdd.call(this, type, listener, options);
-                    };
+                    if (!window.__rewardsFocusHooked) {
+                        window.__rewardsFocusHooked = true;
+                        Document.prototype.hasFocus = function() { return true; };
+                        Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
+                        Object.defineProperty(Document.prototype, 'hidden', { get: () => false, configurable: true });
+                        const ogDocAdd = Document.prototype.addEventListener;
+                        Document.prototype.addEventListener = function(type, listener, options) {
+                            if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
+                            return ogDocAdd.call(this, type, listener, options);
+                        };
+                        const ogWinAdd = Window.prototype.addEventListener;
+                        Window.prototype.addEventListener = function(type, listener, options) {
+                            if (['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].includes(type)) return;
+                            return ogWinAdd.call(this, type, listener, options);
+                        };
+                    }
                 } catch(e) {}
 
                 const ghostMouseVideo = () => {
@@ -385,8 +401,8 @@ SCRIPT_JS = r"""
                         let videoContainer = document.querySelector('[data-testid="discord-web-video-player-container"]');
                         if (videoContainer) {
                             let rect = videoContainer.getBoundingClientRect();
-                            let x = rect.left + Math.floor(Math.random() * rect.width);
-                            let y = rect.top + Math.floor(Math.random() * rect.height);
+                            let x = rect.left + Math.floor(Math.random() * Math.max(10, rect.width));
+                            let y = rect.top + Math.floor(Math.random() * Math.max(10, rect.height));
                             videoContainer.dispatchEvent(new MouseEvent('mousemove', {
                                 view: window, bubbles: true, cancelable: true,
                                 clientX: x, clientY: y,
@@ -422,110 +438,235 @@ SCRIPT_JS = r"""
             };
 
             if(isVideo) {
-                logP(`[JS] -> Missao de Video detectada: ${questName}`);
-                
-                // 1. Tenta reproduzir qualquer elemento <video> que esteja na tela
-                const ensureVideoPlayback = () => {
+                logP(`[JS] -> Missao de Video detectada: ${questName} (Player Nativo Real)`);
+
+                const readQuestProgress = () => {
                     try {
-                        document.querySelectorAll('video').forEach(v => {
-                            v.muted = true;
-                            if (v.paused) v.play().catch(() => {});
-                        });
-                    } catch(e) {}
-                };
-                ensureVideoPlayback();
-                
-                // 2. Procura botão de Play / Assistir / Continuar na UI do Card ou tela
-                try {
-                    let card = document.getElementById('quest-tile-' + quest.id)
-                        || document.querySelector(`[data-quest-id="${quest.id}"]`)
-                        || Array.from(document.querySelectorAll('[class*="quest"], [class*="card"], [class*="container"]')).find(el => (el.innerText || el.textContent || '').includes(questName));
-                    let scope = card || document;
-                    let allBtns = Array.from(scope.querySelectorAll('button, [role="button"], a'));
-                    let watchBtn = allBtns.find(b => {
-                        let txt = (b.innerText || b.textContent || '').trim().toLowerCase();
-                        return /^(assistir|continuar|watch|ver v[íi]deo|play)/i.test(txt) || txt.includes('continuar') || txt.includes('assistir') || txt.includes('watch');
-                    });
-                    if (watchBtn) {
-                        let btnTxt = (watchBtn.innerText || watchBtn.textContent || '').trim();
-                        logP(`[JS] Botao de video detectado na interface ('${btnTxt}'). Acionando...`);
-                        watchBtn.click();
-                        await new Promise(r => setTimeout(r, 2000));
-                        ensureVideoPlayback();
+                        let liveQ = QuestsStore?.getQuest?.(quest.id) || quest;
+                        let liveUs = liveQ?.userStatus || liveQ?.user_status || {};
+                        let completed = Boolean(liveUs.completedAt || liveUs.completed_at);
+                        let prog = liveUs.progress;
+                        let getVal = (p, k) => (p instanceof Map ? p.get(k) : p?.[k])?.value;
+                        let val = getVal(prog, taskName) ?? getVal(prog, "WATCH_VIDEO");
+                        return {
+                            completed,
+                            seconds: (typeof val === 'number' && !isNaN(val)) ? val : null
+                        };
+                    } catch(e) {
+                        return { completed: false, seconds: null };
                     }
-                } catch(e) {}
+                };
 
-                // 3. Loop de Heartbeat e Progressão Oficial via API (/video-progress)
-                let curProgress = secondsDone;
-                let targetSec = secondsNeeded;
-                let failCount = 0;
-                
-                logP(`[JS] Progresso inicial do video: ${Math.floor(curProgress)}s / ${targetSec}s`);
-                window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
-                
-                let videoFinished = false;
-                const startTimeVideo = Date.now();
-                const maxVideoTime = (targetSec + 60) * 1000;
-                
-                while (!videoFinished && curProgress < targetSec) {
-                    let delayMs = 7000 + Math.floor(Math.random() * 2500); // 7.0s a 9.5s
-                    await new Promise(r => setTimeout(r, delayMs));
-                    
-                    ensureVideoPlayback();
-                    
-                    let elapsed = (delayMs / 1000) + (Math.random() * 0.04 - 0.02);
-                    let payloadTs = Number(Math.min(targetSec, curProgress + elapsed).toFixed(6));
-                    
-                    try {
-                        let res = await safePost(`/quests/${quest.id}/video-progress`, { timestamp: payloadTs });
-                        if (res.ok) {
-                            failCount = 0;
-                            let b = res.body || {};
-                            let progObj = b.progress || b.user_status?.progress || {};
-                            let readVal = (prog, k) => (prog instanceof Map ? prog.get(k) : prog?.[k])?.value;
-                            let serverVal = readVal(progObj, taskName) ?? readVal(progObj, "WATCH_VIDEO") ?? readVal(progObj, "WATCH_VIDEO_ON_MOBILE");
-                            if (typeof serverVal === 'number' && serverVal > curProgress) {
-                                curProgress = Math.min(targetSec, serverVal);
-                            } else {
-                                curProgress = Math.min(targetSec, curProgress + elapsed);
-                            }
-                            
-                            logP(`[JS] Video em reproducao: ${Math.floor(curProgress)} / ${targetSec}s`);
-                            window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}`;
+                const findNativeVideoPlayer = () => (
+                    document.querySelector('video[data-testid="discord-web-video-player-video"]')
+                    || document.querySelector('[data-testid="discord-web-video-player-container"] video')
+                );
 
-                            if (b.completed_at || b.user_status?.completed_at || curProgress >= targetSec) {
-                                videoFinished = true;
-                                window.peloMenosUmSucesso = true;
-                                logP(`[JS] Meta do video confirmada pelo servidor Discord com sucesso!`);
-                                break;
-                            }
-                        } else {
-                            failCount++;
-                            logP(`[JS] [AVISO] Heartbeat video falhou (${failCount}/5). Status: ${res.status}`);
-                            if (failCount >= 5) {
-                                logP(`[JS] [ERRO] Falha persistente no progresso de video para '${questName}'. Pulando...`);
-                                break;
+                const findQuestCardElement = () => {
+                    let byId = document.getElementById('quest-tile-' + quest.id)
+                        || document.querySelector(`[data-quest-id="${quest.id}"]`);
+                    if (byId) return byId;
+                    let specificTile = Array.from(document.querySelectorAll('[id^="quest-tile-"], [class*="questTile"], [class*="embed"]'))
+                        .find(el => (el.innerText || el.textContent || '').includes(questName));
+                    if (specificTile) return specificTile;
+                    let nameEls = Array.from(document.querySelectorAll('h1, h2, h3, h4, span, div, p')).filter(el => {
+                        if (el.children.length > 0) return false;
+                        let t = (el.innerText || el.textContent || '').trim();
+                        return t === questName || (t.length < 120 && t.includes(questName));
+                    });
+                    for (let nel of nameEls) {
+                        let card = nel.closest('[id^="quest-tile-"], [class*="questTile"], [class*="embed"], [class*="card"], [role="listitem"]');
+                        if (card) return card;
+                    }
+                    return null;
+                };
+
+                const findWatchCtaButton = async () => {
+                    let card = findQuestCardElement();
+                    if (!card) {
+                        let scrollers = Array.from(document.querySelectorAll('[class*="scroller"]'));
+                        for (let sc of scrollers) {
+                            if (sc.scrollHeight > sc.clientHeight + 50) {
+                                for (let step = 0; step < 6 && !card; step++) {
+                                    sc.scrollTop = Math.min(sc.scrollHeight, sc.scrollTop + 450);
+                                    await new Promise(r => setTimeout(r, 300));
+                                    card = findQuestCardElement();
+                                }
+                                if (card) break;
                             }
                         }
-                    } catch(errApi) {
-                        failCount++;
-                        logP(`[JS] Aviso heartbeat video: ${errApi}`);
-                        if (failCount >= 5) break;
                     }
-                    
+                    if (!card) return null;
+                    if (typeof card.scrollIntoView === 'function') {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        await new Promise(r => setTimeout(r, 350));
+                    }
+                    let btns = Array.from(card.querySelectorAll('button, [role="button"]')).filter(b => !b.disabled);
+                    let excludedRe = /assista\s+j[áa]|watch\s+now|novamente|again|pr[ée]-?compra|pre-?purchase|comprar|buy\b|jogar|play\b|baixar|download|saiba\s+mais|learn\s+more|entrar\s+no\s+servidor|join\s+server/i;
+                    let exactRe = /^(assistir|continuar|watch|continue)(\s+(\d+[smh]?|ao\s+v[íi]deo|video))?$|^(continue\s+assistindo|continue\s+watching|iniciar\s+miss[ãa]o\s+de\s+v[íi]deo|start\s+video\s+quest|play\s+video)$/i;
+                    let primaryBtn = btns.find(b => exactRe.test((b.innerText || b.textContent || '').trim()));
+                    if (primaryBtn) return primaryBtn;
+                    let fallbackCandidates = btns.filter(b => {
+                        let txt = (b.innerText || b.textContent || '').trim();
+                        if (!txt || excludedRe.test(txt)) return false;
+                        return /\b(assistir|continuar|continue\s+assistindo|watch|ver\s+v[íi]deo|iniciar\s+miss[ãa]o|video)\b/i.test(txt);
+                    });
+                    return fallbackCandidates.length ? fallbackCandidates[fallbackCandidates.length - 1] : null;
+                };
+
+                const closeNativeVideoModal = () => {
+                    try {
+                        let closeBtns = document.querySelectorAll('button[data-testid="ad-video-modal-close-btn"], button[data-testid="video-quest-close-btn"], [role="dialog"] button[aria-label="Fechar"], [role="dialog"] button[aria-label="Close"]');
+                        closeBtns.forEach(b => { try { b.click(); } catch(e) {} });
+                        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+                    } catch(e) {}
+                };
+
+                const ensureNativePlayerActive = () => {
+                    let v = findNativeVideoPlayer();
+                    if (!v) return null;
+                    try {
+                        v.muted = true;
+                        let playPauseBtn = document.querySelector('button[data-testid="discord-web-video-player-play-pause-btn"]');
+                        let aria = (playPauseBtn?.getAttribute('aria-label') || '').trim().toLowerCase();
+                        let needsPlayClick = playPauseBtn && /^(jogar|play|retomar|resume|reproduzir)$/.test(aria);
+                        if (needsPlayClick) {
+                            playPauseBtn.click();
+                        }
+                        if (v.paused && !v.ended) {
+                            v.play().catch(() => {});
+                        }
+                    } catch(e) {}
+                    return v;
+                };
+
+                // 1. Localiza e clica no botão real da interface para abrir o player nativo do Discord
+                let videoEl = findNativeVideoPlayer();
+                if (!videoEl) {
+                    for (let openTry = 0; openTry < 2 && !videoEl; openTry++) {
+                        let watchBtn = await findWatchCtaButton();
+                        if (watchBtn) {
+                            let btnTxt = (watchBtn.innerText || watchBtn.textContent || '').trim();
+                            logP(`[JS] Clicando no botao real da UI ('${btnTxt}') para abrir player de video...`);
+                            watchBtn.click();
+                            for (let waitStep = 0; waitStep < 16; waitStep++) {
+                                await new Promise(r => setTimeout(r, 500));
+                                window.recompensas_keepalive = Date.now();
+                                videoEl = findNativeVideoPlayer();
+                                if (videoEl) break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                if (!videoEl) {
+                    let checkNow = readQuestProgress();
+                    if (checkNow.completed) {
+                        window.peloMenosUmSucesso = true;
+                        logP(`[JS] Missao de video '${questName}' ja marcada como concluida pelo cliente!`);
+                        executarDesligamento(true);
+                        return;
+                    }
+                    logP(`[JS] [AVISO] Player nativo (<video>) nao apareceu para '${questName}'. Pulando sem forjar API.`);
+                    executarDesligamento(false);
+                    return;
+                }
+
+                // 2. Monitoramento passivo do <video> nativo até o cliente Discord confirmar conclusão
+                let curProgress = secondsDone;
+                let targetSec = secondsNeeded;
+                let videoFinished = false;
+                let pausedStallCount = 0;
+                let lastFocusRequestMs = 0;
+                let lastLoggedBucket = -1;
+                const startTimeVideo = Date.now();
+                const remainingNeed = Math.max(15, targetSec - curProgress);
+                const maxVideoTime = (remainingNeed + 120) * 1000;
+
+                logP(`[JS] Player nativo aberto! Progresso atual: ${Math.floor(curProgress)}s / ${targetSec}s`);
+                window.recompensas_cmd = `REWARDS_PROGRESS:${Math.floor(curProgress)}:${targetSec}:video`;
+                ensureNativePlayerActive();
+
+                while (!videoFinished) {
+                    await new Promise(r => setTimeout(r, 2200));
+                    window.recompensas_keepalive = Date.now();
+
+                    let statusNow = readQuestProgress();
+                    if (statusNow.seconds !== null && statusNow.seconds > curProgress) {
+                        curProgress = Math.min(targetSec, statusNow.seconds);
+                    }
+
+                    let v = ensureNativePlayerActive();
+                    if (!v) {
+                        if (statusNow.completed || (statusNow.seconds !== null && statusNow.seconds >= targetSec)) {
+                            videoFinished = true;
+                            window.peloMenosUmSucesso = true;
+                            logP(`[JS] Conclusao do video confirmada pelo cliente Discord!`);
+                            break;
+                        }
+                        logP(`[JS] Modal de video fechado antes de concluir. Tentando reabrir pela UI...`);
+                        let reWatchBtn = await findWatchCtaButton();
+                        if (reWatchBtn) {
+                            reWatchBtn.click();
+                            await new Promise(r => setTimeout(r, 2000));
+                            v = ensureNativePlayerActive();
+                        }
+                        if (!v) {
+                            statusNow = readQuestProgress();
+                            if (statusNow.completed) {
+                                videoFinished = true;
+                                window.peloMenosUmSucesso = true;
+                            }
+                            break;
+                        }
+                    }
+
+                    if (v && v.paused && !v.ended) {
+                        pausedStallCount++;
+                        if (pausedStallCount >= 4 && (Date.now() - lastFocusRequestMs > 20000)) {
+                            lastFocusRequestMs = Date.now();
+                            pausedStallCount = 0;
+                            logP(`[JS] Video pausado em segundo plano. Solicitando restauracao de visibilidade...`);
+                            window.recompensas_focus_needed = true;
+                        }
+                    } else {
+                        pausedStallCount = 0;
+                    }
+
+                    let domElapsed = (v && typeof v.currentTime === 'number' && !isNaN(v.currentTime)) ? Math.floor(v.currentTime) : 0;
+                    let displayProgress = Math.min(targetSec, Math.max(Math.floor(curProgress), domElapsed));
+                    let logBucket = Math.floor(displayProgress / 8);
+                    if (logBucket !== lastLoggedBucket) {
+                        lastLoggedBucket = logBucket;
+                        logP(`[JS] Assistindo video na UI: ${displayProgress} / ${targetSec}s`);
+                        window.recompensas_cmd = `REWARDS_PROGRESS:${displayProgress}:${targetSec}:video`;
+                    }
+
+                    if (statusNow.completed || (statusNow.seconds !== null && statusNow.seconds >= targetSec)) {
+                        if (!statusNow.completed) {
+                            for (let poll = 0; poll < 5; poll++) {
+                                await new Promise(r => setTimeout(r, 1000));
+                                window.recompensas_keepalive = Date.now();
+                                if (readQuestProgress().completed) break;
+                            }
+                        }
+                        videoFinished = true;
+                        window.peloMenosUmSucesso = true;
+                        logP(`[JS] Meta do video confirmada organicamente pelo cliente Discord!`);
+                        break;
+                    }
+
                     if (Date.now() - startTimeVideo > maxVideoTime) {
-                        logP(`[JS] [TIMEOUT] Tempo maximo de video excedido para '${questName}'.`);
+                        logP(`[JS] [TIMEOUT] Tempo maximo do player excedido para '${questName}'.`);
                         break;
                     }
                 }
-                
-                // 4. Fechamento seguro de modal de vídeo se existir na interface
-                try {
-                    let closeBtns = document.querySelectorAll('button[data-testid="video-quest-close-btn"], button[aria-label="Fechar"], button[aria-label="Close"], [aria-label*="Fechar"]');
-                    closeBtns.forEach(b => b.click());
-                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
-                } catch(e) {}
-                
+
+                // 3. Fechamento seguro do modal nativo de vídeo
+                closeNativeVideoModal();
+
                 if (videoFinished) {
                     logP(`[JS] Missao de video '${questName}' concluida com exito!`);
                     executarDesligamento(true);
@@ -835,7 +976,10 @@ def localizar_aplicativo_discord():
             if os.path.exists(caminho_base):
                 pastas_app = glob.glob(os.path.join(caminho_base, "app-*"))
                 if pastas_app:
-                    pastas_app.sort(reverse=True)
+                    pastas_app.sort(
+                        key=lambda p: tuple(int(n) for n in re.findall(r"\d+", os.path.basename(p))) or (0,),
+                        reverse=True
+                    )
                     exe_name = f"Discord{versao}.exe"
                     for pasta_app in pastas_app:
                         exe_path = os.path.join(pasta_app, exe_name)
@@ -869,6 +1013,244 @@ def bloquear_update_discord(exe_name):
             RewardsCore.LOGGER(RewardsCore.t("discord_update_blocker"))
     except Exception: pass
 
+def _aplicar_override_foco_visibilidade(driver):
+    """Mantem foco e visibilidade ativos via CDP e DOM para evitar pausa automatica de video."""
+    try:
+        driver.execute_cdp_cmd("Emulation.setFocusEmulationEnabled", {"enabled": True})
+    except Exception:
+        pass
+    try:
+        driver.execute_cdp_cmd("Page.setWebLifecycleState", {"state": "active"})
+    except Exception:
+        pass
+
+    js_focus_override = """
+        try {
+            Document.prototype.hasFocus = function() { return true; };
+            Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+            Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+            if (!window.__rewardsVisibilityBound) {
+                window.__rewardsVisibilityBound = true;
+                window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+                window.addEventListener('blur', e => e.stopImmediatePropagation(), true);
+                document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+                document.addEventListener('blur', e => e.stopImmediatePropagation(), true);
+            }
+        } catch(e) {}
+    """
+    try:
+        driver.execute_script(js_focus_override)
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": js_focus_override})
+    except Exception:
+        pass
+
+
+def _abrir_sessao_discord(fase_idx, fase, exe_path, exe_name, cfg, porta_debug=9222, max_tentativas=3):
+    """Inicia o Discord com debug remoto e realiza retentativas automaticas caso trave no boot/splash."""
+    for tentativa in range(1, max_tentativas + 1):
+        if RewardsCore.ABORTAR_PROCESSO:
+            return None, None, None, exe_path, exe_name
+
+        if tentativa > 1:
+            RewardsCore.LOGGER(RewardsCore.t("discord_launch_retry").format(tentativa, max_tentativas), "warning")
+            RewardsCore.update_ui("discord", f"Reiniciando Discord ({tentativa}/{max_tentativas})...", 22)
+            for _ in range(4):
+                if RewardsCore.ABORTAR_PROCESSO:
+                    return None, None, None, exe_path, exe_name
+                time.sleep(1)
+            novo_exe_path, novo_exe_name = localizar_aplicativo_discord()
+            if novo_exe_path:
+                exe_path, exe_name = novo_exe_path, novo_exe_name
+                bloquear_update_discord(exe_name)
+
+        args_discord = [
+            exe_path, f"--remote-debugging-port={porta_debug}",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--autoplay-policy=no-user-gesture-required"
+        ]
+
+        if fase.get("usa_vpn") and fase.get("proxy_host"):
+            if tentativa == 1:
+                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_inject").format(fase['proxy_host']))
+            args_discord.append(f"--proxy-server=socks5://{fase['proxy_host']}")
+            temp_profile = os.path.join(tempfile.gettempdir(), f"discord_vpn_{fase_idx}")
+            args_discord.append(f"--user-data-dir={temp_profile}")
+
+        modo_oculto = cfg.get("modo_oculto", "s") == "s"
+        if modo_oculto:
+            args_discord.append("--start-minimized")
+
+        _encerrar_processo_discord(exe_name)
+        if RewardsCore.ABORTAR_PROCESSO:
+            return None, None, None, exe_path, exe_name
+
+        try:
+            settings_path = os.path.join(os.environ.get('APPDATA', ''), exe_name.replace('.exe', ''), 'settings.json')
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r', encoding='utf-8') as f:
+                    discord_settings = json.load(f)
+                discord_settings["SKIP_HOST_UPDATE"] = True
+                if "UPDATE_ENDPOINT" in discord_settings:
+                    del discord_settings["UPDATE_ENDPOINT"]
+                with open(settings_path, 'w', encoding='utf-8') as f:
+                    json.dump(discord_settings, f, indent=2)
+        except Exception as e:
+            RewardsCore.LOGGER(RewardsCore.t("discord_update_ignore_err").format(e))
+
+        RewardsCore.LOGGER(f"[DISCORD] Iniciando {exe_name} (Porta {porta_debug})...")
+        RewardsCore.update_ui("discord", "Iniciando Discord...", 25)
+        processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        porta_aberta = False
+        RewardsCore.update_ui("discord", "Aguardando Debugger...", 30)
+        for _ in range(45):
+            if RewardsCore.ABORTAR_PROCESSO:
+                _encerrar_processo_discord(exe_name, processo)
+                return None, None, None, exe_path, exe_name
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{porta_debug}/json/version", timeout=2):
+                    porta_aberta = True
+                    RewardsCore.LOGGER(f"[DISCORD] Porta de depuração {porta_debug} conectada!")
+                    break
+            except Exception:
+                time.sleep(1)
+
+        if not porta_aberta:
+            if not RewardsCore.ABORTAR_PROCESSO:
+                RewardsCore.LOGGER(RewardsCore.t("discord_timeout_9222"), "error")
+                RewardsCore.update_ui("discord", "Timeout Debugger 9222", 0)
+            _encerrar_processo_discord(exe_name, processo)
+            continue
+
+        RewardsCore.update_ui("discord", "Localizando janela...", 35)
+        RewardsCore.LOGGER("[DISCORD] Aguardando janela principal do Discord carregar...")
+        janela_pronta = False
+        for _ in range(45):
+            if RewardsCore.ABORTAR_PROCESSO:
+                _encerrar_processo_discord(exe_name, processo)
+                return None, None, None, exe_path, exe_name
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{porta_debug}/json", timeout=2) as resp:
+                    targets = json.loads(resp.read().decode())
+                    for t in targets:
+                        t_url = t.get("url", "").lower()
+                        t_type = t.get("type", "")
+                        if t_type == "page" and any(x in t_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login", "canary.discord.com"]):
+                            janela_pronta = True
+                            RewardsCore.LOGGER(f"[DISCORD] Janela detectada via DevTools ({t.get('title', 'Discord')}: {t_url.split('?')[0]})!")
+                            break
+            except Exception:
+                pass
+            if janela_pronta:
+                break
+            time.sleep(1)
+
+        if not janela_pronta:
+            if not RewardsCore.ABORTAR_PROCESSO:
+                RewardsCore.LOGGER("[DISCORD] Timeout: Discord Canary não carregou a janela principal (ficou preso na tela inicial).", "error")
+                RewardsCore.update_ui("discord", "Travado na tela inicial", 0)
+            _encerrar_processo_discord(exe_name, processo)
+            continue
+
+        chrome_options = Options()
+        chrome_options.debugger_address = f"127.0.0.1:{porta_debug}"
+
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{porta_debug}/json/version", timeout=3) as req:
+                dados_json = json.loads(req.read().decode())
+                match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
+                if match:
+                    chrome_options.browser_version = match.group(1)
+        except Exception:
+            pass
+
+        servico = Service()
+        if os.name == 'nt':
+            servico.creation_flags = 0x08000000
+
+        driver = None
+        for _ in range(3):
+            if RewardsCore.ABORTAR_PROCESSO:
+                _encerrar_processo_discord(exe_name, processo)
+                return None, None, None, exe_path, exe_name
+            try:
+                driver = webdriver.Chrome(service=servico, options=chrome_options)
+                driver.set_page_load_timeout(30)
+                driver.set_script_timeout(30)
+                break
+            except Exception:
+                time.sleep(2)
+
+        if not driver:
+            if not RewardsCore.ABORTAR_PROCESSO:
+                RewardsCore.LOGGER(RewardsCore.t("discord_selenium_err"), "error")
+            _encerrar_processo_discord(exe_name, processo)
+            continue
+
+        janela_correta = None
+        try:
+            for handle in driver.window_handles:
+                try:
+                    driver.switch_to.window(handle)
+                    c_url = driver.current_url.lower()
+                    if any(x in c_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login", "canary.discord.com"]):
+                        janela_correta = handle
+                        RewardsCore.LOGGER(f"[DISCORD] Janela conectada com sucesso ({c_url.split('?')[0]})!")
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        if not janela_correta:
+            if not RewardsCore.ABORTAR_PROCESSO:
+                RewardsCore.LOGGER("[DISCORD] Erro ao alternar para a janela principal do Discord.", "error")
+                RewardsCore.update_ui("discord", "Erro ao alternar janela", 0)
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            _encerrar_processo_discord(exe_name, processo)
+            continue
+
+        _aplicar_override_foco_visibilidade(driver)
+
+        RewardsCore.update_ui("discord", "Carregando Webpack...", 45)
+        webpack_pronto = False
+        for _ in range(25):
+            if RewardsCore.ABORTAR_PROCESSO:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                _encerrar_processo_discord(exe_name, processo)
+                return None, None, None, exe_path, exe_name
+            try:
+                if driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';"):
+                    webpack_pronto = True
+                    break
+            except Exception:
+                pass
+            time.sleep(2)
+
+        if not webpack_pronto:
+            if not RewardsCore.ABORTAR_PROCESSO:
+                RewardsCore.LOGGER("[DISCORD] Timeout: Webpack do Discord Canary não inicializou.", "error")
+                RewardsCore.update_ui("discord", "Erro Webpack Discord", 0)
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            _encerrar_processo_discord(exe_name, processo)
+            continue
+
+        return driver, processo, janela_correta, exe_path, exe_name
+
+    return None, None, None, exe_path, exe_name
+
+
 def iniciar_farm_discord():
     import threading
     if not hasattr(RewardsCore, 'TRAVA_EXECUCAO'):
@@ -878,22 +1260,22 @@ def iniciar_farm_discord():
         RewardsCore.LOGGER(RewardsCore.t("discord_bing_waiting"), "warning")
         
     with RewardsCore.TRAVA_EXECUCAO:
-        if RewardsCore.ABORTAR_PROCESSO: return
+        if RewardsCore.ABORTAR_PROCESSO: return False
         
         cfg = RewardsCore.carregar_config()
         lang = "pt" if cfg.get("language", "pt") == "pt" else "en"
         
         
         cooldown_dias = int(cfg.get("discord_cooldown", 3))
-        if cfg.get("do_discord", "n") != "s": return
+        if cfg.get("do_discord", "n") != "s": return True
         if RewardsCore.verificar_se_rodou_hoje("discord", dias_cooldown=cooldown_dias):
             RewardsCore.LOGGER(RewardsCore.t("discord_cooldown"))
-            return
+            return True
 
         exe_path, exe_name = localizar_aplicativo_discord()
         if not exe_path: 
             RewardsCore.LOGGER(RewardsCore.t("discord_not_found"))
-            return
+            return False
 
         PORTA_DEBUG = 9222
         RewardsCore.update_ui("discord", "Iniciando Preparativos...", 10)
@@ -1028,195 +1410,26 @@ def iniciar_farm_discord():
 
         global_discord_token = None
         houve_ao_menos_um_sucesso = False
+        houve_fase_conectada = False
         fases.sort(key=lambda x: x["usa_vpn"])
         if fases and not any(f["usa_vpn"] == False for f in fases):
             fases.insert(0, {"nome": "Extração de Sessão (Bridge)", "usa_vpn": False, "ids": [], "proxy_host": "", "token_only": True})
 
         for i, fase in enumerate(fases):
-            if RewardsCore.ABORTAR_PROCESSO: return
+            if RewardsCore.ABORTAR_PROCESSO:
+                return False
             RewardsCore.LOGGER(RewardsCore.t("discord_batch_start").format(fase['nome'].upper()))
             RewardsCore.update_ui("discord", fase["nome"], 20 + (i * 30))
-            
-            args_discord = [
-                exe_path, f"--remote-debugging-port={PORTA_DEBUG}",
-                "--disable-background-timer-throttling",
-                "--disable-backgrounding-occluded-windows",
-                "--disable-renderer-backgrounding"
-            ]
 
-            if fase["usa_vpn"] and fase.get("proxy_host"):
-                RewardsCore.LOGGER(RewardsCore.t("discord_proxy_inject").format(fase['proxy_host']))
-                args_discord.append(f"--proxy-server=socks5://{fase['proxy_host']}")
-                temp_profile = os.path.join(tempfile.gettempdir(), f"discord_vpn_{i}")
-                args_discord.append(f"--user-data-dir={temp_profile}")
-                    
-            modo_oculto = cfg.get("modo_oculto", "s") == "s"
-            if modo_oculto: args_discord.append("--start-minimized")
-
-            # Garante encerramento limpo antes de abrir nova instância
-            _encerrar_processo_discord(exe_name)
-            if RewardsCore.ABORTAR_PROCESSO: return
-
-            try:
-                settings_path = os.path.join(os.environ.get('APPDATA', ''), exe_name.replace('.exe', ''), 'settings.json')
-                if os.path.exists(settings_path):
-                    with open(settings_path, 'r', encoding='utf-8') as f:
-                        discord_settings = json.load(f)
-                    discord_settings["SKIP_HOST_UPDATE"] = True
-                    if "UPDATE_ENDPOINT" in discord_settings:
-                        del discord_settings["UPDATE_ENDPOINT"]
-                    with open(settings_path, 'w', encoding='utf-8') as f:
-                        json.dump(discord_settings, f, indent=2)
-            except Exception as e:
-                RewardsCore.LOGGER(RewardsCore.t("discord_update_ignore_err").format(e))
-
-            RewardsCore.LOGGER(f"[DISCORD] Iniciando {exe_name} (Porta {PORTA_DEBUG})...")
-            RewardsCore.update_ui("discord", "Iniciando Discord...", 25)
-            processo = subprocess.Popen(args_discord, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
-            porta_aberta = False
-            RewardsCore.update_ui("discord", "Aguardando Debugger...", 30)
-            for seg in range(45):
-                if RewardsCore.ABORTAR_PROCESSO: return
-                try:
-                    with urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=2) as resp:
-                        porta_aberta = True
-                        RewardsCore.LOGGER(f"[DISCORD] Porta de depuração {PORTA_DEBUG} conectada!")
-                        break
-                except Exception:
-                    time.sleep(1)
-
-            if not porta_aberta:
-                if not RewardsCore.ABORTAR_PROCESSO:
-                    RewardsCore.LOGGER(RewardsCore.t("discord_timeout_9222"), "error")
-                    RewardsCore.update_ui("discord", "Timeout Debugger 9222", 0)
-                _encerrar_processo_discord(exe_name, processo)
-                continue
-            
-            # Aguarda a janela principal via HTTP DevTools /json ANTES de conectar o Selenium (evita travar na splash screen)
-            RewardsCore.update_ui("discord", "Localizando janela...", 35)
-            RewardsCore.LOGGER("[DISCORD] Aguardando janela principal do Discord carregar...")
-            janela_pronta = False
-            for tentativa_win in range(45):
-                if RewardsCore.ABORTAR_PROCESSO: return
-                try:
-                    with urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json", timeout=2) as resp:
-                        targets = json.loads(resp.read().decode())
-                        for t in targets:
-                            t_url = t.get("url", "").lower()
-                            t_type = t.get("type", "")
-                            if t_type == "page" and any(x in t_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login", "canary.discord.com"]):
-                                janela_pronta = True
-                                RewardsCore.LOGGER(f"[DISCORD] Janela detectada via DevTools ({t.get('title', 'Discord')}: {t_url.split('?')[0]})!")
-                                break
-                except Exception:
-                    pass
-                if janela_pronta:
-                    break
-                time.sleep(1)
-
-            if not janela_pronta:
-                if not RewardsCore.ABORTAR_PROCESSO:
-                    RewardsCore.LOGGER("[DISCORD] Timeout: Discord Canary não carregou a janela principal (ficou preso na tela inicial).", "error")
-                    RewardsCore.update_ui("discord", "Travado na tela inicial", 0)
-                _encerrar_processo_discord(exe_name, processo)
-                continue
-
-            from selenium.webdriver.chrome.options import Options
-            from selenium.webdriver.chrome.service import Service
-            chrome_options = Options()
-            chrome_options.debugger_address = f"127.0.0.1:{PORTA_DEBUG}"
-
-            try:
-                with urllib.request.urlopen(f"http://127.0.0.1:{PORTA_DEBUG}/json/version", timeout=3) as req:
-                    dados_json = json.loads(req.read().decode())
-                    match = re.search(r"Chrome/(\d+)", dados_json.get("Browser", ""))
-                    if match: chrome_options.browser_version = match.group(1)
-            except Exception: pass
-
-            servico = Service()
-            if os.name == 'nt': servico.creation_flags = 0x08000000
-
-            driver = None
-            for _ in range(3):
-                if RewardsCore.ABORTAR_PROCESSO: return
-                try:
-                    driver = webdriver.Chrome(service=servico, options=chrome_options)
-                    driver.set_page_load_timeout(30)
-                    driver.set_script_timeout(30)
-                    break
-                except Exception: time.sleep(2)
-                
+            driver, processo, janela_correta, exe_path, exe_name = _abrir_sessao_discord(
+                i, fase, exe_path, exe_name, cfg, porta_debug=PORTA_DEBUG, max_tentativas=3
+            )
             if not driver:
-                if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_selenium_err"))
-                _encerrar_processo_discord(exe_name, processo)
+                if RewardsCore.ABORTAR_PROCESSO:
+                    return False
                 continue
 
-            janela_correta = None
-            try:
-                for handle in driver.window_handles:
-                    try:
-                        driver.switch_to.window(handle)
-                        c_url = driver.current_url.lower()
-                        if any(x in c_url for x in ["discord.com/app", "discord.com/channels", "discord.com/login", "canary.discord.com"]):
-                            janela_correta = handle
-                            RewardsCore.LOGGER(f"[DISCORD] Janela conectada com sucesso ({c_url.split('?')[0]})!")
-                            break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-                
-            if not janela_correta:
-                if not RewardsCore.ABORTAR_PROCESSO:
-                    RewardsCore.LOGGER("[DISCORD] Erro ao alternar para a janela principal do Discord.", "error")
-                    RewardsCore.update_ui("discord", "Erro ao alternar janela", 0)
-                try: driver.quit()
-                except Exception: pass
-                _encerrar_processo_discord(exe_name, processo)
-                continue
-            
-            # BYPASS GLOBAL DA PAGE VISIBILITY API
-            try:
-                driver.execute_script("""
-                    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
-                    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
-                    window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
-                    window.addEventListener('blur', e => e.stopImmediatePropagation(), true);
-                    document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
-                    document.addEventListener('blur', e => e.stopImmediatePropagation(), true);
-                """)
-                driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-                    "source": """
-                        Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
-                        Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
-                        window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
-                        window.addEventListener('blur', e => e.stopImmediatePropagation(), true);
-                        document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
-                        document.addEventListener('blur', e => e.stopImmediatePropagation(), true);
-                    """
-                })
-            except Exception: pass
-                
-            RewardsCore.update_ui("discord", "Carregando Webpack...", 45)
-            webpack_pronto = False
-            for _ in range(25): # 50s
-                if RewardsCore.ABORTAR_PROCESSO: return
-                try:
-                    if driver.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';"):
-                        webpack_pronto = True
-                        break
-                except Exception: pass
-                time.sleep(2)
-
-            if not webpack_pronto:
-                if not RewardsCore.ABORTAR_PROCESSO:
-                    RewardsCore.LOGGER("[DISCORD] Timeout: Webpack do Discord Canary não inicializou.", "error")
-                    RewardsCore.update_ui("discord", "Erro Webpack Discord", 0)
-                try: driver.quit()
-                except Exception: pass
-                _encerrar_processo_discord(exe_name, processo)
-                continue
+            houve_fase_conectada = True
 
             # --- ISOLAMENTO ABSOLUTO DE CACHE: EXTRACT OU INJECT TOKEN ---
             if not global_discord_token and not fase["usa_vpn"]:
@@ -1230,14 +1443,13 @@ def iniciar_farm_discord():
                     """)
                     if global_discord_token:
                         RewardsCore.LOGGER(RewardsCore.t("discord_session_cloned"))
-                except Exception: pass
+                except Exception:
+                    pass
                 
                 if fase.get("token_only"):
                     try: driver.quit()
                     except Exception: pass
-                    try: processo.kill()
-                    except Exception: pass
-                    if platform.system().lower() == "windows": subprocess.run(f"taskkill /F /PID {processo.pid} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    _encerrar_processo_discord(exe_name, processo)
                     continue
 
             elif fase["usa_vpn"] and global_discord_token:
@@ -1251,21 +1463,31 @@ def iniciar_farm_discord():
                         setTimeout(() => location.reload(), 500);
                     """)
                     time.sleep(4)
-                except Exception: pass
+                except Exception:
+                    pass
 
             try:
                 logado = driver.execute_script("return window.location.pathname !== '/login';")
                 if not logado:
                     espera = 0
                     while espera < 300: 
-                        if RewardsCore.ABORTAR_PROCESSO: return
+                        if RewardsCore.ABORTAR_PROCESSO:
+                            try: driver.quit()
+                            except Exception: pass
+                            _encerrar_processo_discord(exe_name, processo)
+                            return False
                         try:
                             if driver.execute_script("return window.location.pathname !== '/login';"):
                                 time.sleep(10); break
-                        except Exception: pass
+                        except Exception:
+                            pass
                         time.sleep(5); espera += 5
                     else:
-                        if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_login_stuck"))
+                        if not RewardsCore.ABORTAR_PROCESSO:
+                            RewardsCore.LOGGER(RewardsCore.t("discord_login_stuck"))
+                        try: driver.quit()
+                        except Exception: pass
+                        _encerrar_processo_discord(exe_name, processo)
                         continue
             except Exception:
                 pass
@@ -1365,15 +1587,17 @@ def iniciar_farm_discord():
                             let res = { 
                                 cmd: window.recompensas_cmd, 
                                 logs: window.recompensas_logs || [],
-                                keepalive: window.recompensas_keepalive || 0
+                                keepalive: window.recompensas_keepalive || 0,
+                                focus_needed: Boolean(window.recompensas_focus_needed)
                             };
                             window.recompensas_cmd = null;
                             window.recompensas_logs = [];
                             window.recompensas_keepalive = 0;
+                            window.recompensas_focus_needed = false;
                             return res;
                         """)
                         
-                        if js_data and (js_data.get('logs') or js_data.get('cmd') or js_data.get('keepalive')):
+                        if js_data and (js_data.get('logs') or js_data.get('cmd') or js_data.get('keepalive') or js_data.get('focus_needed')):
                             last_active_time = time.time()
                             
                         if time.time() - last_active_time > watchdog_timeout:
@@ -1383,7 +1607,20 @@ def iniciar_farm_discord():
                         if js_data:
                             for msg in js_data.get('logs', []):
                                 RewardsCore.LOGGER(msg)
-                                
+
+                            if js_data.get('focus_needed') or js_data.get('cmd') == "REWARDS_FOCUS_WINDOW":
+                                _aplicar_override_foco_visibilidade(driver)
+                                try:
+                                    win_info = driver.execute_cdp_cmd("Browser.getWindowForTarget", {})
+                                    win_id = win_info.get("windowId")
+                                    if win_id is not None and win_info.get("bounds", {}).get("windowState") == "minimized":
+                                        driver.execute_cdp_cmd("Browser.setWindowBounds", {
+                                            "windowId": win_id,
+                                            "bounds": {"windowState": "normal"}
+                                        })
+                                except Exception:
+                                    pass
+
                             cmd = js_data.get('cmd')
                             if cmd:
                                 if "REWARDS_EXE:" in cmd:
@@ -1417,17 +1654,18 @@ def iniciar_farm_discord():
                                     
                                 elif "REWARDS_KILL:ALL" in cmd:
                                     matar_processos_camuflados()
-                                    
+
                                 elif "REWARDS_PROGRESS:" in cmd:
                                     try:
                                         partes = cmd.split("REWARDS_PROGRESS:")[1].split(":")
                                         c_prog = int(partes[0])
                                         t_prog = int(partes[1])
+                                        modo_prog = partes[2].strip() if len(partes) >= 3 else ""
                                         percent = min(99, int((c_prog / t_prog) * 100)) if t_prog > 0 else 0
-                                        # Formata tempo de mm:ss
                                         cm = c_prog // 60; cs = c_prog % 60
                                         tm = t_prog // 60; ts = t_prog % 60
-                                        status_text = f"Jogando ({cm:02d}:{cs:02d} / {tm:02d}:{ts:02d})"
+                                        prefixo = "Assistindo vídeo" if modo_prog == "video" else "Jogando"
+                                        status_text = f"{prefixo} ({cm:02d}:{cs:02d} / {tm:02d}:{ts:02d})"
                                         RewardsCore.update_ui("discord", status_text, percent, total_segundos=t_prog)
                                     except Exception: pass
                     except Exception: pass
@@ -1473,10 +1711,14 @@ def iniciar_farm_discord():
             if not RewardsCore.ABORTAR_PROCESSO:
                 RewardsCore.update_ui("discord", "Concluído!", 100)
                 RewardsCore.LOGGER(RewardsCore.t("discord_success_total"))
+                return True
             else:
                 RewardsCore.update_ui("discord", "Abortado/Pausado (Progresso Salvo)", 100)
                 RewardsCore.LOGGER(RewardsCore.t("discord_abortado_salvo"))
+                return False
         else:
             if not RewardsCore.ABORTAR_PROCESSO:
-                RewardsCore.update_ui("discord", "Falha na Execução", 0)
-                RewardsCore.LOGGER("[DISCORD] Processo encerrado sem concluir missões. Cooldown preservado.", "error")
+                RewardsCore.update_ui("discord", "Falha na Execução" if not houve_fase_conectada else "Concluído (Sem Pendências)", 0 if not houve_fase_conectada else 100)
+                RewardsCore.LOGGER("[DISCORD] Processo encerrado sem concluir missões. Cooldown preservado.", "error" if not houve_fase_conectada else "info")
+                return bool(houve_fase_conectada)
+            return False

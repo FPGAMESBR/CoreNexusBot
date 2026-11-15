@@ -2,7 +2,9 @@ import unittest
 import sys
 import tempfile
 import os
+import json
 import subprocess
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -115,6 +117,141 @@ class TestSessionLoggingAndQuests(unittest.TestCase):
         pt_keys = set(data.get("pt", {}).keys())
         en_keys = set(data.get("en", {}).keys())
         self.assertEqual(pt_keys, en_keys, f"Diferença entre chaves: {pt_keys ^ en_keys}")
+
+    def test_discord_video_uses_native_ui_without_spoofed_api(self):
+        """Garante que o script de vídeo não envia POST /video-progress falsificado e usa o player real da UI."""
+        js = DiscordQuests.SCRIPT_JS
+        self.assertNotIn("/video-progress", js)
+        self.assertIn("discord-web-video-player-video", js)
+        self.assertIn("discord-web-video-player-play-pause-btn", js)
+        self.assertIn("ad-video-modal-close-btn", js)
+        self.assertIn("recompensas_focus_needed", js)
+
+    def test_discord_video_cta_matching_ignores_promo_buttons(self):
+        """Valida em Node que o seletor CTA ignora 'Assista já' / 'Pré-compra aqui' e aceita botões reais de missão."""
+        node_code = """
+        const excludedRe = /assista\\s+j[áa]|watch\\s+now|novamente|again|pr[ée]-?compra|pre-?purchase|comprar|buy\\b|jogar|play\\b|baixar|download|saiba\\s+mais|learn\\s+more|entrar\\s+no\\s+servidor|join\\s+server/i;
+        const exactRe = /^(assistir|continuar|watch|continue)(\\s+(\\d+[smh]?|ao\\s+v[íi]deo|video))?$|^(continue\\s+assistindo|continue\\s+watching|iniciar\\s+miss[ãa]o\\s+de\\s+v[íi]deo|start\\s+video\\s+quest|play\\s+video)$/i;
+        const pickBtn = (labels) => {
+            const p = labels.find(t => exactRe.test(t.trim()));
+            if (p) return p;
+            const fb = labels.filter(t => t.trim() && !excludedRe.test(t.trim()) && /\\b(assistir|continuar|continue\\s+assistindo|watch|ver\\s+v[íi]deo|iniciar\\s+miss[ãa]o|video)\\b/i.test(t.trim()));
+            return fb.length ? fb[fb.length - 1] : null;
+        };
+        if (pickBtn(['Assista já', 'Assistir 14s']) !== 'Assistir 14s') process.exit(1);
+        if (pickBtn(['Pré-compra aqui', 'Continuar 26s']) !== 'Continuar 26s') process.exit(2);
+        if (pickBtn(['Comprar agora', 'Assistir']) !== 'Assistir') process.exit(3);
+        if (pickBtn(['Watch now', 'Watch Video']) !== 'Watch Video') process.exit(4);
+        if (pickBtn(['Assista já', 'Assistir novamente']) !== null) process.exit(5);
+        process.exit(0);
+        """
+        with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as f:
+            f.write(node_code)
+            temp_path = f.name
+        try:
+            res = subprocess.run(['node', temp_path], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"Erro no matcher de CTA de vídeo (código {res.returncode})")
+        finally:
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _fake_http_resp(payload):
+        class _Resp:
+            def __init__(self, data):
+                self._data = json.dumps(data).encode("utf-8")
+            def read(self):
+                return self._data
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+        return _Resp(payload)
+
+    def test_discord_launch_retries_when_first_attempt_hangs(self):
+        """Verifica se o lançador do Discord realiza retentativa automática quando a 1ª tentativa trava na splash."""
+        popens = []
+        json_polls = {"count": 0}
+
+        def fake_urlopen(url, timeout=2):
+            if url.endswith("/json/version"):
+                return self._fake_http_resp({"Browser": "Chrome/130.0.0.0"})
+            if url.endswith("/json"):
+                json_polls["count"] += 1
+                # Primeira tentativa (45 polls) fica presa sem janela principal; 2ª tentativa abre janela
+                if json_polls["count"] <= 45:
+                    return self._fake_http_resp([])
+                return self._fake_http_resp([{"type": "page", "url": "https://canary.discord.com/channels/@me", "title": "Discord"}])
+            raise AssertionError(f"URL inesperada: {url}")
+
+        fake_driver = MagicMock()
+        fake_driver.window_handles = ["win-1"]
+        fake_driver.current_url = "https://canary.discord.com/channels/@me"
+        fake_driver.execute_script.return_value = True
+
+        orig_abort = RewardsCore.ABORTAR_PROCESSO
+        RewardsCore.ABORTAR_PROCESSO = False
+        try:
+            with patch.object(DiscordQuests.time, "sleep", return_value=None), \
+                 patch.object(DiscordQuests, "_encerrar_processo_discord"), \
+                 patch.object(DiscordQuests, "localizar_aplicativo_discord", return_value=(r"C:\Fake\DiscordCanary.exe", "DiscordCanary.exe")), \
+                 patch.object(DiscordQuests, "bloquear_update_discord"), \
+                 patch.object(DiscordQuests.subprocess, "Popen", side_effect=lambda *a, **k: popens.append(MagicMock()) or popens[-1]), \
+                 patch.object(DiscordQuests.urllib.request, "urlopen", side_effect=fake_urlopen), \
+                 patch.object(DiscordQuests.webdriver, "Chrome", return_value=fake_driver):
+
+                driver, proc, handle, _, _ = DiscordQuests._abrir_sessao_discord(
+                    0,
+                    {"nome": "Lote Local", "usa_vpn": False},
+                    r"C:\Fake\DiscordCanary.exe",
+                    "DiscordCanary.exe",
+                    {"modo_oculto": "s"},
+                    porta_debug=9222,
+                    max_tentativas=2
+                )
+
+                self.assertIs(driver, fake_driver)
+                self.assertEqual(handle, "win-1")
+                self.assertEqual(len(popens), 2)
+        finally:
+            RewardsCore.ABORTAR_PROCESSO = orig_abort
+
+    def test_discord_launch_exhausts_retries_returns_none(self):
+        """Se todas as tentativas travarem na splash screen, retorna None sem levantar exceção."""
+        def fake_urlopen(url, timeout=2):
+            if url.endswith("/json/version"):
+                return self._fake_http_resp({"Browser": "Chrome/130.0.0.0"})
+            return self._fake_http_resp([])
+
+        popens = []
+        orig_abort = RewardsCore.ABORTAR_PROCESSO
+        RewardsCore.ABORTAR_PROCESSO = False
+        try:
+            with patch.object(DiscordQuests.time, "sleep", return_value=None), \
+                 patch.object(DiscordQuests, "_encerrar_processo_discord"), \
+                 patch.object(DiscordQuests, "localizar_aplicativo_discord", return_value=(r"C:\Fake\DiscordCanary.exe", "DiscordCanary.exe")), \
+                 patch.object(DiscordQuests, "bloquear_update_discord"), \
+                 patch.object(DiscordQuests.subprocess, "Popen", side_effect=lambda *a, **k: popens.append(MagicMock()) or popens[-1]), \
+                 patch.object(DiscordQuests.urllib.request, "urlopen", side_effect=fake_urlopen):
+
+                driver, proc, handle, _, _ = DiscordQuests._abrir_sessao_discord(
+                    0,
+                    {"nome": "Lote Local", "usa_vpn": False},
+                    r"C:\Fake\DiscordCanary.exe",
+                    "DiscordCanary.exe",
+                    {"modo_oculto": "s"},
+                    porta_debug=9222,
+                    max_tentativas=2
+                )
+
+                self.assertIsNone(driver)
+                self.assertIsNone(proc)
+                self.assertIsNone(handle)
+                self.assertEqual(len(popens), 2)
+        finally:
+            RewardsCore.ABORTAR_PROCESSO = orig_abort
 
 if __name__ == '__main__':
     unittest.main()

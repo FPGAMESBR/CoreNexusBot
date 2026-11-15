@@ -18,7 +18,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.5"
+APP_VERSION = "v3.2.6"
 APP_CODENAME = "Intelligent Bypass"
 
 def carregar_html_ui(nome_arquivo):
@@ -249,9 +249,13 @@ class BotAPI:
         try:
             self.discord_rodando = True
             self.log_ui("[DISCORD] Módulo de missões iniciado...", "info")
-            DiscordQuests.iniciar_farm_discord()
-            self.log_ui("[DISCORD] Módulo de missões finalizado com sucesso!", "success")
-            self.orquestrador.registrar_ticket_saida("discord", status="sucesso")
+            resultado = DiscordQuests.iniciar_farm_discord()
+            if resultado is False:
+                self.log_ui("[DISCORD] Módulo encerrado sem concluir (falha ao abrir ou conectar no Discord).", "warning")
+                self.orquestrador.registrar_ticket_saida("discord", status="erro", erro="Falha ao iniciar ou conectar no Discord")
+            else:
+                self.log_ui("[DISCORD] Módulo de missões finalizado com sucesso!", "success")
+                self.orquestrador.registrar_ticket_saida("discord", status="sucesso")
         except Exception as e:
             self.log_ui(f"[DISCORD] Erro durante a execução: {e}", "error")
             self.orquestrador.registrar_ticket_saida("discord", status="erro", erro=str(e))
