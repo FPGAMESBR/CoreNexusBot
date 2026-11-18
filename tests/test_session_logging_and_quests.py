@@ -253,6 +253,79 @@ class TestSessionLoggingAndQuests(unittest.TestCase):
         finally:
             RewardsCore.ABORTAR_PROCESSO = orig_abort
 
+    def test_quests_navigation_ignores_message_requests_in_node(self):
+        """Garante que [data-list-item-id*='quests'] foi removido e /message-requests nunca é confundido com Missões."""
+        self.assertNotIn('data-list-item-id*="quests"', DiscordQuests._NAVIGATE_TO_QUESTS_JS)
+        node_test = f"""
+        const checkPath = (p) => {{
+            globalThis.window = {{ location: {{ pathname: p }} }};
+            return (function() {{ {DiscordQuests._IS_QUESTS_PATH_JS} }})();
+        }};
+        if (checkPath('/message-requests') !== false) process.exit(1);
+        if (checkPath('/channels/@me') !== false) process.exit(2);
+        if (checkPath('/quest-home') !== true) process.exit(3);
+        if (checkPath('/quests/123') !== true) process.exit(4);
+
+        const makeEl = (attrs, text, children = []) => ({{
+            attrs,
+            textContent: text,
+            children,
+            clicked: false,
+            click() {{ this.clicked = true; }},
+            getAttribute(k) {{ return this.attrs[k] ?? null; }},
+            closest() {{ return this; }},
+            querySelectorAll() {{ return []; }}
+        }});
+
+        const msgReq = makeEl({{ 'data-list-item-id': 'private-channels-uid_1___message-requests', href: '/message-requests' }}, 'Solicitações de mensagens');
+        const questsNoHref = makeEl({{ 'data-list-item-id': 'private-channels-uid_1___quests' }}, 'Missões');
+        const allEls = [msgReq, questsNoHref];
+
+        globalThis.document = {{
+            querySelector(sel) {{ return null; }},
+            querySelectorAll(sel) {{ return sel === '[data-list-item-id]' ? allEls : []; }}
+        }};
+
+        // Caso 1: já está em /quest-home -> não clica em nada
+        globalThis.window = {{ location: {{ pathname: '/quest-home' }} }};
+        const r1 = (function() {{ {DiscordQuests._NAVIGATE_TO_QUESTS_JS} }})();
+        if (r1 !== 'already_on_quests' || msgReq.clicked || questsNoHref.clicked) process.exit(5);
+
+        // Caso 2: está em /channels/@me -> seleciona ___quests e nunca ___message-requests
+        globalThis.window = {{ location: {{ pathname: '/channels/@me' }} }};
+        const r2 = (function() {{ {DiscordQuests._NAVIGATE_TO_QUESTS_JS} }})();
+        if (r2 !== 'clicked' || msgReq.clicked || !questsNoHref.clicked) process.exit(6);
+        process.exit(0);
+        """
+        with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as f:
+            f.write(node_test)
+            temp_path = f.name
+        try:
+            res = subprocess.run(['node', temp_path], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"Falha na lógica de navegação Quests vs Message Requests (código {res.returncode}): {res.stderr}")
+        finally:
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+    def test_navegar_para_missoes_keeps_quest_home_without_reload(self):
+        """Se já estiver em /quest-home com tiles visíveis, _navegar_para_missoes retorna True sem driver.get."""
+        fake_driver = MagicMock()
+        fake_driver.execute_script.side_effect = [
+            "already_on_quests",  # _NAVIGATE_TO_QUESTS_JS
+            True,                 # WebDriverWait predicate
+            True,                 # _IS_QUESTS_PATH_JS
+        ]
+        orig_abort = RewardsCore.ABORTAR_PROCESSO
+        RewardsCore.ABORTAR_PROCESSO = False
+        try:
+            ok = DiscordQuests._navegar_para_missoes(fake_driver, canal_lixo="")
+            self.assertTrue(ok)
+            fake_driver.get.assert_not_called()
+        finally:
+            RewardsCore.ABORTAR_PROCESSO = orig_abort
+
 if __name__ == '__main__':
     unittest.main()
 

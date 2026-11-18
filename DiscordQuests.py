@@ -482,14 +482,42 @@ SCRIPT_JS = r"""
                 };
 
                 const findWatchCtaButton = async () => {
+                    const isQuestsUrlNow = () => {
+                        let p = (window.location.pathname || '').toLowerCase();
+                        return p === '/quest-home' || p.startsWith('/quest-home/') || p === '/quests' || p.startsWith('/quests/');
+                    };
+                    if (!window.location.pathname.toLowerCase().startsWith('/channels/') && !isQuestsUrlNow()) {
+                        let qLink = document.querySelector('a[href="/quest-home"]')
+                            || document.querySelector('[href="/quest-home"]')
+                            || document.querySelector('a[href="/quests"]')
+                            || document.querySelector('[href="/quests"]')
+                            || Array.from(document.querySelectorAll('[data-list-item-id]')).find(el => {
+                                const id = (el.getAttribute('data-list-item-id') || '').toLowerCase();
+                                return id && !id.includes('request') && !id.includes('message')
+                                    && (id.endsWith('___quests') || id.endsWith('___quest-home') || /(^|[_-])quests?$/.test(id) || id.includes('quest-home'));
+                            });
+                        if (qLink) {
+                            logP('[JS] Corrigindo aba para Missoes (/quest-home)...');
+                            qLink.click();
+                            await new Promise(r => setTimeout(r, 2000));
+                        }
+                    }
+
                     let card = findQuestCardElement();
                     if (!card) {
                         let scrollers = Array.from(document.querySelectorAll('[class*="scroller"]'));
                         for (let sc of scrollers) {
-                            if (sc.scrollHeight > sc.clientHeight + 50) {
-                                for (let step = 0; step < 6 && !card; step++) {
-                                    sc.scrollTop = Math.min(sc.scrollHeight, sc.scrollTop + 450);
-                                    await new Promise(r => setTimeout(r, 300));
+                            if (sc.clientWidth >= 300 && sc.scrollHeight > sc.clientHeight + 50) {
+                                sc.scrollTop = 0;
+                                await new Promise(r => setTimeout(r, 250));
+                                card = findQuestCardElement();
+                                if (card) break;
+                                let stepSize = Math.max(350, Math.floor(sc.clientHeight * 0.75));
+                                for (let step = 0; step < 25 && !card && (sc.scrollTop + sc.clientHeight < sc.scrollHeight - 2); step++) {
+                                    let prevTop = sc.scrollTop;
+                                    sc.scrollTop = Math.min(sc.scrollHeight, sc.scrollTop + stepSize);
+                                    if (sc.scrollTop === prevTop) break;
+                                    await new Promise(r => setTimeout(r, 250));
                                     card = findQuestCardElement();
                                 }
                                 if (card) break;
@@ -1251,6 +1279,138 @@ def _abrir_sessao_discord(fase_idx, fase, exe_path, exe_name, cfg, porta_debug=9
     return None, None, None, exe_path, exe_name
 
 
+_IS_QUESTS_PATH_JS = """
+const p = (window.location.pathname || '').toLowerCase();
+return p === '/quest-home' || p.startsWith('/quest-home/') || p === '/quests' || p.startsWith('/quests/');
+"""
+
+_IS_QUESTS_READY_JS = """
+const p = (window.location.pathname || '').toLowerCase();
+const okPath = (p === '/quest-home' || p.startsWith('/quest-home/') || p === '/quests' || p.startsWith('/quests/'));
+return okPath && (document.querySelector('[id^="quest-tile-"], [class*="questTile"]') !== null);
+"""
+
+_NAVIGATE_TO_QUESTS_JS = """
+const p = (window.location.pathname || '').toLowerCase();
+if (p === '/quest-home' || p.startsWith('/quest-home/') || p === '/quests' || p.startsWith('/quests/')) {
+    return 'already_on_quests';
+}
+
+// Prioridade sequencial estrita evita coincidir substring com message-requests
+let btnMissao = document.querySelector('a[href="/quest-home"]')
+    || document.querySelector('[href="/quest-home"]')
+    || document.querySelector('a[href="/quests"]')
+    || document.querySelector('[href="/quests"]');
+
+if (!btnMissao) {
+    btnMissao = Array.from(document.querySelectorAll('[data-list-item-id]')).find(el => {
+        const id = (el.getAttribute('data-list-item-id') || '').toLowerCase();
+        if (!id || id.includes('request') || id.includes('message')) return false;
+        return id.endsWith('___quests') || id.endsWith('___quest-home') || /(^|[_\\-])quests?$/.test(id) || id.includes('quest-home');
+    });
+}
+
+if (!btnMissao) {
+    const sidebar = document.querySelector('[class*="privateChannels"]')
+        || document.querySelector('nav[aria-label]')
+        || document;
+    for (const el of sidebar.querySelectorAll('*')) {
+        if (el.children.length !== 0) continue;
+        const txt = (el.textContent || '').trim();
+        if (txt !== 'Missões' && txt !== 'Quests') continue;
+        const item = el.closest('[role="listitem"], [role="treeitem"], [role="link"], a, li') || el;
+        const href = (item.getAttribute('href') || '').toLowerCase();
+        const listId = (item.getAttribute('data-list-item-id') || '').toLowerCase();
+        if (href.includes('request') || listId.includes('request')) continue;
+        btnMissao = item;
+        break;
+    }
+}
+
+if (btnMissao) {
+    btnMissao.click();
+    return 'clicked';
+}
+return 'not_found';
+"""
+
+
+def _navegar_para_missoes(driver, canal_lixo=""):
+    """Navega com seguranca ate a aba real de Missoes (/quest-home) ou canal_lixo configurado."""
+    from selenium.webdriver.support.ui import WebDriverWait
+
+    def _aguardar_tiles_missoes(timeout_s=20):
+        try:
+            WebDriverWait(driver, timeout_s).until(lambda d: d.execute_script(_IS_QUESTS_READY_JS))
+        except Exception:
+            pass
+
+    for tentativa_nav in range(3):
+        if RewardsCore.ABORTAR_PROCESSO:
+            return False
+        try:
+            if canal_lixo and canal_lixo.startswith("http"):
+                if driver.current_url != canal_lixo:
+                    driver.get(canal_lixo)
+                try:
+                    WebDriverWait(driver, 35).until(
+                        lambda d: d.execute_script(
+                            "return window.location.pathname !== '/login' && "
+                            "(document.querySelector('[class*=\"embed\"]') !== null || window.location.pathname.startsWith('/channels/'));"
+                        )
+                    )
+                except Exception:
+                    pass
+                if RewardsCore.ABORTAR_PROCESSO:
+                    return False
+                try:
+                    if driver.execute_script("return window.location.pathname !== '/login';"):
+                        return True
+                except Exception:
+                    pass
+            else:
+                nav_status = driver.execute_script(_NAVIGATE_TO_QUESTS_JS)
+                _aguardar_tiles_missoes(20)
+
+                if RewardsCore.ABORTAR_PROCESSO:
+                    return False
+
+                try:
+                    if bool(driver.execute_script(_IS_QUESTS_PATH_JS)):
+                        return True
+                except Exception:
+                    pass
+
+                if tentativa_nav >= 1 or nav_status == "not_found":
+                    try:
+                        origin = driver.execute_script("return window.location.origin;")
+                        if not isinstance(origin, str) or not origin.startswith("http"):
+                            origin = "https://discord.com"
+                        driver.get(f"{origin.rstrip('/')}/quest-home")
+                        WebDriverWait(driver, 25).until(
+                            lambda d: d.execute_script("return typeof window.webpackChunkdiscord_app !== 'undefined';")
+                        )
+                        _aplicar_override_foco_visibilidade(driver)
+                        _aguardar_tiles_missoes(15)
+                        if bool(driver.execute_script(_IS_QUESTS_PATH_JS)):
+                            return True
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            driver.refresh()
+        except Exception:
+            break
+        time.sleep(5)
+
+    try:
+        return bool(driver.execute_script(_IS_QUESTS_PATH_JS))
+    except Exception:
+        return False
+
+
 def iniciar_farm_discord():
     import threading
     if not hasattr(RewardsCore, 'TRAVA_EXECUCAO'):
@@ -1509,55 +1669,13 @@ def iniciar_farm_discord():
                 except Exception as e:
                     RewardsCore.LOGGER(RewardsCore.t("discord_webhook_err").format(e))
 
-            from selenium.webdriver.support.ui import WebDriverWait
-            for _ in range(3):
-                if RewardsCore.ABORTAR_PROCESSO: return
-                try:
-                    if canal_lixo and canal_lixo.startswith("http"):
-                        if driver.current_url != canal_lixo:
-                            driver.get(canal_lixo)
-                    else:
-                        driver.execute_script("""
-                            let btnMissao = document.querySelector('[href="/quest-home"], [href="/quests"], [data-list-item-id*="quests"]');
-                            if (btnMissao) { 
-                                btnMissao.click(); 
-                            } else {
-                                let els = document.querySelectorAll('*');
-                                for (let el of els) {
-                                    if (el.children.length === 0 && (el.textContent.trim() === 'Missões' || el.textContent.trim() === 'Quests' || el.textContent.trim() === 'Descobrir')) {
-                                        (el.closest('[role="listitem"], [role="treeitem"], [role="link"], a') || el).click(); 
-                                        break;
-                                    }
-                                }
-                            }
-                        """)
-                except Exception: pass
-                
-                # Dynamic Delay Handling com WebDriverWait
-                try:
-                    WebDriverWait(driver, 35).until(
-                        lambda d: d.execute_script(
-                            "return (window.location.pathname !== '/login' && window.location.pathname !== '/') || "
-                            "document.querySelector('[class*=\"questTile\"]') !== null || document.querySelector('[class*=\"embed\"]') !== null;"
-                        )
-                    )
-                except Exception:
-                    pass
+            _navegar_para_missoes(driver, canal_lixo)
 
-                if RewardsCore.ABORTAR_PROCESSO: break
-                
-                try:
-                    if canal_lixo and canal_lixo.startswith("http"):
-                        if driver.execute_script("return window.location.pathname !== '/login';"): break
-                    else:
-                        if driver.execute_script("return window.location.pathname.includes('quest') || document.querySelector('[class*=\"questTile\"]') !== null;"): break
+            if RewardsCore.ABORTAR_PROCESSO:
+                try: driver.quit()
                 except Exception: pass
-                
-                try: driver.refresh()
-                except Exception: break
-                time.sleep(5)
-
-            if RewardsCore.ABORTAR_PROCESSO: break
+                _encerrar_processo_discord(exe_name, processo)
+                break
 
             ids_globais = fase.get("ids", [])
             quests_webhook_url = cfg.get("quests_webhook_url", "")
@@ -1567,6 +1685,9 @@ def iniciar_farm_discord():
             try: driver.execute_script(script_injetado)
             except Exception:
                 if not RewardsCore.ABORTAR_PROCESSO: RewardsCore.LOGGER(RewardsCore.t("discord_webpack_err"))
+                try: driver.quit()
+                except Exception: pass
+                _encerrar_processo_discord(exe_name, processo)
                 break
             
             RewardsCore.update_ui("discord", "Processando Tarefas...", 80)

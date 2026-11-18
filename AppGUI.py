@@ -18,7 +18,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.6"
+APP_VERSION = "v3.2.7"
 APP_CODENAME = "Intelligent Bypass"
 
 def carregar_html_ui(nome_arquivo):
