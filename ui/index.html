@@ -335,9 +335,9 @@
                         <div class="update-content">
                             <h3 id="update-title">O que há de novo na [APP_VERSION]</h3>
                             <p>
-                               <span id="update-1">🧭 Navegacao estrita para a aba real de Missoes (/quest-home), sem cair em Solicitacoes de Mensagens.</span><br>
-                               <span id="update-2">🎬 Missoes de video reproduzidas 100% pelo player real da UI do Discord com varredura completa da lista.</span><br>
-                               <span id="update-3">🔄 Retentativa automatica de abertura (3x) + emulacao de foco via DevTools.</span>
+                               <span id="update-1">🔒 Trava diaria automatica do Bing (manual e startup) sem travar em caso de pausa/retomada.</span><br>
+                               <span id="update-2">☕ Pulo inteligente do Modo Cafe quando 50%+ das pesquisas ja estiverem concluidas.</span><br>
+                               <span id="update-3">🧹 Remocao do Chrono-Gating e modo Stealth (NORMAL ja garante o Bonus Bing Star maximo) + blindagem de DMs no Discord.</span>
                             </p>
                         </div>
                         <a href="https://github.com/FPGAMESBR/CoreNexusBot/releases" target="_blank" class="github-btn">
@@ -419,15 +419,6 @@
                                 <label id="label-global-quests" data-i18n="globalQuestsLabel">Enable Global Quests (Auto SOCKS5 Proxy)</label>
                                 <label class="switch"><input type="checkbox" id="cfg-global-quests"><span class="slider"></span></label>
                             </div>
-                            
-                            <div class="form-group" style="margin-top: 15px;">
-                                <label id="label-chrono" data-i18n="chrono_gating">Chrono-Gating (Extended Days)</label>
-                                <select id="cfg-extended-days" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none;">
-                                    <option value="n" data-i18n="opt_disabled">Disabled</option>
-                                    <option value="w" data-i18n="opt_weekends">Weekends Only</option>
-                                    <option value="a" data-i18n="opt_everyday">Everyday</option>
-                                </select>
-                            </div>
                         </div>
                         
                         <div class="card" style="grid-column: span 2;">
@@ -457,7 +448,6 @@
                                 <select id="cfg-speed-mode" onchange="updateSpeedDesc()" style="width: 100%; padding: 10px 12px; background-color: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; outline: none; font-weight: bold;">
                                     <option value="turbo" data-i18n="opt_speed_turbo">TURBO (Highest Risk, Max Speed)</option>
                                     <option value="normal" data-i18n="opt_speed_normal">NORMAL (Balanced Organic)</option>
-                                    <option value="stealth" data-i18n="opt_speed_stealth">STEALTH (Paranoid & Slow)</option>
                                 </select>
                             </div>
                             <p id="desc-speed-mode" style="font-size: 0.85em; color: var(--text-muted); line-height: 1.4; margin-bottom: 25px;"></p>
@@ -517,9 +507,9 @@
                 btn_run: "▶ Run Now",
                 btn_stop: "■ Stop Safely",
                 title: "What's new in [APP_VERSION]",
-                item1: "🧭 Strict navigation to Quests (/quest-home) avoiding false match with Message Requests.",
-                item2: "🎬 Video quests play via Discord's real UI player with full quest list scroll sweep.",
-                item3: "🔄 Automatic relaunch retry (3x) + DevTools focus emulation for background playback.",
+                item1: "🔒 Daily Bing lock (manual & startup) that preserves resume on interrupted runs.",
+                item2: "☕ Smart Coffee Mode auto-skip when 50%+ of daily searches are already completed.",
+                item3: "🧹 Removed legacy Chrono-Gating & Stealth mode + hardened Discord DM sidebar protection.",
                 btnGit: "View on GitHub",
                 active_profiles: "Active Profiles",
                 loading_profiles: "Loading profiles...",
@@ -536,10 +526,6 @@
                 do_discord: "Auto-Farm Discord Quests",
                 multi_account: "Enable Multi-Account Profile System",
                 globalQuestsLabel: "Force Global Quests (If region is unsupported)",
-                chrono_gating: "Chrono-Gating (Extended Days)",
-                opt_disabled: "Disabled",
-                opt_weekends: "Weekends Only",
-                opt_everyday: "Everyday",
                 integrations_automation: "Integrations & Automation",
                 language: "Language",
                 discord_webhook: "Discord Webhook URL (Notifications)",
@@ -548,10 +534,8 @@
                 speed_mode_title: "Engine Speed Mode",
                 opt_speed_turbo: "TURBO (Highest Risk, Max Speed)",
                 opt_speed_normal: "NORMAL (Balanced Organic)",
-                opt_speed_stealth: "STEALTH (Paranoid & Slow)",
                 speed_turbo_desc: "<b>TURBO:</b> Skips advanced interactions, coffee breaks, and typos. <b>Very fast, but elevates account risk.</b>",
-                speed_normal_desc: "<b>NORMAL:</b> Mimics an average user. Moderate browsing duration, executes Coffee Mode (organic breaks) and subtle typos.",
-                speed_stealth_desc: "<b>STEALTH:</b> Paranoid emulation. Reads links deeply and adds 5-12 phantom queries at boundaries to deflect telemetry.",
+                speed_normal_desc: "<b>NORMAL:</b> Mimics an average user. Moderate browsing duration, executes Coffee Mode (auto-skipped when 50%+ done) and subtle typos.",
                 startup_control_title: "Startup Control",
                 startup_control_desc: "Toggle invisible boot with OS.",
                 on: "WINDOWS STARTUP: ON",
@@ -570,9 +554,9 @@
                 btn_run: "▶ Iniciar Agora",
                 btn_stop: "■ Parar com Segurança",
                 title: "O que há de novo na [APP_VERSION]",
-                item1: "🧭 Navegacao exata para Missoes (/quest-home) sem abrir Solicitacoes de Mensagens.",
-                item2: "🎬 Videos executados 100% pelo player real da UI com varredura completa da lista.",
-                item3: "🔄 Retentativa automatica (3x) + emulacao de foco ativa via DevTools.",
+                item1: "🔒 Trava diaria automatica do Bing (manual e startup) preservando retomada em pausas.",
+                item2: "☕ Pulo automatico do Modo Cafe quando 50%+ das pesquisas ja estiverem concluidas.",
+                item3: "🧹 Remocao do Chrono-Gating e Stealth + blindagem extra da barra de DMs do Discord.",
                 btnGit: "Ver no GitHub",
                 active_profiles: "Perfis Ativos",
                 loading_profiles: "Carregando perfis...",
@@ -589,10 +573,6 @@
                 do_discord: "Auto-Farm Quests do Discord",
                 multi_account: "Ativar Sistema Multi-Contas",
                 globalQuestsLabel: "Forçar Quests Globais (Se sua região não suporta)",
-                chrono_gating: "Chrono-Gating (Dias Estendidos)",
-                opt_disabled: "Desativado",
-                opt_weekends: "Apenas Fins de Semana",
-                opt_everyday: "Todos os Dias",
                 integrations_automation: "Integrações e Automação",
                 language: "Idioma",
                 discord_webhook: "Webhook do Discord (Notificações)",
@@ -601,10 +581,8 @@
                 speed_mode_title: "Modo de Velocidade",
                 opt_speed_turbo: "TURBO (Mais Rápido / Maior Risco)",
                 opt_speed_normal: "NORMAL (Balanceado / Orgânico)",
-                opt_speed_stealth: "STEALTH (Lento e Paranóico)",
                 speed_turbo_desc: "<b>TURBO:</b> Ignora interações avançadas, pausas longas (Café) e erros de digitação. <b>Muito rápido, mas eleva o risco na conta.</b>",
-                speed_normal_desc: "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pausa orgânica) e comete alguns erros de digitação leves.",
-                speed_stealth_desc: "<b>STEALTH:</b> Simulação extrema e paranóica. Passa longos períodos lendo links e adiciona de 5 a 12 pesquisas fantasmas no limite para desviar telemetria.",
+                speed_normal_desc: "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pulado automaticamente com 50%+ já concluído) e comete erros de digitação leves.",
                 startup_control_title: "Inicialização com o Windows",
                 startup_control_desc: "Ativar/desativar inicialização invisível no boot do Windows.",
                 on: "INICIAR COM O WINDOWS (LIGADO)",
@@ -688,7 +666,7 @@
             if (nome) { abrirConta(nome); document.getElementById('new-account-name').value = ''; }
         }
 
-        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, quests_webhook, canal_lixo_url, lang, star_bonus, global_quests, extended_days, speed_mode) {
+        function popularConfig(pc, mob, headless, tasks, discord, multi, cooldown, webhook, quests_webhook, canal_lixo_url, lang, star_bonus, global_quests, speed_mode) {
             document.getElementById('cfg-pc').value = pc;
             document.getElementById('cfg-mob').value = mob;
             document.getElementById('cfg-headless').checked = (headless === 's');
@@ -701,8 +679,7 @@
             document.getElementById('cfg-quests-webhook').value = quests_webhook;
             document.getElementById('cfg-trash-channel').value = canal_lixo_url;
             document.getElementById('cfg-lang').value = lang || 'pt';
-            document.getElementById('cfg-extended-days').value = extended_days || 'n';
-            document.getElementById('cfg-speed-mode').value = speed_mode || 'normal';
+            document.getElementById('cfg-speed-mode').value = (speed_mode === 'turbo') ? 'turbo' : 'normal';
             updateSpeedDesc();
             
             currentLang = (lang === 'en') ? 'en' : 'pt';
@@ -790,7 +767,6 @@
                 quests_webhook: document.getElementById('cfg-quests-webhook').value,
                 canal_lixo_url: document.getElementById('cfg-trash-channel').value,
                 lang: document.getElementById('cfg-lang').value,
-                extended_days: document.getElementById('cfg-extended-days').value,
                 speed_mode: document.getElementById('cfg-speed-mode').value
             };
 
@@ -831,10 +807,8 @@
             const dict = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang]) ? TRANSLATIONS[currentLang] : (TRANSLATIONS['pt'] || {});
             if(mode === 'turbo') {
                 desc.innerHTML = dict.speed_turbo_desc || "<b>TURBO:</b> Ignora interações avançadas, pausas longas (Café) e erros de digitação. <b>Muito rápido, mas eleva o risco na conta.</b>";
-            } else if (mode === 'stealth') {
-                desc.innerHTML = dict.speed_stealth_desc || "<b>STEALTH:</b> Simulação extrema e paranóica. Passa longos períodos lendo links e adiciona de 5 a 12 pesquisas fantasmas no limite para desviar telemetria.";
             } else {
-                desc.innerHTML = dict.speed_normal_desc || "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pausa orgânica) e comete alguns erros de digitação leves.";
+                desc.innerHTML = dict.speed_normal_desc || "<b>NORMAL:</b> Simula um usuário comum. Tempo médio de navegação, executa o Modo Café (pulado automaticamente com 50%+ já concluído) e comete erros de digitação leves.";
             }
         }
         

@@ -18,7 +18,7 @@ import DiscordQuests
 from MiniPanel import GerenciadorBandeja, HTML_POPUP, MiniPanelAPI
 
 APP_NAME = "Reward Bot"
-APP_VERSION = "v3.2.7"
+APP_VERSION = "v3.2.8"
 APP_CODENAME = "Intelligent Bypass"
 
 def carregar_html_ui(nome_arquivo):
@@ -224,7 +224,7 @@ class BotAPI:
                 webview.windows[0].evaluate_js("switchTab('console', document.querySelectorAll('.nav-item')[0]);")
         except Exception:
             pass
-        self.log_ui("Initializing Stealth loop...", "info")
+        self.log_ui("Initializing engine loop...", "info")
         
         # Inicia o cronômetro no mini-painel da bandeja
         GerenciadorBandeja.iniciar_cronometro()
@@ -300,11 +300,20 @@ class BotAPI:
         try:
             self.bing_rodando = True
             self.log_ui("[BING] Módulo de tarefas e pesquisas iniciado...", "info")
+            if RewardsCore.verificar_se_rodou_hoje("rewards", dias_cooldown=1):
+                self.log_ui(RewardsCore.t("bing_ja_rodou_hoje"), "info")
+                RewardsCore.update_ui("bing", "Já concluído hoje", 100)
+                self.orquestrador.registrar_ticket_saida("bing", status="sucesso")
+                return
+
             RewardsCore.preparar_ambiente_adb()
-            RewardsCore.iniciar_ciclo_farm()
-            
-            RewardsCore.registrar_data_execucao("rewards")
-            self.log_ui("[BING] Farm diário de pesquisas e tarefas concluído com sucesso!", "success")
+            concluiu = RewardsCore.iniciar_ciclo_farm()
+
+            if concluiu and not RewardsCore.ABORTAR_PROCESSO:
+                RewardsCore.registrar_data_execucao("rewards")
+                self.log_ui("[BING] Farm diário de pesquisas e tarefas concluído com sucesso!", "success")
+            elif RewardsCore.ABORTAR_PROCESSO:
+                self.log_ui("[BING] Execução interrompida antes de concluir. Trava diária preservada para retomada.", "warning")
             self.orquestrador.registrar_ticket_saida("bing", status="sucesso")
         except Exception as e:
             self.log_ui(f"[BING] Erro fatal durante a execução: {e}", "error")
@@ -391,8 +400,8 @@ class BotAPI:
             canal_lixo_seguro = json.dumps(cfg.get('discord_trash_channel', ''))
             lang = cfg.get("language", "pt")
             
-            # Injeta o parâmetro cfg.get('discord_global_quests') no final da função JS
-            js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, {canal_lixo_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{cfg.get('extended_days', 'n')}', '{cfg.get('speed_mode', 'normal')}')"
+            speed_mode = "turbo" if str(cfg.get('speed_mode', 'normal')).lower() == "turbo" else "normal"
+            js_cmd = f"popularConfig({cfg.get('limite_pc', 30)}, {cfg.get('limite_mobile', 20)}, '{cfg.get('modo_oculto', 's')}', '{cfg.get('fazer_tarefas', 's')}', '{cfg.get('do_discord', 'n')}', '{cfg.get('multi_account', 'n')}', {cfg.get('discord_cooldown', 3)}, {webhook_seguro}, {quests_webhook_seguro}, {canal_lixo_seguro}, '{lang}', '{cfg.get('ms_new_tasks', 's')}', '{cfg.get('discord_global_quests', 'n')}', '{speed_mode}')"
             
             webview.windows[0].evaluate_js(js_cmd)
             estado_startup = self.obter_status_startup()
@@ -419,7 +428,8 @@ class BotAPI:
         cfg_atual['quests_webhook_url'] = dados_html.get('quests_webhook', '')
         cfg_atual['discord_trash_channel'] = dados_html.get('canal_lixo_url', '')
         
-        cfg_atual['speed_mode'] = dados_html.get('speed_mode', 'normal')
+        cfg_atual['speed_mode'] = 'turbo' if str(dados_html.get('speed_mode', 'normal')).lower() == 'turbo' else 'normal'
+        cfg_atual.pop('extended_days', None)
         cfg_atual['language'] = dados_html.get('lang', 'pt')
         if 'vpn_user' in cfg_atual: del cfg_atual['vpn_user']
         if 'vpn_pass' in cfg_atual: del cfg_atual['vpn_pass']

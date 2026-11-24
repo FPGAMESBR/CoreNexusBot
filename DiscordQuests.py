@@ -349,7 +349,9 @@ SCRIPT_JS = r"""
                 }
                 
                 // Fecha qualquer modal/popup de detalhes que possa abrir (ex: 'Jogos participantes' no Resident Evil)
-                let closeBtn = document.querySelector('[class*="modal"] [aria-label*="Fechar"], [class*="modal"] [aria-label*="Close"], [class*="modal"] button[class*="close"], [role="dialog"] [aria-label*="Fechar"], [role="dialog"] [aria-label*="Close"]');
+                // Nunca clica em botões de fechar dentro da barra de Mensagens Diretas (privateChannels)
+                let closeBtn = Array.from(document.querySelectorAll('[role="dialog"] button[aria-label="Fechar"], [role="dialog"] button[aria-label="Close"], [role="dialog"] button[class*="close"]'))
+                    .find(b => !b.closest('[class*="privateChannels"]'));
                 if (closeBtn) {
                     try { closeBtn.click(); } catch(e) {}
                 }
@@ -544,7 +546,8 @@ SCRIPT_JS = r"""
 
                 const closeNativeVideoModal = () => {
                     try {
-                        let closeBtns = document.querySelectorAll('button[data-testid="ad-video-modal-close-btn"], button[data-testid="video-quest-close-btn"], [role="dialog"] button[aria-label="Fechar"], [role="dialog"] button[aria-label="Close"]');
+                        let closeBtns = Array.from(document.querySelectorAll('button[data-testid="ad-video-modal-close-btn"], button[data-testid="video-quest-close-btn"], [role="dialog"] button[aria-label="Fechar"], [role="dialog"] button[aria-label="Close"]'))
+                            .filter(b => !b.closest('[class*="privateChannels"]'));
                         closeBtns.forEach(b => { try { b.click(); } catch(e) {} });
                         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
                     } catch(e) {}

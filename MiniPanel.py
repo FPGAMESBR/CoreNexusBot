@@ -42,9 +42,10 @@ class MiniPanelAPI:
         os._exit(0)
 
     def mudar_marcha(self, nova_marcha):
-        print(f"[SISTEMA] Marcha alterada para: {nova_marcha}")
-        RewardsCore.SPEED = nova_marcha
-        RewardsCore.LOGGER(f"[SISTEMA] ⚙️ Marcha alterada em tempo real para: {nova_marcha.upper()}", "warning")
+        marcha_segura = "turbo" if str(nova_marcha).lower() == "turbo" else "normal"
+        print(f"[SISTEMA] Marcha alterada para: {marcha_segura}")
+        RewardsCore.SPEED = marcha_segura
+        RewardsCore.LOGGER(f"[SISTEMA] ⚙️ Marcha alterada em tempo real para: {marcha_segura.upper()}", "warning")
 
 class SysTrayApp:
     def __init__(self):

@@ -62,8 +62,6 @@ def smart_sleep(base_min, base_max, cancelavel_por_turbo=False):
     else:
         if SPEED == "turbo":
             base *= 0.3
-        elif SPEED == "stealth":
-            base *= 2.5
         time.sleep(base)
 
 def gerar_banco_cognitivo():
@@ -322,7 +320,13 @@ def carregar_config():
                 padrao.update(dados_salvos)
         except Exception:
             pass
-            
+
+    padrao.pop("extended_days", None)
+    if str(padrao.get("speed_mode", "normal")).lower() != "turbo":
+        padrao["speed_mode"] = "normal"
+    else:
+        padrao["speed_mode"] = "turbo"
+
     return padrao
 
 try:
@@ -723,7 +727,8 @@ def limpar_todas_as_missoes(driver):
             
     LOGGER(f"\n[CHROME] --- Total de {missoes_feitas} missões concluídas com sucesso! ---")
 
-def verificar_pesquisas_restantes(driver, tipo):
+def obter_progresso_pesquisas(driver, tipo):
+    """Retorna (pesquisas_faltantes, pontos_atuais, pontos_totais) lidos do painel do Microsoft Rewards."""
     update_ui("bing", "Pesquisas Restantes...", 60)
     valor_ponto = 3 
     
@@ -739,7 +744,10 @@ def verificar_pesquisas_restantes(driver, tipo):
             time.sleep(random.uniform(5.0, 7.0))
             
             script_leitura = """
-            let termos = ["pesquisa do bing", "bing search", "pc search", "desktop search", "pesquisa no computador", "pesquisas no computador", "pesquisa móvel", "pesquisar no celular", "mobile search"];
+            const tipo = (arguments[0] || 'pc').toLowerCase();
+            const termosPc = ["pesquisa no computador", "pesquisas no computador", "pc search", "desktop search", "pesquisa do bing", "bing search"];
+            const termosMob = ["pesquisa móvel", "pesquisas móveis", "pesquisar no celular", "mobile search"];
+            const termos = (tipo === 'mobile') ? termosMob : termosPc;
             
             // 1. TENTA LER O PAINEL SE ELE JÁ ESTIVER ABERTO
             let containers = document.querySelectorAll('.wrap-anywhere, p, div');
@@ -756,9 +764,11 @@ def verificar_pesquisas_restantes(driver, tipo):
                 }
             }
             
-            // 2. FORÇA BRUTA (Ignora estrutura HTML e varre todo o texto da tela)
+            // 2. FORÇA BRUTA (Respeitando tipo PC vs Mobile)
             let allText = document.body.textContent.replace(/\\s+/g, " ");
-            let regexForcaBruta = /(?:Pesquisa do Bing|Bing search|Pesquisa no computador|PC search|Desktop search|Pesquisa m[óo]vel|Pesquisar no celular|Mobile search).{0,150}?(\\d+)\\s*\\/\\s*(\\d+)/i;
+            let regexForcaBruta = (tipo === 'mobile')
+                ? /(?:Pesquisa m[óo]vel|Pesquisas m[óo]veis|Pesquisar no celular|Mobile search).{0,150}?(\\d+)\\s*\\/\\s*(\\d+)/i
+                : /(?:Pesquisa no computador|Pesquisas no computador|PC search|Desktop search|Pesquisa do Bing|Bing search).{0,150}?(\\d+)\\s*\\/\\s*(\\d+)/i;
             let fallbackMatch = allText.match(regexForcaBruta);
             if (fallbackMatch && parseInt(fallbackMatch[2]) >= 15) {
                 return fallbackMatch[1] + "/" + fallbackMatch[2];
@@ -778,14 +788,14 @@ def verificar_pesquisas_restantes(driver, tipo):
             return null;
             """
             
-            resultado = driver.execute_script(script_leitura)
+            resultado = driver.execute_script(script_leitura, tipo)
             
             if resultado == "ABRIR_MENU":
                 # Espera a animação do menu lateral carregar na tela
                 time.sleep(3.0) 
                 
                 # Executa o script novamente! Como o menu já está aberto, a TENTATIVA 1 ou 2 vai capturar os pontos e encerrar.
-                resultado = driver.execute_script(script_leitura)
+                resultado = driver.execute_script(script_leitura, tipo)
                 
                 # Prevenção: se por algum motivo sobrenatural ele ainda pedir para abrir, nós abortamos e retornamos null.
                 if resultado == "ABRIR_MENU":
@@ -797,17 +807,22 @@ def verificar_pesquisas_restantes(driver, tipo):
                 
                 if faltam_pontos <= 0:
                     LOGGER(f"   {t('status_concluido').format(tipo.upper(), atual, total)}")
-                    return 0
+                    return 0, atual, total
                 
                 pesquisas_faltantes = faltam_pontos // valor_ponto
                 LOGGER(f"   {t('status_real').format(atual, total, pesquisas_faltantes)}")
-                return pesquisas_faltantes
+                return pesquisas_faltantes, atual, total
                 
         except Exception:
             continue 
             
     LOGGER(f"   {t('erro_contador')}")
-    return 20
+    return 20, None, None
+
+
+def verificar_pesquisas_restantes(driver, tipo):
+    faltam, _, _ = obter_progresso_pesquisas(driver, tipo)
+    return faltam
 
 def realizar_pesquisas(driver, num, banco):
     """Delega a execução de buscas para o BingStarEngine (evitando duplicação de lógica)"""
@@ -1320,21 +1335,27 @@ atexit.register(lambda: limpar_processos_zumbis(silencioso=True))
 
 
 def iniciar_ciclo_farm():
-    """Função central chamada pela GUI"""
+    """Função central chamada pela GUI. Retorna True somente se concluiu o ciclo diário sem aborto."""
     try:
+        if verificar_se_rodou_hoje("rewards", dias_cooldown=1):
+            LOGGER(t("bing_ja_rodou_hoje"), "info")
+            update_ui("bing", "Já concluído hoje", 100)
+            return False
+
         cfg = carregar_config()
         
         # CHECAGEM ADICIONADA: Se não tem limite_pc, limite_mobile e nem fazer_tarefas, não iniciar Bing
         if int(cfg.get('limite_pc', 0)) == 0 and int(cfg.get('limite_mobile', 0)) == 0 and cfg.get('fazer_tarefas', 'n') == 'n':
             LOGGER(t("bing_ignorado_limites_zerados"), "info")
             update_ui("bing", "Ignorado", 100)
-            return
+            return False
             
         banco = gerar_banco_cognitivo()
+        todas_contas_ok = bool(CONTAS_PARA_FARMAR)
         
         for index, perfil in enumerate(CONTAS_PARA_FARMAR):
             if ABORTAR_PROCESSO: 
-                break
+                return False
                 
             usar_proxy = False
             
@@ -1352,6 +1373,7 @@ def iniciar_ciclo_farm():
                 
                 if not ip_cel:
                     LOGGER(t('timeout_4g'))
+                    todas_contas_ok = False
                     break
                 
                 rotacionar_ip_celular()
@@ -1360,11 +1382,17 @@ def iniciar_ciclo_farm():
                 
             # ===== O SELETOR DE MOTOR ALINHADO AQUI DENTRO DO FOR =====
             import BingStarEngine
-            BingStarEngine.iniciar_ciclo_star_bonus(perfil, cfg, banco, usar_proxy)
+            conta_ok = BingStarEngine.iniciar_ciclo_star_bonus(perfil, cfg, banco, usar_proxy)
+            if not conta_ok:
+                todas_contas_ok = False
             # ===========================================================
             
+        if ABORTAR_PROCESSO:
+            return False
+
         limpar_excesso_historico()
         update_ui("bing", "Concluído!", 100)
+        return todas_contas_ok
         
     except Exception as e:
         # GERADOR DE CRASH LOG (A "Caixa Preta")
@@ -1381,6 +1409,7 @@ def iniciar_ciclo_farm():
         LOGGER(t('crash_log').format(log_path.name), "error")
         alerta_sos = t('crash_sos').format(log_path.name, str(e)[:150])
         enviar_notificacao(alerta_sos)
+        return False
     
 def registrar_data_execucao(modulo):
     arquivo = BASE_DIR / "Exe.json"

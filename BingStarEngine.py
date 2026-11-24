@@ -36,7 +36,7 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
             LOGGER(f"   [STAR ENGINE] ({i+1}/{qtd}) [{tipo_device.upper()}] {termo_final}")
             salvar_historico(termo_base)
             
-            # Limpeza ocasional de cache no modo stealth
+            # Limpeza ocasional de cache durante navegação orgânica
             if (i + 1) % 8 == 0 and random.random() < 0.15:
                 try: driver.execute_script("window.localStorage.clear();")
                 except Exception: pass
@@ -101,7 +101,6 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
                     for l in termo_final:
                         sb.send_keys(l)
                         if RewardsCore.SPEED == "turbo": time.sleep(random.uniform(0.01, 0.02))
-                        elif RewardsCore.SPEED == "stealth": time.sleep(random.uniform(0.08, 0.14))
                         else: time.sleep(random.uniform(0.04, 0.08))
                         
                     wait_human(0.6, 1.8, long_pause_chance=0.0)
@@ -125,8 +124,6 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
             # Cooldown inteligente entre pesquisas para registro de telemetria
             if RewardsCore.SPEED == "turbo":
                 time.sleep(random.uniform(4.0, 7.0))
-            elif RewardsCore.SPEED == "stealth":
-                RewardsCore.smart_sleep(14.0, 26.0)
             else:
                 RewardsCore.smart_sleep(7.0, 14.0)
                 
@@ -138,8 +135,7 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
                     wait_human(2.0, 4.0, long_pause_chance=0.05)
                     
                     links = driver.find_elements(By.CSS_SELECTOR, "h2 a, .b_algo h2 a")
-                    chance_clique = 0.70 if RewardsCore.SPEED == "stealth" else 0.30
-                    if links and random.random() < chance_clique: 
+                    if links and random.random() < 0.30: 
                         alvo_clique = random.choice(links[:3])
                         janelas_antes = driver.window_handles 
                         ActionChains(driver).move_to_element(alvo_clique).pause(random.uniform(0.6, 1.2)).click().perform()
@@ -150,13 +146,11 @@ def _fazer_lote_pesquisas(driver, qtd, banco, tipo_device="pc"):
                             nova_aba = [j for j in janelas_depois if j not in janelas_antes][0]
                             principal = driver.current_window_handle
                             driver.switch_to.window(nova_aba)
-                            if RewardsCore.SPEED == "stealth": RewardsCore.smart_sleep(20.0, 40.0)
-                            else: wait_human(8.0, 18.0, long_pause_chance=0.2)
+                            wait_human(8.0, 18.0, long_pause_chance=0.2)
                             driver.close()
                             driver.switch_to.window(principal) 
                         else:
-                            if RewardsCore.SPEED == "stealth": RewardsCore.smart_sleep(15.0, 30.0)
-                            else: wait_human(8.0, 16.0, long_pause_chance=0.2)
+                            wait_human(8.0, 16.0, long_pause_chance=0.2)
                             driver.back() 
                     else:
                         if random.random() > 0.4:
@@ -235,70 +229,119 @@ def _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy):
         time.sleep(4) # FOLGA PARA O WINDOWS" LIMPAR A RAM ANTES" DO PR"XIMO CHUNK
 
 
-def check_extended_days(cfg):
-    from datetime import datetime
-    ext = cfg.get('extended_days', 'n')
-    if ext == 'a':
-        return True
-    if ext == 'w' and datetime.now().weekday() >= 5:
-        return True
-    return False
+def _planejar_acoes_star_bonus(cfg, speed):
+    """Organiza blocos aleatoriamente garantindo que o Modo Café só ocorra entre a 1ª e a 2ª metade das pesquisas."""
+    primeira_metade = []
+    segunda_metade = []
+
+    if int(cfg.get('limite_pc', 0)) > 0:
+        primeira_metade.append("PC_CHUNK")
+        if speed != "turbo":
+            segunda_metade.append("PC_CHUNK")
+
+    if int(cfg.get('limite_mobile', 0)) > 0:
+        primeira_metade.append("MOB_CHUNK")
+        if speed != "turbo":
+            segunda_metade.append("MOB_CHUNK")
+
+    random.shuffle(primeira_metade)
+    random.shuffle(segunda_metade)
+
+    acoes = list(primeira_metade)
+    if speed != "turbo" and segunda_metade:
+        acoes.append("MODO_CAFE")
+        acoes.extend(segunda_metade)
+
+    if cfg.get('fazer_tarefas', 'n') == 's':
+        if not acoes:
+            acoes.append("TAREFAS_DASHBOARD")
+        else:
+            pos = random.randint(0, len(acoes))
+            acoes.insert(pos, "TAREFAS_DASHBOARD")
+
+    return acoes
+
+
+def deve_pular_modo_cafe(progresso_inicial_por_tipo, pc_chunks_pendentes, mob_chunks_pendentes, speed, limiar_progresso=0.50):
+    """Decide se o Modo Café deve ser pulado (Turbo, progresso inicial >= 50%, ou sem pesquisas restantes)."""
+    if speed == "turbo":
+        return True, "turbo", 0.0
+
+    validos = [
+        (atual, total)
+        for atual, total in progresso_inicial_por_tipo.values()
+        if atual is not None and total is not None and total > 0
+    ]
+    if validos:
+        soma_atual = sum(a for a, _ in validos)
+        soma_total = sum(tot for _, tot in validos)
+        ratio = soma_atual / soma_total if soma_total > 0 else 0.0
+        if ratio >= 1.0:
+            return True, "sem_pesquisas", ratio
+        if ratio >= limiar_progresso:
+            return True, "progresso_alto", ratio
+
+    if pc_chunks_pendentes <= 0 and mob_chunks_pendentes <= 0:
+        return True, "sem_pesquisas", 1.0
+
+    return False, None, 0.0
+
 
 def iniciar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
-    if RewardsCore.ABORTAR_PROCESSO: return
-    _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy)
+    if RewardsCore.ABORTAR_PROCESSO:
+        return False
+    return _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy)
+
 
 def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
-    if RewardsCore.ABORTAR_PROCESSO: return
+    if RewardsCore.ABORTAR_PROCESSO:
+        return False
 
     RewardsCore.update_ui("bing", f"Preparando {nome_perfil}...", 10)
     LOGGER("======================================================")
     LOGGER(f">>> [BING STAR ENGINE] INICIANDO MODO CAOS: {nome_perfil} <<<")
     LOGGER("======================================================")
     
-    acoes = []
-    if cfg.get('fazer_tarefas', 'n') == 's':
-        acoes.append("TAREFAS_DASHBOARD")
-        
-    if cfg.get('limite_pc', 0) > 0:
-        if RewardsCore.SPEED == "turbo":
-            acoes.append("PC_CHUNK")
-        else:
-            acoes.extend(["PC_CHUNK", "PC_CHUNK"])
-        
-    if cfg.get('limite_mobile', 0) > 0:
-        if RewardsCore.SPEED == "turbo":
-            acoes.append("MOB_CHUNK")
-        else:
-            acoes.extend(["MOB_CHUNK", "MOB_CHUNK"])
-        
-    if RewardsCore.SPEED != "turbo" and (cfg.get('limite_pc', 0) > 0 or cfg.get('limite_mobile', 0) > 0):
-        acoes.append("MODO_CAFE")
-        
-    random.shuffle(acoes)
-        
-    if "MODO_CAFE" in acoes and len(acoes) > 1:
-        if acoes[0] == "MODO_CAFE":
-            acoes[0], acoes[1] = acoes[1], acoes[0]
-        if acoes[-1] == "MODO_CAFE":
-            acoes[-1], acoes[-2] = acoes[-2], acoes[-1]
+    acoes = _planejar_acoes_star_bonus(cfg, RewardsCore.SPEED)
 
     pc_chunks_restantes = acoes.count("PC_CHUNK")
     mob_chunks_restantes = acoes.count("MOB_CHUNK")
+    progresso_inicial_por_tipo = {}
+    pc_concluido_sessao = False
+    mob_concluido_sessao = False
+    houve_acao_ok = False
+    houve_falha = False
     
     RewardsCore.update_ui("bing", "Pesquisas...", 50)
 
     for i, acao in enumerate(acoes):
-        if RewardsCore.ABORTAR_PROCESSO: break
-        LOGGER(f"[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
-        
-        if acao == "MODO_CAFE" and RewardsCore.SPEED == "turbo":
-            LOGGER(t("star_turbo_ativado"), "warning")
+        if RewardsCore.ABORTAR_PROCESSO:
+            return False
+
+        if acao == "PC_CHUNK" and pc_concluido_sessao:
+            pc_chunks_restantes = max(0, pc_chunks_restantes - 1)
             continue
-            
-        if check_extended_days(cfg) and i < len(acoes) - 1 and RewardsCore.SPEED != "turbo":
-            LOGGER(t("star_chrono_gating"), "info")
-            RewardsCore.smart_sleep(3600.0, 10800.0, cancelavel_por_turbo=True)
+
+        if acao == "MOB_CHUNK" and mob_concluido_sessao:
+            mob_chunks_restantes = max(0, mob_chunks_restantes - 1)
+            continue
+
+        if acao == "MODO_CAFE":
+            pc_pend = 0 if pc_concluido_sessao else pc_chunks_restantes
+            mob_pend = 0 if mob_concluido_sessao else mob_chunks_restantes
+            pular, motivo, ratio = deve_pular_modo_cafe(
+                progresso_inicial_por_tipo, pc_pend, mob_pend, RewardsCore.SPEED
+            )
+            if pular:
+                if motivo == "turbo":
+                    LOGGER(t("star_turbo_ativado"), "warning")
+                elif motivo == "progresso_alto":
+                    LOGGER(t("star_cafe_pulado_progresso").format(int(round(ratio * 100))), "info")
+                else:
+                    LOGGER(t("star_cafe_pulado_sem_pesquisas"), "info")
+                continue
+
+        LOGGER(f"[STAR ENGINE] ---> EXECUTANDO AÇÃO {i+1}/{len(acoes)}: [{acao}] <---", "warning")
         
         if acao == "TAREFAS_DASHBOARD":
             d_task = None
@@ -310,19 +353,22 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                     
                 d_task.get("https://rewards.bing.com/")
                 time.sleep(5)
-                if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil): return 
+                if RewardsCore.verificar_conta_suspensa(d_task, nome_perfil):
+                    return False
                 RewardsCore.limpar_todas_as_missoes(d_task)
                 try: 
                     RewardsCore.fazer_pesquisa_visual(d_task)
                 except Exception as e:
                     LOGGER(f"[STAR ENGINE] Aviso Pesquisa Visual: {e}", "warning")
+                houve_acao_ok = True
             except Exception as e:
+                houve_falha = True
                 LOGGER(f"[STAR ENGINE] Falha nas tarefas do Dashboard: {e}", "error")
             finally:
                 if d_task: 
                     try: d_task.quit()
                     except Exception: pass
-                time.sleep(5) # APENAS" FOLGA, SEM TASKKILL
+                time.sleep(5) # APENAS FOLGA, SEM TASKKILL
                 
         elif acao == "PC_CHUNK":
             d_pc = None
@@ -331,15 +377,34 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 d_pc = RewardsCore.configurar_driver(nome_perfil, 'pc', cfg['modo_oculto'], identidade_pc, usar_proxy=usar_proxy)
                 
                 if d_pc is None: raise Exception("Driver Nulo.")
-                faltam = RewardsCore.verificar_pesquisas_restantes(d_pc, 'pc')
-                if RewardsCore.SPEED == "stealth" and faltam > 0:
-                    faltam += random.randint(5, 12)
+                faltam, atual_pts, total_pts = RewardsCore.obter_progresso_pesquisas(d_pc, 'pc')
+                if atual_pts is None:
+                    faltam = int(cfg.get('limite_pc', 20))
+                elif 'pc' not in progresso_inicial_por_tipo and total_pts:
+                    progresso_inicial_por_tipo['pc'] = (atual_pts, total_pts)
+
+                progresso_pc_alto = (
+                    'pc' in progresso_inicial_por_tipo
+                    and progresso_inicial_por_tipo['pc'][1] > 0
+                    and (progresso_inicial_por_tipo['pc'][0] / progresso_inicial_por_tipo['pc'][1]) >= 0.50
+                )
+
                 if faltam > 0:
-                    qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6)) if pc_chunks_restantes > 1 else faltam
-                    if qtd > 0: _fazer_lote_pesquisas(d_pc, qtd, banco, "pc")
-                else: LOGGER(t("star_meta_pc_atingida"), "success")
-                pc_chunks_restantes -= 1
+                    if pc_chunks_restantes > 1 and not progresso_pc_alto:
+                        qtd = random.randint(max(1, int(faltam * 0.4)), max(1, int(faltam * 0.6)))
+                    else:
+                        qtd = faltam
+                    if qtd > 0:
+                        _fazer_lote_pesquisas(d_pc, qtd, banco, "pc")
+                    if qtd >= faltam and not RewardsCore.ABORTAR_PROCESSO:
+                        pc_concluido_sessao = True
+                else:
+                    LOGGER(t("star_meta_pc_atingida"), "success")
+                    pc_concluido_sessao = True
+                pc_chunks_restantes = max(0, pc_chunks_restantes - 1)
+                houve_acao_ok = True
             except Exception as e:
+                houve_falha = True
                 LOGGER(f"[STAR ENGINE] Falha no Bloco PC: {e}", "error")
             finally:
                 if d_pc: 
@@ -354,16 +419,34 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
                 d_mob = RewardsCore.configurar_driver(nome_perfil, 'mobile', cfg['modo_oculto'], identidade_mob, usar_proxy=usar_proxy)
                 
                 if d_mob is None: raise Exception("Driver Nulo.")
-                faltam = RewardsCore.verificar_pesquisas_restantes(d_mob, 'mobile')
-                if faltam == -1: faltam = cfg.get('limite_mobile', 20)
-                if RewardsCore.SPEED == "stealth" and faltam > 0:
-                    faltam += random.randint(5, 12)
+                faltam, atual_pts, total_pts = RewardsCore.obter_progresso_pesquisas(d_mob, 'mobile')
+                if atual_pts is None:
+                    faltam = int(cfg.get('limite_mobile', 20))
+                elif 'mobile' not in progresso_inicial_por_tipo and total_pts:
+                    progresso_inicial_por_tipo['mobile'] = (atual_pts, total_pts)
+
+                progresso_mob_alto = (
+                    'mobile' in progresso_inicial_por_tipo
+                    and progresso_inicial_por_tipo['mobile'][1] > 0
+                    and (progresso_inicial_por_tipo['mobile'][0] / progresso_inicial_por_tipo['mobile'][1]) >= 0.50
+                )
+
                 if faltam > 0:
-                    qtd = random.randint(int(faltam * 0.4), int(faltam * 0.6)) if mob_chunks_restantes > 1 else faltam
-                    if qtd > 0: _fazer_lote_pesquisas(d_mob, qtd, banco, "mobile")
-                else: LOGGER(t("star_meta_mob_atingida"), "success")
-                mob_chunks_restantes -= 1
+                    if mob_chunks_restantes > 1 and not progresso_mob_alto:
+                        qtd = random.randint(max(1, int(faltam * 0.4)), max(1, int(faltam * 0.6)))
+                    else:
+                        qtd = faltam
+                    if qtd > 0:
+                        _fazer_lote_pesquisas(d_mob, qtd, banco, "mobile")
+                    if qtd >= faltam and not RewardsCore.ABORTAR_PROCESSO:
+                        mob_concluido_sessao = True
+                else:
+                    LOGGER(t("star_meta_mob_atingida"), "success")
+                    mob_concluido_sessao = True
+                mob_chunks_restantes = max(0, mob_chunks_restantes - 1)
+                houve_acao_ok = True
             except Exception as e:
+                houve_falha = True
                 LOGGER(f"[STAR ENGINE] Falha no Bloco Mobile: {e}", "error")
             finally:
                 if d_mob: 
@@ -374,6 +457,10 @@ def _executar_ciclo_star_bonus(nome_perfil, cfg, banco, usar_proxy):
         elif acao == "MODO_CAFE":
             _pausa_do_cafe_organica(nome_perfil, cfg, usar_proxy)
 
+    if RewardsCore.ABORTAR_PROCESSO:
+        return False
+
     hora_atual = time.strftime("%H:%M:%S")
     RewardsCore.update_ui("bing", "Concluído!", 100)
     LOGGER(f"[STAR ENGINE] >>> SUCESSO ABSOLUTO! Conta {nome_perfil} blindada e farmada. ({hora_atual})", "success")
+    return houve_acao_ok and not houve_falha
